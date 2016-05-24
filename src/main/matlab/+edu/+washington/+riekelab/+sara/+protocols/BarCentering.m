@@ -2,9 +2,9 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
   properties
     amp
-    preTime = 500
-    stimTime = 500
-    tailTime = 500
+    preTime = 200
+    stimTime = 250
+    tailTime = 50
     orientationClass = 'horizontal'
     % randomOrder = false
     positions = [-0.8:0.2:0.8] % %screen from the center [-1 1]
@@ -13,9 +13,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     barColor = 1
     backgroundIntensity = 0.5
     onlineAnalysis = 'none'
-    %numberOfStimuli = uint16(5)       % number of times bar is presented
-    numberOfAverages = uint16(5)       % number of epochs
-    %interpulseInterval = 0.5          % Duration between epochs (s)
+    numberOfAverages = uint16(5)
     %ndf = 4.0                      % NDF wheel - deal with after mike's updates
   end
 
@@ -26,18 +24,12 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     orientation
     positionArray
     currentPosition
+    protocolUsed
     position
     numberOfTrials
-    orientedBarSize
     intensity
-    protocolUsed
-    % if using RiekeLabStageProtocol, uncomment these!
-    %canvasSize
-    %frameRate
     correctedIntensity
     correctedMean
-    % if using RiekeLabStageProtocol for LCR, uncomment this too:
-     % stageClass
   end
 
   properties (Hidden, Transient)
@@ -74,8 +66,8 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
       obj.intensity = obj.barColor;
       obj.correctedIntensity = obj.intensity * 255;
     else
-      % obj.intensity = [obj.barColor obj.barColor obj.barColor];
-      % color settings
+      % color settings?
+      obj.intensity = obj.barColor;
     end
     obj.correctedMean = obj.backgroundIntensity * 255;
 
@@ -99,31 +91,10 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
     Bar = stage.builtin.stimuli.Rectangle();
     Bar.size = obj.barSize;
-    %Bar.orientation = obj.orientation;
-    if strcmpi(obj.orientationClass,'vertical')
-      obj.orientation = 0; Bar.orientation = obj.orientation;
-%      if obj.barSize(1) > obj.barSize(2)
-%        Bar.size = obj.barSize;
-%      else
-%        Bar.size = fliplr(obj.barSize);
-%      end
-    elseif strcmpi(obj.orientationClass,'horizontal')
-      obj.orientation = 90; Bar.orientation = obj.orientation;
-%      if obj.barSize(2) > obj.barSize(1)
-%        Bar.size = obj.barSize;
-%        display(Bar.size, 'not flipped in createPresentation')
-%      else
-%        obj.barSize = fliplr(obj.barSize);
-%        display(Bar.size, 'flipped in createPresentation');
-%      end
-    %else % deal with both later.. or just delete
-    %  Bar.orientation = obj.orientation;
-    end
-    Bar.position = obj.position;
     Bar.orientation = obj.orientation;
-
+    Bar.position = obj.position;
     Bar.color = obj.barColor;
-    Bar.opacity = 1;
+    % Bar.opacity = 1;  <-- how is this different from setting intensity?
 
     % add stimulus to the presentation
     p.addStimulus(Bar);
@@ -134,22 +105,6 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
   end
 
   function setBarPosition(obj)
-    switch obj.orientationClass
-    case 'vertical'
-      obj.orientation = 0;
-    %  if obj.barSize(1) > obj.barSize(2)
-    %    Bar.size = obj.barSize;
-    %  else
-    %    Bar.size = fliplr(obj.barSize);
-    %  end
-    case 'horizontal'
-      obj.orientation = 90;
-    %  if obj.barSize(2) > obj.barSize(1)
-    %    Bar.size = obj.barSize;
-    %  else
-    %    Bar.size = fliplr(obj.barSize);
-    %  end
-    end
     if obj.orientation == 0
         Xpos = obj.canvasSize(1)/2;
         Ypos = ((obj.canvasSize(2)/2) + obj.centerOffset(2)) + ((obj.canvasSize(2)/2)*obj.currentPosition);
@@ -174,13 +129,6 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
       nn = n + double(obj.numberOfAverages); nn = nn - 1;
       obj.positionArray(1,n:nn) = obj.positions(ii);
     end
-
-    % not sure if we need random order but i left it in just in case
-    %if (obj.randomOrder)
-     % epochSyntax = randperm(obj.numberOfAverages);
-    %else
-     epochSyntax = 1:obj.numberOfAverages;
-    %end
   end
 
   function prepareEpoch(obj, epoch)
@@ -198,11 +146,12 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
       obj.orientation = 0;
     case 'horizontal'
       obj.orientation = 90;
+      display(obj.orientation,'prepareEpoch');
     case 'both'
       if obj.numEpochsCompleted > obj.numberOfTrials/2
         obj.orientation = 90;
       else
-          obj.orientation = 0;
+        obj.orientation = 0;
       end
     end
 
