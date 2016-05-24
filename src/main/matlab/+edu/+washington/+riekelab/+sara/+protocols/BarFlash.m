@@ -1,21 +1,22 @@
-classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
-    % add in .manookin before protocols later
+classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
   properties
     amp
     preTime = 500
-    stimTime = 500
+    stimTime = 1500
     tailTime = 500
     orientationClass = 'both'
-    positions = 0
+    % randomOrder = false
+    positions = -0.2:0.1:0.2          % percent screen from the center [-1 1]
     centerOffset = [0,0]
-    barSize = [300, 100]
+    barSize = [1000, 200]
     barColor = 1
     backgroundIntensity = 0.5
     onlineAnalysis = 'none'
     %numberOfStimuli = uint16(5)       % number of times bar is presented
     numberOfAverages = uint16(5)       % number of epochs
     %interpulseInterval = 0.5          % Duration between epochs (s)
+    %ndf = 4.0                         % NDF wheel - deal with after mike's updates
   end
 
   properties (Hidden)
@@ -24,16 +25,18 @@ classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
     orientationClassType = symphonyui.core.PropertyType('char', 'row', {'both', 'vertical', 'horizontal'})
     orientation
     positionArray
+    currentPosition
     position
+    numberOfTrials
     intensity
     protocolUsed
     % if using RiekeLabStageProtocol, uncomment these!
-    canvasSize
-    frameRate
+    %canvasSize
+    %frameRate
     correctedIntensity
     correctedMean
     % if using RiekeLabStageProtocol for LCR, uncomment this too:
-      stageClass
+     % stageClass
   end
 
   properties (Hidden, Transient)
@@ -49,15 +52,14 @@ classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
 
   function prepareRun(obj)
     % having some troubles getting ManookinLabStageProtocol to work
-    obj.protocolUsed = 'rieke';  % other option is 'manookin', 'rieke_LCR'
+    obj.protocolUsed = 'manookin';  % options:'rieke', 'manookin', 'rieke_LCR'
 
-    if ~strcmpi(obj.protocolUsed,'manookin')
+    if strcmpi(obj.protocolUsed,'manookin')
+     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    else
      prepareRun@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
     end
 
-    if strcmpi(obj.protocolUsed,'manookin')
-     prepareRun@edu.washington.riekelab.protocols.ManookinLabStageProtocol(obj);
-    end
 
     if strcmpi(obj.protocolUsed,'rieke_LCR')
       % get frame rate. need to check if it's a LCR rig.
@@ -101,22 +103,32 @@ classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
 
     rect = stage.builtin.stimuli.Rectangle();
     rect.size = obj.barSize;
-    rect.orientation = obj.orientation;
-    if length(obj.positions) == 1
-      if obj.positions == 0
+    %rect.orientation = obj.orientation;
+    if length(obj.positions) == 1 && obj.positions == 0
+      if ~strcmpi(obj.orientationClass,'both')
+          obj.position = rect.position;
         rect.position = obj.canvasSize/2 + obj.centerOffset;
       end
-    else
-      if strcmpi(obj.orientation,'vertical')
-        Xpos = 0;
-        Ypos = obj.centerOffset(2) + ((obj.canvasSize/2)*obj.position);
-      elseif strcmpi(obj.orientation,'horizontal')
-        Ypos = 0;
-        Xpos = obj.centerOffset(1) + ((obj.canvasSize/2)*obj.position);
+      if strcmpi(obj.orientationClass,'vertical')
+          obj.orientation = 0; rect.orientation = obj.orientation;
+      elseif strcmpi(obj.orientationClass,'horizontal')
+          obj.orientation = 180; rect.orientation = obj.orientation;
       end
-      rect.position = [Xpos,Ypos]; display(rect.position);
+    else
+     % if strcmpi(obj.orientation,'vertical')
+      %  Xpos = 0;
+       % Ypos = obj.centerOffset(2) + ((obj.canvasSize/2)*obj.position);
+      %elseif strcmpi(obj.orientation,'horizontal')
+       % Ypos = 0;
+        %Xpos = obj.centerOffset(1) + ((obj.canvasSize/2)*obj.position);
+       % obj.setBarPosition();
+      %end
+      %rect.position = [Xpos,Ypos]; display(rect.position);
+      rect.position = obj.position;
     end
-    obj.position = rect.position;
+    % rect.position = obj.position;
+
+    % obj.position = rect.position;
     rect.color = obj.barColor;
     rect.opacity = 1;
 
@@ -130,36 +142,36 @@ classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
 
   function setBarPosition(obj)
     if obj.orientation == 0
-        Xpos = 0;
-        Ypos = obj.centerOffset(2) + ((obj.canvasSize/2)*obj.position);
+        Xpos = obj.canvasSize(1)/2;
+        Ypos = ((obj.canvasSize(2)/2) + obj.centerOffset(2)) + ((obj.canvasSize(2)/2)*obj.currentPosition);
     elseif obj.orientation == 180
-        Ypos = 0;
-        Xpos = obj.centerOffset(1) + ((obj.canvasSize/2)*obj.position);
+        Ypos = obj.cavasSize(2)/2;
+        Xpos = ((obj.canvasSize(1)/2) + obj.centerOffset(1)) + ((obj.canvasSize(1)/2)*obj.currentPosition);
     end
+    obj.position = [Xpos Ypos];
   end
 
 
   function organizeParameters(obj)
     % create the array of bar positions
-    numberOfTrials = double(obj.numberOfAverages)* length(obj.positions);
+    obj.numberOfTrials = double(obj.numberOfAverages)* length(obj.positions);
     if strcmpi(obj.orientationClass,'both')
-      numberOfTrials = numberOfTrials*2;
+      obj.numberOfTrials = obj.numberOfTrials*2;
     end
-    positionArray = zeros(1,numberOfTrials);
+    obj.positionArray = zeros(1,obj.numberOfTrials);
 
     for ii = 1:length(obj.positions)
       n = (ii-1) * double(obj.numberOfAverages); n = n + 1;
       nn = n + double(obj.numberOfAverages); nn = nn - 1;
-      positionArray(1,n:nn) = obj.positions(ii);
+      obj.positionArray(1,n:nn) = obj.positions(ii);
     end
-
 
     % not sure if we need random order but i left it in just in case
-    if (obj.randomOrder)
-      epochSyntax = randperm(obj.numberOfAverages);
-    else
-      epochSyntax = 1:obj.numberOfAverages;
-    end
+    %if (obj.randomOrder)
+     % epochSyntax = randperm(obj.numberOfAverages);
+    %else
+     epochSyntax = 1:obj.numberOfAverages;
+    %end
   end
 
   function prepareEpoch(obj, epoch)
@@ -170,7 +182,7 @@ classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
     epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
     epoch.addResponse(device);
 
-    obj.position = obj.positions(obj.numEpochsCompleted+1);
+    obj.currentPosition = obj.positionArray(obj.numEpochsCompleted+1);
 
     switch obj.orientationClass
     case 'vertical'
@@ -178,14 +190,17 @@ classdef BarFlash < edu.washington.riekelab.protocols.RiekeLabStageProtocol
     case 'horizontal'
       obj.orientation = 180;
     case 'both'
-      if obj.numEpochsCompleted >
-    if strcmpi(obj.orientationClass,'both')
-
+      if obj.numEpochsCompleted > obj.numberOfTrials/2
+        obj.orientation = 180;
+      else
+          obj.orientation = 0;
+      end
     end
 
-    obj.setPosition();
+    obj.setBarPosition();
 
-    epoch.addParameter('position', obj.position)
+    epoch.addParameter('position', obj.position);
+    epoch.addParameter('orientation', obj.orientation);
   end
 
 
