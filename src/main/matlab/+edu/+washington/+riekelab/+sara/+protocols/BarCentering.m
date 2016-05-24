@@ -1,15 +1,15 @@
-classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
   properties
     amp
     preTime = 500
-    stimTime = 1500
+    stimTime = 500
     tailTime = 500
-    orientationClass = 'both'
+    orientationClass = 'vertical'
     % randomOrder = false
-    positions = -0.2:0.1:0.2          % percent screen from the center [-1 1]
+    positions = [-0.9:0.1:0.9] % %screen from the center [-1 1]
     centerOffset = [0,0]
-    barSize = [1000, 200]
+    barSize = [1000, 50]
     barColor = 1
     backgroundIntensity = 0.5
     onlineAnalysis = 'none'
@@ -28,6 +28,7 @@ classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageP
     currentPosition
     position
     numberOfTrials
+    orientedBarSize
     intensity
     protocolUsed
     % if using RiekeLabStageProtocol, uncomment these!
@@ -58,16 +59,15 @@ classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageP
      prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
     else
      prepareRun@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
-    end
-
-
-    if strcmpi(obj.protocolUsed,'rieke_LCR')
-      % get frame rate. need to check if it's a LCR rig.
-      if ~isempty(strfind(obj.rig.getDevice('Stage').name,'LightCrafter'))
-        obj.frameRate = obj.rig.getDevice('Stage').getPatternRate();
-      else
-        obj.frameRate = obj.rig.getDevice('Stage').getMonitorRefreshRate();
-      end
+     obj.canvasSize = obj.rig.getDevice('Stage')
+     if strcmpi(obj.protocolUsed,'rieke_LCR')
+       % get frame rate. need to check if it's a LCR rig.
+       if ~isempty(strfind(obj.rig.getDevice('Stage').name,'LightCrafter'))
+         obj.frameRate = obj.rig.getDevice('Stage').getPatternRate();
+       else
+         obj.frameRate = obj.rig.getDevice('Stage').getMonitorRefreshRate();
+       end
+     end
     end
 
     if length(obj.barColor) == 1
@@ -78,10 +78,6 @@ classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageP
       % color settings
     end
     obj.correctedMean = obj.backgroundIntensity * 255;
-
-    if ~strcmpi(obj.protocolUsed,'manookin')
-      obj.canvasSize = obj.rig.getDevice('Stage')
-    end
 
     obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
@@ -101,51 +97,61 @@ classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageP
     p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
     p.setBackgroundColor(obj.backgroundIntensity);
 
-    rect = stage.builtin.stimuli.Rectangle();
-    rect.size = obj.barSize;
-    %rect.orientation = obj.orientation;
-    if length(obj.positions) == 1 && obj.positions == 0
-      if ~strcmpi(obj.orientationClass,'both')
-          obj.position = rect.position;
-        rect.position = obj.canvasSize/2 + obj.centerOffset;
+    Bar = stage.builtin.stimuli.Rectangle();
+    Bar.size = obj.barSize;
+    %Bar.orientation = obj.orientation;
+    if strcmpi(obj.orientationClass,'vertical')
+      obj.orientation = 0; Bar.orientation = obj.orientation;
+%      if obj.barSize(1) > obj.barSize(2)
+%        Bar.size = obj.barSize;
+%      else
+%        Bar.size = fliplr(obj.barSize);
+%      end
+    elseif strcmpi(obj.orientationClass,'horizontal')
+      obj.orientation = 180; Bar.orientation = obj.orientation;
+      if obj.barSize(2) > obj.barSize(1)
+        Bar.size = obj.barSize;
+      else
+        Bar.size = fliplr(obj.barSize);
       end
-      if strcmpi(obj.orientationClass,'vertical')
-          obj.orientation = 0; rect.orientation = obj.orientation;
-      elseif strcmpi(obj.orientationClass,'horizontal')
-          obj.orientation = 180; rect.orientation = obj.orientation;
-      end
-    else
-     % if strcmpi(obj.orientation,'vertical')
-      %  Xpos = 0;
-       % Ypos = obj.centerOffset(2) + ((obj.canvasSize/2)*obj.position);
-      %elseif strcmpi(obj.orientation,'horizontal')
-       % Ypos = 0;
-        %Xpos = obj.centerOffset(1) + ((obj.canvasSize/2)*obj.position);
-       % obj.setBarPosition();
-      %end
-      %rect.position = [Xpos,Ypos]; display(rect.position);
-      rect.position = obj.position;
+    else % deal with both later.. or just delete
+      Bar.orientation = obj.orientation;
     end
-    % rect.position = obj.position;
+    Bar.position = obj.position;
 
-    % obj.position = rect.position;
-    rect.color = obj.barColor;
-    rect.opacity = 1;
+    Bar.color = obj.barColor;
+    Bar.opacity = 1;
 
     % add stimulus to the presentation
-    p.addStimulus(rect);
+    p.addStimulus(Bar);
 
     % only visible during stimTime
-    rectVisible = stage.builtin.controllers.PropertyController(rect,'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime ) * 1e-3);
-    p.addController(rectVisible);
+    barVisible = stage.builtin.controllers.PropertyController(Bar,'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime ) * 1e-3);
+    p.addController(barVisible);
   end
 
   function setBarPosition(obj)
+    switch obj.orientationClass
+    case 'vertical'
+      obj.orientation = 0;
+      if obj.barSize(1) > obj.barSize(2)
+        Bar.size = obj.barSize;
+      else
+        Bar.size = fliplr(obj.barSize);
+      end
+    case 'horizontal'
+      obj.orientation = 180;
+      if obj.barSize(2) > obj.barSize(1)
+        Bar.size = obj.barSize;
+      else
+        Bar.size = fliplr(obj.barSize);
+      end
+    end
     if obj.orientation == 0
         Xpos = obj.canvasSize(1)/2;
         Ypos = ((obj.canvasSize(2)/2) + obj.centerOffset(2)) + ((obj.canvasSize(2)/2)*obj.currentPosition);
     elseif obj.orientation == 180
-        Ypos = obj.cavasSize(2)/2;
+        Ypos = obj.canvasSize(2)/2;
         Xpos = ((obj.canvasSize(1)/2) + obj.centerOffset(1)) + ((obj.canvasSize(1)/2)*obj.currentPosition);
     end
     obj.position = [Xpos Ypos];
@@ -199,17 +205,27 @@ classdef BarFlash < edu.washington.riekelab.manookin.protocols.ManookinLabStageP
 
     obj.setBarPosition();
 
+    display(obj.position);
+
     epoch.addParameter('position', obj.position);
     epoch.addParameter('orientation', obj.orientation);
   end
 
 
   function tf = shouldContinuePreparingEpochs(obj)
-      tf = obj.numEpochsPrepared < obj.numberOfAverages;
+      tf = obj.numEpochsPrepared < (obj.numberOfAverages*numel(obj.positions));
   end
 
   function tf = shouldContinueRun(obj)
-      tf = obj.numEpochsCompleted < obj.numberOfAverages;
+      tf = obj.numEpochsCompleted < (obj.numberOfAverages*numel(obj.positions));
   end
-  end
+
+  %function completeEpoch(obj,epoch)
+  %  display(obj.position);
+  %end
+
+%  function completeRun(obj)
+%    assignin('base','brede',obj);
+%  end
+  end % end of methods
 end
