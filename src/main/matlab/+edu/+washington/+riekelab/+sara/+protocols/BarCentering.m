@@ -24,6 +24,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     orientation
     positionArray
     currentPosition
+    numberOfOrientations
     protocolUsed
     position
     numberOfTrials
@@ -62,14 +63,14 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
      end
     end
 
-    if length(obj.barColor) == 1
-      obj.intensity = obj.barColor;
-      obj.correctedIntensity = obj.intensity * 255;
-    else
-      % color settings?
-      obj.intensity = obj.barColor;
-    end
-    obj.correctedMean = obj.backgroundIntensity * 255;
+%    if length(obj.barColor) == 1
+%      obj.intensity = obj.barColor;
+%      obj.correctedIntensity = obj.intensity * 255;
+%    else
+%      % color settings?
+%      obj.intensity = obj.barColor;
+%    end
+%    obj.correctedMean = obj.backgroundIntensity * 255;
 
     obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
@@ -81,6 +82,16 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
       % get the amplitude
   %  end
+    switch obj.orientationClass
+    case 'vertical'
+      obj.numberOfOrientations = 1;
+    case 'horizontal'
+      obj.numberOfOrientations = 1;
+    case 'both'
+      obj.numberOfOrientations = 2;
+    end
+    display(obj.numberOfOrientations);
+
 
     obj.organizeParameters();
   end
@@ -89,6 +100,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
     p.setBackgroundColor(obj.backgroundIntensity);
 
+    % make bar stimulus
     Bar = stage.builtin.stimuli.Rectangle();
     Bar.size = obj.barSize;
     Bar.orientation = obj.orientation;
@@ -118,16 +130,27 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
   function organizeParameters(obj)
     % create the array of bar positions
-    obj.numberOfTrials = double(obj.numberOfAverages)* length(obj.positions);
-    if strcmpi(obj.orientationClass,'both')
-      obj.numberOfTrials = obj.numberOfTrials*2;
-    end
+
+%    if strcmp(obj.orientationClass,'both')
+%      display(obj.numberOfTrials,'debug - both');
+%    else
+    obj.numberOfTrials = double(obj.numberOfAverages)*length(obj.positions);
+%      display(obj.numberOfTrials, 'debug - single');
+%    end
     obj.positionArray = zeros(1,obj.numberOfTrials);
 
     for ii = 1:length(obj.positions)
       n = (ii-1) * double(obj.numberOfAverages); n = n + 1;
       nn = n + double(obj.numberOfAverages); nn = nn - 1;
       obj.positionArray(1,n:nn) = obj.positions(ii);
+    end
+    display(obj.positionArray,'pre-addition')
+    if strcmp(obj.orientationClass,'both')
+      obj.numberOfTrials = double(obj.numberOfAverages)*length(obj.positions)*2;
+      foo = obj.positionArray;
+      foo = foo' * ones(1,2); foo = foo(:)';
+      obj.positionArray = foo;
+      display(obj.positionArray,'post-addition')
     end
   end
 
@@ -148,14 +171,15 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
       obj.orientation = 90;
       display(obj.orientation,'prepareEpoch');
     case 'both'
-      if obj.numEpochsCompleted > obj.numberOfTrials/2
+      if obj.numEpochsCompleted >= obj.numberOfTrials/2
         obj.orientation = 90;
       else
         obj.orientation = 0;
+        display(obj.orientation,'reached 2nd group');
       end
     end
 
-    obj.setBarPosition();%display(obj.position);
+    obj.setBarPosition();  % display(obj.position);
 
     epoch.addParameter('position', obj.position);
     epoch.addParameter('orientation', obj.orientation);
@@ -163,11 +187,11 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
 
   function tf = shouldContinuePreparingEpochs(obj)
-      tf = obj.numEpochsPrepared < (obj.numberOfAverages * numel(obj.positions));
+      tf = obj.numEpochsPrepared < (obj.numberOfAverages * numel(obj.positions)*obj.numberOfOrientations);
   end
 
   function tf = shouldContinueRun(obj)
-      tf = obj.numEpochsCompleted < (obj.numberOfAverages * numel(obj.positions));
+      tf = obj.numEpochsCompleted < (obj.numberOfAverages * numel(obj.positions)*obj.numberOfOrientations);
   end
   end % end of methods
 end
