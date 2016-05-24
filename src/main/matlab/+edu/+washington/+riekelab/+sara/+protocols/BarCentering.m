@@ -5,9 +5,9 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     preTime = 500
     stimTime = 500
     tailTime = 500
-    orientationClass = 'vertical'
+    orientationClass = 'horizontal'
     % randomOrder = false
-    positions = [-0.9:0.1:0.9] % %screen from the center [-1 1]
+    positions = [-0.8:0.2:0.8] % %screen from the center [-1 1]
     centerOffset = [0,0]
     barSize = [1000, 50]
     barColor = 1
@@ -16,7 +16,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     %numberOfStimuli = uint16(5)       % number of times bar is presented
     numberOfAverages = uint16(5)       % number of epochs
     %interpulseInterval = 0.5          % Duration between epochs (s)
-    %ndf = 4.0                         % NDF wheel - deal with after mike's updates
+    %ndf = 4.0                      % NDF wheel - deal with after mike's updates
   end
 
   properties (Hidden)
@@ -108,16 +108,19 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 %        Bar.size = fliplr(obj.barSize);
 %      end
     elseif strcmpi(obj.orientationClass,'horizontal')
-      obj.orientation = 180; Bar.orientation = obj.orientation;
-      if obj.barSize(2) > obj.barSize(1)
-        Bar.size = obj.barSize;
-      else
-        Bar.size = fliplr(obj.barSize);
-      end
-    else % deal with both later.. or just delete
-      Bar.orientation = obj.orientation;
+      obj.orientation = 90; Bar.orientation = obj.orientation;
+%      if obj.barSize(2) > obj.barSize(1)
+%        Bar.size = obj.barSize;
+%        display(Bar.size, 'not flipped in createPresentation')
+%      else
+%        obj.barSize = fliplr(obj.barSize);
+%        display(Bar.size, 'flipped in createPresentation');
+%      end
+    %else % deal with both later.. or just delete
+    %  Bar.orientation = obj.orientation;
     end
     Bar.position = obj.position;
+    Bar.orientation = obj.orientation;
 
     Bar.color = obj.barColor;
     Bar.opacity = 1;
@@ -134,23 +137,23 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     switch obj.orientationClass
     case 'vertical'
       obj.orientation = 0;
-      if obj.barSize(1) > obj.barSize(2)
-        Bar.size = obj.barSize;
-      else
-        Bar.size = fliplr(obj.barSize);
-      end
+    %  if obj.barSize(1) > obj.barSize(2)
+    %    Bar.size = obj.barSize;
+    %  else
+    %    Bar.size = fliplr(obj.barSize);
+    %  end
     case 'horizontal'
-      obj.orientation = 180;
-      if obj.barSize(2) > obj.barSize(1)
-        Bar.size = obj.barSize;
-      else
-        Bar.size = fliplr(obj.barSize);
-      end
+      obj.orientation = 90;
+    %  if obj.barSize(2) > obj.barSize(1)
+    %    Bar.size = obj.barSize;
+    %  else
+    %    Bar.size = fliplr(obj.barSize);
+    %  end
     end
     if obj.orientation == 0
         Xpos = obj.canvasSize(1)/2;
         Ypos = ((obj.canvasSize(2)/2) + obj.centerOffset(2)) + ((obj.canvasSize(2)/2)*obj.currentPosition);
-    elseif obj.orientation == 180
+    elseif obj.orientation == 90
         Ypos = obj.canvasSize(2)/2;
         Xpos = ((obj.canvasSize(1)/2) + obj.centerOffset(1)) + ((obj.canvasSize(1)/2)*obj.currentPosition);
     end
@@ -194,18 +197,16 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
     case 'vertical'
       obj.orientation = 0;
     case 'horizontal'
-      obj.orientation = 180;
+      obj.orientation = 90;
     case 'both'
       if obj.numEpochsCompleted > obj.numberOfTrials/2
-        obj.orientation = 180;
+        obj.orientation = 90;
       else
           obj.orientation = 0;
       end
     end
 
-    obj.setBarPosition();
-
-    display(obj.position);
+    obj.setBarPosition();%display(obj.position);
 
     epoch.addParameter('position', obj.position);
     epoch.addParameter('orientation', obj.orientation);
@@ -213,19 +214,11 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
 
   function tf = shouldContinuePreparingEpochs(obj)
-      tf = obj.numEpochsPrepared < (obj.numberOfAverages*numel(obj.positions));
+      tf = obj.numEpochsPrepared < (obj.numberOfAverages * numel(obj.positions));
   end
 
   function tf = shouldContinueRun(obj)
-      tf = obj.numEpochsCompleted < (obj.numberOfAverages*numel(obj.positions));
+      tf = obj.numEpochsCompleted < (obj.numberOfAverages * numel(obj.positions));
   end
-
-  %function completeEpoch(obj,epoch)
-  %  display(obj.position);
-  %end
-
-%  function completeRun(obj)
-%    assignin('base','brede',obj);
-%  end
   end % end of methods
 end
