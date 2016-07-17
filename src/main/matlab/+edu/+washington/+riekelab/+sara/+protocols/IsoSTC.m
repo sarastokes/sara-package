@@ -2,9 +2,9 @@ classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStagePro
 
 properties
   amp                                     % amplifier
-  preTime = 500                           % before stimulus (ms)
+  preTime = 500                           % before stim (ms)
   stimTime = 5000                         % stim duration (ms)
-  tailTime = 500                          % after stimulus (ms)
+  tailTime = 500                          % after stim (ms)
   contrast = 1                            % contrast (0 - 1)
   temporalFrequency = 2                   % modulation frequency
   radius = 150                            % spot size (pixels)
@@ -14,8 +14,8 @@ properties
   temporalClass = 'sinewave'              % if ID, sine or sqrwave
   chromaticClass = 'achromatic'           % spot color!
   onlineAnalysis = 'none'                 % type of online analysis
-  randomSeed = true                       % use random seed w/ STA paradigm
-  stdev = 0.3;                            % gaussian noise sd
+  randomSeed = true                       % if STA, use random seed
+  stdev = 0.3;                            % if STA, gaussian noise sd
   numberOfAverages = uint16(3)            % number of epochs
 end
 
@@ -35,7 +35,7 @@ properties (Hidden) % for online analysis
   F1Amp
   repsPerX
   linearFilter
-  saraColors
+  plotColor
 end
 
 properties (Hidden, Transient)
@@ -61,6 +61,16 @@ methods
     end
 
     if ~strcmp(obj.onlineAnalysis, 'none')
+      % get plot color
+      if strcmp(obj.chromaticClass, 'S-iso')
+        obj.plotColor = [0.14118, 0.20784, 0.84314];
+      elseif strcmp(obj.chromaticClass, 'M-iso')
+        obj.plotColor = [0, 0.72941, 0.29804];
+      elseif strcmp(obj.chromaticClass, 'L-iso')
+        obj.plotColor = [0.82353, 0, 0];
+      else
+        obj.plotColor = [0 0 0];
+      end
       if strcmp(obj.paradigmClass, 'STA')
         obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
         f = obj.analysisFigure.getFigureHandle();
@@ -112,21 +122,9 @@ methods
     lf = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([frameValues, zeros(1,60)]))));
     obj.linearFilter = obj.linearFilter + lf(1:floor(obj.frameRate));
 
-    %% plot to figure
+    % plot to figure
     axesHandle = obj.analysisFigure.userData.axesHandle;
     cla(axesHandle);
-
-    % get plot color
-    if strcmp(obj.chromaticClass, 'S-iso')
-      sc = [0.14118, 0.20784, 0.84314];
-    elseif strcmp(obj.chromaticClass, 'M-iso')
-      sc = [0, 0.72941, 0.29804];
-    elseif strcmp(obj.chromaticClass, 'L-iso')
-      sc = [0.82353, 0, 0];
-    else
-      sc = [0 0 0];
-    end
-
     plot((0:length(obj.linearFilter)-1)/length(obj.linearFilter), obj.linearFilter, 'color', sc, 'Parent', axesHandle);
     set(axesHandle, 'TickDir', 'out');
     xlabel(axesHandle, 'msec');
@@ -171,18 +169,6 @@ methods
     % plot to figure
     axesHandle = obj.analysisFigure.userData.axesHandle;
     cla(axesHandle);
-
-    % get plot color
-    if strcmp(obj.chromaticClass, 'S-iso')
-      sc = [0.14118, 0.20784, 0.84314];
-    elseif strcmp(obj.chromaticClass, 'M-iso')
-      sc = [0, 0.72941, 0.29804];
-    elseif strcmp(obj.chromaticClass, 'L-iso')
-      sc = [0.82353, 0, 0];
-    else
-      sc = [0 0 0];
-    end
-
     h1 = axesHandle;
     plot(obj.xaxis, obj.F1Amp, 'o-', 'color', sc, 'Parent', h1);
     set(h1, 'TickDir', 'out');
@@ -252,7 +238,8 @@ methods
       end
     end
   end
-    function prepareEpoch(obj, epoch)
+
+  function prepareEpoch(obj, epoch)
     prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
     device = obj.rig.getDevice(obj.amp);
