@@ -1,10 +1,14 @@
 classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+    % test whether linear sum/null
+    
+    
+    % 18Jul - currently only makes sense for achromatic
 
 properties
   amp
-  preTime = 200
-  stimTime = 200
-  tailTime = 200
+  preTime = 200                         % time before stim (ms)
+  stimTime = 200                        % stim duration (ms)
+  tailTime = 200                        % time after stim (ms)
   backgroundIntensity = 0.5             % mean light level (0-1)
   centerOffsetA = [-200,-200]           % location of spot A (pix: x,y)
   radiusA = 75                          % size of spot A (pix)
@@ -13,14 +17,13 @@ properties
   chromaticClassA = 'achromatic'        % spot A color
   chromaticClassB = 'achromatic'        % spot B color
   paradigmClass = 'sum_up'              % experiment sequence
-  reverseOrder = false                  % reverse experiment order
   controlSpot = false                   % include a control spot
   controlContrast = 1                   % increment or decrement (0-1)
   centerOffsetC = [0,0]                 % if true, control spot center
   radiusC = 100                         % if true, control spot radius
   chromaticClassC = 'achromatic'        % if true, control spot color
-  onlineAnalysis = 'none'
-  numberOfAverages = uint16(1)          % might not include this
+  onlineAnalysis = 'none'               % online analysis type
+  numberOfAverages = uint16(1)          % number of epochs
 end
 
 properties (Hidden)
@@ -149,10 +152,10 @@ function prepareRun(obj)
   function prepareEpoch(obj, epoch)
     prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
-    device = obj.rig.getDevice(obj.amp);
-    duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
-    epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-    epoch.addResponse(device);
+%    device = obj.rig.getDevice(obj.amp);
+%    duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
+%    epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
+%    epoch.addResponse(device);
   end
 
   function tf = shouldContinuePreparingEpochs(obj)

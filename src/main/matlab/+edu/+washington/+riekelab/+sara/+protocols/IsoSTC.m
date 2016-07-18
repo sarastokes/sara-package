@@ -1,9 +1,10 @@
 classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+    % ID and get temporal RF
 
 properties
   amp                                     % amplifier
   preTime = 500                           % before stim (ms)
-  stimTime = 5000                         % stim duration (ms)
+  stimTime = 2000                         % stim duration (ms)
   tailTime = 500                          % after stim (ms)
   contrast = 1                            % contrast (0 - 1)
   temporalFrequency = 2                   % modulation frequency
@@ -16,7 +17,7 @@ properties
   onlineAnalysis = 'none'                 % type of online analysis
   randomSeed = true                       % if STA, use random seed
   stdev = 0.3;                            % if STA, gaussian noise sd
-  numberOfAverages = uint16(3)            % number of epochs
+  numberOfAverages = uint16(1)            % number of epochs
 end
 
 properties (Hidden)
@@ -242,10 +243,10 @@ methods
   function prepareEpoch(obj, epoch)
     prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
-    device = obj.rig.getDevice(obj.amp);
-    duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
-    epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-    epoch.addResponse(device);
+%    device = obj.rig.getDevice(obj.amp);
+%    duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
+%    epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
+%    epoch.addResponse(device);
 
     if strcmpi(obj.paradigmClass, 'STA')
       if obj.randomSeed
