@@ -1,5 +1,5 @@
 classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
-    % test whether linear sum/null
+    % test spatial (non)linearity - checks if inputs sum/null
     
     
     % 18Jul - currently only makes sense for achromatic
@@ -68,6 +68,11 @@ function prepareRun(obj)
     elseif strcmpi(obj.paradigmClass, 'null_bw')
       obj.spotValues = [0, 1];
     end
+    
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure',... 
+        obj.rig.getDevice(obj.amp), 'preTime', obj.preTime,... 
+        'stimTime', obj.stimTime, 'tailTime', obj.tailTime,... 
+        'bkgdi', obj.backgroundIntensity, 'stimValue', obj.spotValues);
 
     obj.colorWeightsA = setColorWeightsLocal(obj, obj.chromaticClassA);
     obj.colorWeightsB = setColorWeightsLocal(obj, obj.chromaticClassB);
@@ -82,17 +87,22 @@ function prepareRun(obj)
         case 'L-iso'
             w = obj.quantalCatch(:,1:3)' \ [1 0 0]';
             w = w / w(1);
+    %       p = [0.82353, 0, 0];
         case 'M-iso'
             w = obj.quantalCatch(:,1:3)' \ [0 1 0]';
             w = w / w(2);
+    %       p = [0, 0.72941, 0.29804];
         case 'S-iso'
             w = obj.quantalCatch(:,1:3)' \ [0 0 1]';
             w = w / w(3);
+    %       p = [0.82353, 0, 0];
         case 'LM-iso'
             w = obj.quantalCatch(:,1:3)' \ [1 1 0]';
             w = w / max(w);
+    %       p = [0.90588, 0.43529, 0.31765];
         otherwise
             w = [1 1 1];
+    %       p = [0 0 0];
       end
       w = w(:)';
     end
