@@ -1,5 +1,5 @@
 classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
-    % ID and get temporal RF
+    % ID and get temporal RF - will divide up into seperate protocols eventually
 
 properties
   amp                                     % amplifier
@@ -24,7 +24,7 @@ properties (Hidden)
   ampType
   paradigmClassType = symphonyui.core.PropertyType('char', 'row', {'ID', 'STA'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-  chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'RGB','L-iso', 'M-iso', 'S-iso', 'LM-iso'})
+  chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'RGB-binary', 'RGB-gaussian'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   bkg
   seed
@@ -33,9 +33,11 @@ end
 
 properties (Hidden) % for online analysis
   xaxis
-  F1Amp
-  repsPerX
+  F1
+  F2
   linearFilter
+  stimValues
+  stimTrace
   plotColor
 end
 
@@ -52,7 +54,7 @@ methods
 
   function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
-    obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+%    obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
     % why is this here?
     if obj.backgroundIntensity == 0
@@ -62,16 +64,6 @@ methods
     end
 
     if ~strcmp(obj.onlineAnalysis, 'none')
-      % get plot color
-      if strcmp(obj.chromaticClass, 'S-iso')
-        obj.plotColor = [0.14118, 0.20784, 0.84314];
-      elseif strcmp(obj.chromaticClass, 'M-iso')
-        obj.plotColor = [0, 0.72941, 0.29804];
-      elseif strcmp(obj.chromaticClass, 'L-iso')
-        obj.plotColor = [0.82353, 0, 0];
-      else
-        obj.plotColor = [0 0 0];
-      end
       if strcmp(obj.paradigmClass, 'STA')
         obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
         f = obj.analysisFigure.getFigureHandle();
@@ -87,10 +79,35 @@ methods
       end
     end
 
-    obj.setColorWeights();
+    % obj.setColorWeights();
+    [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
+
+    % online analysis prep
+    x = 0:0.001:((obj.stimTime - 1) * 1e-3);
+    obj.stimValues = zeros(1, length(x));
+    if strcmp(obj.paradigmClass, 'ID')
+      for ii = 1:length(x)
+        if strcmp(obj.temporalClass, 'sinewave')
+          obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.bkg + obj.bkg;
+        else
+          obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.bkg + obj.bkg;
+        end
+      end
+    else
+        obj.stimValues(:) = 1;
+    end
+
+    obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
+
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+
+    obj.xaxis = 1:obj.numberOfAverages;
+    obj.F1 = zeros(1, obj.numberOfAverages);
+    obj.F2 = zeros(1, obj.numberOfAverages);
   end
 
 %% analysis figure functions
+% not complete for RGB STA!!
   function MTFanalysis(obj, ~, epoch) % for STA
     response = epoch.getResponse(obj.rig.getDevice(obj.amp));
     responseTrace = response.getData();
@@ -113,11 +130,17 @@ methods
     obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
 
     % get the frame values
-    frameValues = obj.stdev * obj.noiseStream.randn(1, numBins);
+    if strcmp(obj.chromaticClass, 'RGB-gaussian')
+      frameValues = obj.stdev * obj.noiseStream.randn(3, numBins);
+    elseif strcmp(obj.chromaticClass, 'RGB-binary')
+      frameValues = obj.noiseStream.randn(3, numBins) > 0.5;
+    else
+      frameValues = obj.stdev * obj.noiseStream.randn(1, numBins);
+    end
 
     % get rid of the first 0.5 sec
-    frameValues(1:30) = 0;
-    binData(1:30) = 0;
+    frameValues(:, 1:30) = 0;
+    binData(:, 1:30) = 0;
 
     % run reverse correlation
     lf = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([frameValues, zeros(1,60)]))));
@@ -126,7 +149,7 @@ methods
     % plot to figure
     axesHandle = obj.analysisFigure.userData.axesHandle;
     cla(axesHandle);
-    plot((0:length(obj.linearFilter)-1)/length(obj.linearFilter), obj.linearFilter, 'color', sc, 'Parent', axesHandle);
+    plot((0:length(obj.linearFilter)-1)/length(obj.linearFilter), obj.linearFilter, 'color', obj.plotColor, 'Parent', axesHandle);
     set(axesHandle, 'TickDir', 'out');
     xlabel(axesHandle, 'msec');
     ylabel(axesHandle, 'filter units');
@@ -158,20 +181,17 @@ methods
     cycleData = cycleData / k;
 
     ft = fft(cycleData);
+    m = abs(ft(2:3))/length(ft)*2;
 
-    index = find(obj.xaxis == obj.contrast, 1);
-    r = obj.F1Amp(index) * obj.repsPerX(index);
-    r = r + abs(ft(2))/length(ft)*2;
-
-    % increment the count
-    obj.repsPerX(index) = obj.repsPerX(index) + 1;
-    obj.F1Amp(index) = r / obj.repsPerX(index);
+    obj.F1(1,obj.numEpochsCompleted) = m(1);
+    obj.F2(1,obj.numEpochsCompleted) = m(2);
 
     % plot to figure
     axesHandle = obj.analysisFigure.userData.axesHandle;
     cla(axesHandle);
     h1 = axesHandle;
-    plot(obj.xaxis, obj.F1Amp, 'o-', 'color', sc, 'Parent', h1);
+    plot(obj.xaxis, obj.F1, 'o-', 'color', obj.plotColor, 'Parent', h1);
+    plot(obj.xaxis, obj.F2, 'o-', 'color', [0.5 0.5 0.5], 'Parent', h1);
     set(h1, 'TickDir', 'out');
     ylabel(h1, 'F1 amp');
     title(['Epoch ', num2str(obj.numEpochsCompleted) , ' of ', num2str(obj.numberOfAverages)], 'Parent', h1);
@@ -191,36 +211,14 @@ methods
     % control when the spot is visible
     spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
-    % control spot color
-    if ~strcmp(obj.chromaticClass, 'achromatic')
-      spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getChromatic(obj, state.time - obj.preTime * 1e-3));
-    else
-      spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getAchromatic(obj, state.time - obj.preTime * 1e-3));
-    end
-
+      spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
 
     % Add the stimulus to the presentation.
     p.addStimulus(spot);
     p.addController(spotColorController);
     p.addController(spotVisibleController);
 
-    function c = getAchromatic(obj, time)
-      if time >= 0
-        if strcmpi(obj.paradigmClass, 'ID')
-          if strcmpi(obj.temporalClass, 'squarewave')
-            c = obj.contrast * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.bkg + obj.bkg;
-          else
-            c = obj.contrast * sin(obj.temporalFrequency*time*2*pi) * obj.bkg + obj.bkg;
-          end
-        elseif strcmpi(obj.paradigmClass, 'STA')
-          c = obj.stdev * obj.noiseStream.randn * obj.bkg + obj.bkg;
-        end
-      else
-        c = obj.bkg;
-      end
-    end
-
-    function c = getChromatic(obj, time)
+    function c = getSpotColor(obj, time)
       if time >= 0
         if strcmpi(obj.paradigmClass, 'ID')
           if strcmpi(obj.temporalClass, 'squarewave')
@@ -231,8 +229,14 @@ methods
             c = c(:)';
           end
         elseif strcmpi(obj.paradigmClass, 'STA')
-          c = obj.stdev * (obj.noiseStream.randn * obj.colorWeights) * obj.bkg + obj.bkg;
-          c = c(:)';
+          if strcmp(obj.chromaticClass, 'RGB-binary')
+            c = obj.contrast * obj.noiseStream.randn(1,3) > 0.5;
+          elseif strcmp(obj.chromaticClass, 'RGB-gaussian')
+            c = uint8((obj.stdev * obj.contrast * obj.noiseStream.rand(1,3) * 0.5 + 0.5) * 255);
+          else
+            c = obj.stdev * (obj.noiseStream.randn * obj.colorWeights) * obj.bkg + obj.bkg;
+            c = c(:)';
+          end
         end
       else
         c = obj.bkg;
@@ -243,11 +247,6 @@ methods
   function prepareEpoch(obj, epoch)
     prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
-%    device = obj.rig.getDevice(obj.amp);
-%    duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
-%    epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-%    epoch.addResponse(device);
-
     if strcmpi(obj.paradigmClass, 'STA')
       if obj.randomSeed
         obj.seed = RandStream.shuffleSeed;
@@ -255,6 +254,7 @@ methods
         obj.seed = 1;
       end
       obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
+      epoch.addParameter('seed', obj.seed);
     end
   end
 

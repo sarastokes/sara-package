@@ -1,7 +1,7 @@
 classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % test spatial (non)linearity - checks if inputs sum/null
-    
-    
+
+
     % 18Jul - currently only makes sense for achromatic
 
 properties
@@ -39,6 +39,13 @@ properties (Hidden)
   colorWeightsC
 end
 
+properties (Hidden) % relating to online analysis
+  stimPerSweep
+  stimValue
+  stimTrace
+%  plotColor
+end
+
 methods
 function didSetRig(obj)
     didSetRig@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
@@ -49,7 +56,7 @@ end
 function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
-    obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+    %obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
     if strcmp(obj.paradigmClass, 'baselineA_up')
       obj.spotValues = [1, obj.backgroundIntensity];
@@ -68,44 +75,34 @@ function prepareRun(obj)
     elseif strcmpi(obj.paradigmClass, 'null_bw')
       obj.spotValues = [0, 1];
     end
-    
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure',... 
-        obj.rig.getDevice(obj.amp), 'preTime', obj.preTime,... 
-        'stimTime', obj.stimTime, 'tailTime', obj.tailTime,... 
-        'bkgdi', obj.backgroundIntensity, 'stimValue', obj.spotValues);
 
-    obj.colorWeightsA = setColorWeightsLocal(obj, obj.chromaticClassA);
-    obj.colorWeightsB = setColorWeightsLocal(obj, obj.chromaticClassB);
+    if obj.controlSpot
+      obj.stimPerSweep = 3;
+      obj.spotValues(end+1) = obj.controlContrast;
+    else
+      obj.stimPerSweep = 2;
+    end
+
+    for ii = 1:length(obj.spotValues)
+      obj.stimValue(ii, :) = obj.spotValues(ii) * ones(1, obj.stimTime);
+    end
+
+    obj.stimTrace = [(obj.backgroundIntensity * ones(obj.stimPerSweep, obj.preTime)) obj.stimValue (obj.backgroundIntensity * ones(obj.stimPerSweep, obj.tailTime))];
+
+%    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure',...
+%        obj.rig.getDevice(obj.amp), 'preTime', obj.preTime,...
+%        'stimTime', obj.stimTime, 'tailTime', obj.tailTime,...
+%        'bkgdi', obj.backgroundIntensity, 'stimValue', obj.spotValues);
+
+    [obj.colorWeightsA, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassA);
+    [obj.colorWeightsB, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassB);
 
     if obj.controlSpot && ~strcmp(obj.chromaticClassC, 'achromatic')
       obj.colorWeightsC = setColorWeightsLocal(obj, obj.chromaticClassC);
     end
 
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimPerSweep', obj.stimPerSweep);
 
-    function w = setColorWeightsLocal(obj, colorCall)
-      switch colorCall
-        case 'L-iso'
-            w = obj.quantalCatch(:,1:3)' \ [1 0 0]';
-            w = w / w(1);
-    %       p = [0.82353, 0, 0];
-        case 'M-iso'
-            w = obj.quantalCatch(:,1:3)' \ [0 1 0]';
-            w = w / w(2);
-    %       p = [0, 0.72941, 0.29804];
-        case 'S-iso'
-            w = obj.quantalCatch(:,1:3)' \ [0 0 1]';
-            w = w / w(3);
-    %       p = [0.82353, 0, 0];
-        case 'LM-iso'
-            w = obj.quantalCatch(:,1:3)' \ [1 1 0]';
-            w = w / max(w);
-    %       p = [0.90588, 0.43529, 0.31765];
-        otherwise
-            w = [1 1 1];
-    %       p = [0 0 0];
-      end
-      w = w(:)';
-    end
   end
 
   function p = createPresentation(obj)

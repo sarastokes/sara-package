@@ -4,36 +4,33 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
 
   properties
     device
-    preTime
-    stimTime
-    tailTime
-    bkgdi           % backgroundIntensity (used for preTime and tailTime)
-    stimValue       % for constant stimColor
-    stimTrace       % for changing stim
+    stimTrace
     sweepColor
     stimColor
     storedSweepColor
+    stimPerSweep
   end
 
   properties (Access = private)
     axesHandle
     sweep
-    stim
     storedSweep
   end
-  
+
 
   methods
-  function obj = ResponseWithStimFigure(device, varargin)
+  function obj = ResponseWithStimFigure(device, stimTrace, varargin)
     obj.device = device;
+    obj.stimTrace = stimTrace;
     ip = inputParser();
 
-    ip.addParameter('preTime', [], @(x)isvector(x));
-    ip.addParameter('stimTime', [], @(x)isvector(x));
-    ip.addParameter('tailTime', [], @(x)isvector(x));
-    ip.addParameter('bkgdi', [], @(x)isvector(x));
-    ip.addParameter('stimValue', [], @(x)isvector(x));
-    ip.addParameter('stimTrace', [], @(x)isvector(x));
+%    ip.addParameter('preTime', [], @(x)isvector(x));
+%    ip.addParameter('stimTime', [], @(x)isvector(x));
+%    ip.addParameter('tailTime', [], @(x)isvector(x));
+%    ip.addParameter('bkgdi', [], @(x)isvector(x));
+%    ip.addParameter('stimValue', [], @(x)isvector(x));
+%    ip.addParameter('stimTrace', [], @(x)isvector(x));
+    ip.addParameter('stimPerSweep', [], @(x)isvector(x));
     ip.addParameter('sweepColor', [], @(x)ischar(x) || isvector(x));
     ip.addParameter('stimColor', [], @(x)ischar(x) || isvector(x));
     ip.addParameter('storedSweepColor', 'r', @(x)ischar(x) || isvector(x));
@@ -41,14 +38,15 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
 
     obj.sweepColor = ip.Results.sweepColor;
     obj.storedSweepColor = ip.Results.storedSweepColor;
-    obj.preTime = ip.Results.preTime;
-    obj.stimTime = ip.Results.stimTime;
-    obj.tailTime = ip.Results.tailTime;
-    obj.bkgdi = ip.Results.bkgdi;
-    obj.stimTrace = ip.Results.stimTrace;
+%    obj.preTime = ip.Results.preTime;
+%    obj.stimTime = ip.Results.stimTime;
+%    obj.tailTime = ip.Results.tailTime;
+%    obj.bkgdi = ip.Results.bkgdi;
+%    obj.stimTrace = ip.Results.stimTrace;
 %    obj.chromaticClass = ip.Results.chromaticClass;
     obj.stimColor = ip.Results.stimColor;
-    obj.stimValue = ip.Results.stimValue;
+%    obj.stimValue = ip.Results.stimValue;
+    obj.stimPerSweep = ip.Results.stimPerSweep;
 
     obj.createUi();
   end
@@ -105,6 +103,10 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       obj.sweepColor = [0 0 0];
     end
 
+    if isempty(obj.stimColor)
+      obj.stimColor = [0 0 0];
+    end
+    
     if numel(quantities) > 0
       x = (1:numel(quantities)) / response.sampleRate.quantityInBaseUnits;
       y = quantities;
@@ -122,15 +124,18 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     ylabel(obj.axesHandle(1), units, 'Interpreter', 'none');
 
     % plot stim
-    if isempty(obj.stimTrace) && ~isempty(obj.stimValue)
-      for ii = 1:length(obj.stimValue)
-          obj.stimTrace(ii,:) = obj.stimValue(ii) * ones(1,obj.stimTime);
-      end
-    end
+  %  if isempty(obj.stimTrace) && ~isempty(obj.stimValue)
+  %    n = length(obj.stimValue);
+  %    for ii = 1:length(obj.stimValue)
+  %      b(ii, :) = obj.stimValue(ii) * ones(1, obj.stimTime);
+  %    end
+  %    obj.stimTrace = [(obj.bkgdi * ones(n, obj.preTime)) obj.stimValue (obj.bkgdi * ones(n,obj.tailTime))];
     if ~isempty(obj.stimTrace)
-      n = length(obj.stimValue);
-      b = [(obj.bkgdi * ones(n, obj.preTime)) obj.stimTrace (obj.bkgdi * ones(n,obj.tailTime))];
-      plot(b', 'Parent', obj.axesHandle(2));
+      if obj.stimPerSweep > 1
+        plot((obj.stimTrace)', 'Parent', obj.axesHandle(2));
+      else
+        plot(obj.stimTrace, 'Parent', obj.axesHandle(2), 'color', obj.stimColor);
+      end
     end
   end
 end
