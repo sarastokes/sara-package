@@ -71,7 +71,7 @@ function prepareRun(obj)
 
 
   if ~strcmp(obj.onlineAnalysis, 'none')
-    obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.stimClass);
+    obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
   end
 
 %  if obj.reverseOrder

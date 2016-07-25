@@ -21,6 +21,8 @@ classdef IsoChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinL
         chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso','M-iso','S-iso','LM-iso', 'MS-iso', 'LS-iso',})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         intensity
+        stimColor
+        stimTrace
     end
 
     methods
@@ -42,10 +44,10 @@ classdef IsoChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinL
                 % Set the LED weights.
             [obj.colorWeights, obj.stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 
-            obj.stimValues = obj.contrast + zeros(1, obj.stimTime);
-            obj.stimTrace = [(obj.backgroundIntensity * ones(1,obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
+            stimValues = obj.contrast + zeros(1, obj.stimTime);
+            obj.stimTrace = [(obj.backgroundIntensity * ones(1,obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp), obj.stimValue, 'stimColor', obj.stimColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
         end
 
         function p = createPresentation(obj)

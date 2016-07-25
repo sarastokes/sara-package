@@ -8,12 +8,15 @@ end
 
 properties (Access = private)
   axesHandle
+  traceHandle
   plotStim
   epochSort
   epochCap
   epochColors
   epochNames
-  sweep
+  sweepOne
+  sweepTwo
+  sweepThree
 end
 
 methods
@@ -25,15 +28,15 @@ methods
     ip = inputParser();
     ip.addParameter('stimTrace', [], @(x)isvector(x));
     ip.parse(varargin{:});
-
     obj.stimTrace = ip.Results.stimTrace;
 
-    if ~isempty(obj.stimClass)
-      obj.epochCap = length(obj.stimClass);
-    end
+    obj.epochCap = length(obj.stimClass);
+    fprintf('epoch cap = %u\n', obj.epochCap);
 
     if isempty(obj.stimTrace)
       obj.plotStim = false;
+    else
+      obj.plotStim = true;
     end
 
     obj.epochColors = zeros(length(obj.stimClass),3);
@@ -64,36 +67,55 @@ methods
         obj.epochColors(ii,:) = 'Achromatic';
       end
     end
-
+    fprintf('Epoch Colors (1,1) = %.2f and (3,3) = %.2f\n', obj.epochColors(1,1), obj.epochColors(3,3));
 
     obj.createUi();
   end
 
   function createUi(obj)
     import appbox.*;
-    toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+  %  toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
 
-    if isempty(obj.epochCap)
-      obj.epochCap = 1;
-    end
     if isempty(obj.epochColors)
       obj.epochColors = zeros(obj.epochCap, 3);
     end
     %if isempty(obj.epochNames)
   %    obj.epochNames{1:obj.epochCap} = '';
   %  end
+%    if obj.plotStim
+%      m = obj.epochCap + 1;
+%      n = zeros(m, 2);
+     % for ii = 1:obj.epochCap
+     %   n(ii) = [(2*ii - 1) (2*ii)];
+     % end
+    %else
+    fprintf('epochCap = %u\n', obj.epochCap);
     if obj.plotStim
-      m = obj.epochCap + 1;
-      for ii = 1:obj.epochCap
-        n(ii) = [(2*ii - 1) (2*ii)];
-      end
+      m = 2 * obj.epochCap + 1;
     else
-      m = obj.epochCap; n = 1:obj.epochCap;
+      m = 2 * obj.epochCap; %n = 1:obj.epochCap;
     end
 
+    %end
+
     % create axes
-    for ii = 1:obj.epochCap
-      obj.axesHandle(ii) = subplot(m,1,n(ii),...
+    obj.axesHandle(1) = subplot(m, 1, 1:2,...
+      'Parent', obj.figureHandle,...
+      'FontName', 'Roboto',...
+      'FontSize',9,...
+      'XTickMode', 'auto');
+    obj.axesHandle(2) = subplot(m, 1, 3:4,...
+        'Parent', obj.figureHandle,...
+        'FontName', 'Roboto',...
+        'FontSize',9,...
+        'XTickMode', 'auto');
+    obj.axesHandle(3) = subplot(m, 1, 5:6,...
+        'Parent', obj.figureHandle,...
+        'FontName', 'Roboto',...
+        'FontSize',9,...
+        'XTickMode', 'auto');
+    if obj.epochCap == 4
+      obj.axesHandle(4) = subplot(m,1,7:8,...
         'Parent', obj.figureHandle,...
         'FontName', 'Roboto',...
         'FontSize', 10,...
@@ -111,6 +133,11 @@ methods
     end
   end
 
+  function clear(obj)
+    cla(obj.axesHandle(1)); cla(obj.axesHandle(2)); cla(obj.axesHandle(3));
+    obj.sweepOne = []; obj.sweepTwo; obj.sweepThree;
+  end
+
   function handleEpoch(obj, epoch)
     if ~epoch.hasResponse(obj.device)
       error(['Epoch does not contain a response for ' obj.device.name]);
@@ -123,33 +150,40 @@ methods
     if obj.epochSort > obj.epochCap
       obj.epochSort = 1;
     end
+    fprintf('epochSort = %u\n', obj.epochSort);
 
     if numel(quantities) > 0
-      x = (1:numel(quantities)) / response.sampleRate.quantityInBaseUnits;
+      x = (1:numel(quantities)) / sampleRate;
       y = quantities;
     else
       x = []; y = [];
     end
 
     % plot sweep
-    if isempty(obj.sweep)
-      obj.sweep = line(x, y, 'Parent', obj.axesHandle(obj.epochSort), 'Color', obj.epochColors(obj.epochSort,:));
-    else
-      set(obj.sweep, 'XData', x, 'YData', y);
+    if obj.epochSort == 1
+      if isempty(obj.sweepOne)
+        obj.sweepOne = line(x, y, 'Parent', obj.axesHandle(1), 'Color', obj.epochColors(1,:));
+      else
+        set(obj.sweepOne, 'XData', x, 'YData', y);
+      end
+    elseif obj.epochSort == 2
+      if isempty(obj.sweepTwo)
+        obj.sweepTwo = line(x, y, 'Parent', obj.axesHandle(2), 'Color', obj.epochColors(2,:));
+      else
+        set(obj.sweepTwo, 'XData', x, 'YData', y);
+      end
+    elseif obj.epochSort == 3
+      if isempty(obj.sweepThree)
+        obj.sweepThree = line(x, y, 'Parent', obj.axesHandle(3), 'Color', obj.epochColors(3,:));
+      else
+        set(obj.sweepThree, 'XData', x, 'YData', y);
+      end
     end
+
 
     % plot trace
     if obj.plotStim
-      if isempty(obj.stimTrace) && ~isempty(obj.stimValue)
-        for ii = 1:length(obj.stimValue)
-          obj.stimTrace(ii,:) = obj.stimValue(ii) * ones(1, obj.stimTime);
-        end
-      end
-      if ~isempty(obj.stimTrace)
-        n = length(obj.stimValue);
-        b = [(obj.bkgdMean * ones(n, obj.preTime)) obj.stimTrace (obj.bkgdMean * ones(n, obj.tailTime))];
-        plot(b', 'Parent', obj.axesHandle(obj.epochCap + 1));
-      end
+      plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle, 'color', 'k');
     end
   end
 end

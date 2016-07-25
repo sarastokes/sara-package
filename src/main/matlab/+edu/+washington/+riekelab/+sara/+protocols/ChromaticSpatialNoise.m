@@ -1,4 +1,4 @@
-classdef SpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef ChromaticSpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % adapted from SpatialNoise.m
 % online analysis not working yet, especially not for new iso stimuli
 
@@ -45,7 +45,7 @@ classdef SpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
     methods
         function didSetRig(obj)
-            didSetRig@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+            didSetRig@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
 
             [obj.amp, obj.ampType] = obj.createDeviceNamesProperty('Amp');
         end
@@ -58,7 +58,7 @@ classdef SpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinLabSt
             stimValues = ones(1, obj.stimTime);
             obj.stimTrace = [(obj.backgroundIntensity * ones(1,obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'color', obj.plotColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
 
             % Get the frame rate. Need to check if it's a LCR rig.
             if ~isempty(strfind(obj.rig.getDevice('Stage').name, 'LightCrafter'))
@@ -114,30 +114,36 @@ classdef SpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinLabSt
                 if strcmpi(obj.chromaticClass, 'RGB')
                     M = obj.noiseStream.rand(numFrames,obj.numYChecks,obj.numXChecks,3) > 0.5;
                     obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks,3));
-                else
+                elseif strcmp(obj.chromaticClass, 'achromatic')
                     M = obj.noiseStream.rand(numFrames, obj.numYChecks,obj.numXChecks) > 0.5;
-                    if ~isempty(strfind(obj.chromaticClass, 'iso'))
-                      M = repmap(M, [1 1 3]);
-                      for ii = 1:3
-                        M(:,:,ii) = obj.colorWeigths(ii) * M(:,:,ii);
-                      end
-                    end
                     obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks));
+                else
+                  M = obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) > 0.5;
+                  M = obj.intensity * M;
+                  M = repmat(M, [1 1 3]);
+                  for ii = 1:3
+                    M(:,:,ii) = obj.colorWeights(ii) * M(:,:,ii);
+                  end
+                  M = uint8(255 *(obj.backgroundIntensity * M + obj.backgroundIntensity));
+                  obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks,3));
                 end
                 obj.frameValues = uint8(obj.intensity*255*M);
             else
                 if strcmpi(obj.chromaticClass, 'RGB')
                     M = uint8((0.3*obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks, 3) * 0.5 + 0.5)*255);
                     obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks,3));
-                else
+                elseif strcmp(obj.chromaticClass, 'achromatic')
                     M = uint8((0.3*obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) * 0.5 + 0.5)*255);
-                    if ~isempty(strfind(obj.chromaticClass, 'iso'))
-                      M = repmat(M, [1 1 3]);
-                      for ii = 1:3
-                        M(:,:,ii) = obj.colorWeights(ii) * M(:,:,ii);
-                      end
-                    end
                     obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks));
+                else
+                    M = 0.3*obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks);
+                    M = obj.intensity * M;
+                    M = repmat(M, [1 1 3]);
+                    for ii = 1:3
+                      M(:,:,ii) = obj.colorWeights(ii) * M(:,:,ii);
+                    end
+                    M = uint8(255 *(obj.backgroundIntensity * M + obj.backgroundIntensity));
+                    obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks,3));
                 end
                 obj.frameValues = M;
             end

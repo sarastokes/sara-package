@@ -1,11 +1,11 @@
-classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef IsoBarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
     properties
         amp                             % Output amplifier
         preTime = 250                   % Spot leading duration (ms)
         stimTime = 2000                 % Spot duration (ms)
         tailTime = 1000                 % Spot trailing duration (ms)
-        intensity = 1.0                 % Bar intensity (0-1)/contrast (?)
+        contrast = 1.0                  % contrast around mean (-1 to 1)
         temporalFrequency = 1.0         % Modulation frequency (Hz)
         barSize = [50 500]              % Bar size [width, height] (pix)
         searchAxis = 'xaxis'            % Search axis
@@ -28,6 +28,8 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
         F1
         F2
         xaxis
+        stimTrace
+        stimColor
     end
 
     properties (Hidden, Transient)
@@ -51,11 +53,11 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
             x = 0:0.001:((obj.stimTime - 1) * 1e-3);
             stimValues = zeros(1, length(x));
             for ii = 1:length(x)
-              stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.bkg + obj.bkg;
+              stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
             end
-            obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
+            obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
 
 %            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
@@ -143,7 +145,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
             rect.size = obj.barSize;
             rect.orientation = obj.orientation;
             rect.position = obj.canvasSize/2 + obj.position;
-            rect.color = obj.intensity;
+%            rect.color = obj.intensity;
 
             % Add the stimulus to the presentation.
             p.addStimulus(rect);
@@ -159,7 +161,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
             p.addController(colorController);
 
             function c = getSpotColorVideoSqwv(obj, time)
-                c = obj.intensity obj.colorWeights * sign(sin(obj.temporalFrequency*time*2*pi)) * 0.5 + 0.5;
+                c = obj.contrast * obj.colorWeights * sign(sin(obj.temporalFrequency*time*2*pi)) * 0.5 + 0.5;
             end
         end
 

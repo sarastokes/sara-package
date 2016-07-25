@@ -70,7 +70,12 @@ methods
         set(f, 'Name', 'linear filter');
         obj.analysisFigure.userData.axesHandle = axes('Parent', f);
         % init the linear filter
-        obj.linearFilter = zeros(1, floor(obj.frameRate));
+        if ~isempty(strfind(obj.chromaticClass, 'RGB'))
+          obj.linearFilter = zeros(3, floor(obj.frameRate));
+        else
+          obj.linearFilter = zeros(1, floor(obj.frameRate));
+        end
+        y = size(obj.linearFilter); fprintf('size of linearFilter is %u %u\n', y(1), y(2));
       elseif strcmp(obj.paradigmClass, 'ID')
         obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CRFanalysis);
         f = obj.analysisFigure.getFigureHandle();
@@ -143,14 +148,31 @@ methods
     binData(:, 1:30) = 0;
 
     % run reverse correlation
-    lf = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([frameValues, zeros(1,60)]))));
-    obj.linearFilter = obj.linearFilter + lf(1:floor(obj.frameRate));
+    if isempty(strfind(obj.chromaticClass, 'RGB'))
+      lf = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([frameValues, zeros(1,60)]))));
+      obj.linearFilter = obj.linearFilter + lf(1:floor(obj.frameRate));
+    else
+      lf = zeros(size(obj.linearFilter));
+      y = size(lf);
+      fprintf('size of lf = %u %u \n', y(1), y(2));
+      for ii = 1:3
+        tmp = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([squeeze(frameValues(ii,:)), zeros(1,60)]))));
+        x = size(tmp(1:floor(obj.frameRate))); fprintf('size of tmp = %u %u\n', x(1), x(2));
+        lf(ii,:) = tmp(1:floor(obj.frameRate));
+      end
+      obj.linearFilter = obj.linearFilter + lf;
+    end
 
     % plot to figure
     axesHandle = obj.analysisFigure.userData.axesHandle;
     cla(axesHandle);
-    plot((0:length(obj.linearFilter)-1)/length(obj.linearFilter), obj.linearFilter, 'color', obj.plotColor, 'Parent', axesHandle);
+    if isempty(strfind(obj.chromaticClass, 'RGB'))
+      plot((0:length(obj.linearFilter)-1)/length(obj.linearFilter), obj.linearFilter, 'color', obj.plotColor, 'Parent', axesHandle);
+    else
+      plot((0:length(obj.linearFilter) - 1) / length(obj.linearFilter), obj.linearFilter, 'Parent', axesHandle);
     set(axesHandle, 'TickDir', 'out');
+    end
+
     xlabel(axesHandle, 'msec');
     ylabel(axesHandle, 'filter units');
     title(['Epoch ', num2str(obj.numEpochsCompleted), ' of ', num2str(obj.numberOfAverages)], 'Parent', axesHandle);
