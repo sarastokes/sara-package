@@ -45,39 +45,33 @@ end
 
 function prepareRun(obj)
   prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
-    % trace for response figure
-    x = 0:0.001:((obj.stimTime - 1) * 1e-3);
-    obj.stimValues = zeros(1, length(x));
-    if strcmp(obj.temporalClass, 'flash_up')
-        obj.stimValues(:) = 1;
-    elseif strcmp(obj.temporalClass, 'flash_down')
-        obj.stimValues(:) = 0;
-    else
-        for ii = 1:length(x)
-          if strcmp(obj.temporalClass, 'sinewave')
-            obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
-        elseif strcmp(obj.temporalClass, 'squarewave')
-            obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
-          end
+
+  % trace for response figure
+  x = 0:0.001:((obj.stimTime - 1) * 1e-3);
+  obj.stimValues = zeros(1, length(x));
+  if strcmp(obj.temporalClass, 'flash_up')
+      obj.stimValues(:) = 1;
+  elseif strcmp(obj.temporalClass, 'flash_down')
+      obj.stimValues(:) = 0;
+  else
+      for ii = 1:length(x)
+        if strcmp(obj.temporalClass, 'sinewave')
+          obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+      elseif strcmp(obj.temporalClass, 'squarewave')
+          obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
         end
+      end
     end
-
     obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
- %   obj.showFigure('symphonyui.builtin.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), 'color', obj.plotColor);
 
-%  obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
-
-  obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace);
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace);
 
 
-  if ~strcmp(obj.onlineAnalysis, 'none')
-    obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+    if ~strcmp(obj.onlineAnalysis, 'none')
+      obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+    end
   end
 
-%  if obj.reverseOrder
-%    obj.colorList = fliplr(obj.colorList);
-%  end
-end
   function p = createPresentation(obj)
 
     p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
