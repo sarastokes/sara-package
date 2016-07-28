@@ -56,8 +56,6 @@ end
 function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
-    %obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
-
     if strcmp(obj.paradigmClass, 'baselineA_up')
       obj.spotValues = [1, obj.backgroundIntensity];
     elseif strcmp(obj.paradigmClass, 'baselineA_down')
@@ -89,11 +87,6 @@ function prepareRun(obj)
 
     obj.stimTrace = [(obj.backgroundIntensity * ones(obj.stimPerSweep, obj.preTime)) obj.stimValue (obj.backgroundIntensity * ones(obj.stimPerSweep, obj.tailTime))];
 
-%    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure',...
-%        obj.rig.getDevice(obj.amp), 'preTime', obj.preTime,...
-%        'stimTime', obj.stimTime, 'tailTime', obj.tailTime,...
-%        'bkgdi', obj.backgroundIntensity, 'stimValue', obj.spotValues);
-
     [obj.colorWeightsA, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassA);
     [obj.colorWeightsB, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassB);
 
@@ -102,7 +95,6 @@ function prepareRun(obj)
     end
 
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimPerSweep', obj.stimPerSweep);
-
   end
 
   function p = createPresentation(obj)
@@ -159,10 +151,6 @@ function prepareRun(obj)
   function prepareEpoch(obj, epoch)
     prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
-%    device = obj.rig.getDevice(obj.amp);
-%    duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
-%    epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-%    epoch.addResponse(device);
   end
 
   function tf = shouldContinuePreparingEpochs(obj)

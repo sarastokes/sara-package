@@ -1,5 +1,6 @@
 classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % ID and get temporal RF - will divide up into seperate protocols eventually
+    % 25Jul16 - rgb STA works, MTFanalysis doesn't
 
 properties
   amp                                     % amplifier
@@ -26,7 +27,6 @@ properties (Hidden)
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
   chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'RGB-binary', 'RGB-gaussian'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-  bkg
   seed
   noiseStream
 end
@@ -54,14 +54,30 @@ methods
 
   function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
-%    obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
-    % why is this here?
-    if obj.backgroundIntensity == 0
-        obj.bkg = 0.5;
+
+    % obj.setColorWeights();
+    [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
+
+    % setup response trace
+    x = 0:0.001:((obj.stimTime - 1) * 1e-3);
+    obj.stimValues = zeros(1, length(x));
+    if strcmp(obj.paradigmClass, 'ID')
+      for ii = 1:length(x)
+        if strcmp(obj.temporalClass, 'sinewave')
+          obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+        else
+          obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+        end
+      end
     else
-        obj.bkg = obj.backgroundIntensity;
+        obj.stimValues(:) = 1;
     end
+
+    obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
+
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+
 
     if ~strcmp(obj.onlineAnalysis, 'none')
       if strcmp(obj.paradigmClass, 'STA')
@@ -77,42 +93,19 @@ methods
         end
         y = size(obj.linearFilter); fprintf('size of linearFilter is %u %u\n', y(1), y(2));
       elseif strcmp(obj.paradigmClass, 'ID')
+        % preallocate variables
+        obj.xaxis = 1:obj.numberOfAverages;
+        obj.F1 = zeros(1, obj.numberOfAverages);
+        obj.F2 = zeros(1, obj.numberOfAverages);
         obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CRFanalysis);
         f = obj.analysisFigure.getFigureHandle();
         set(f, 'Name', 'Contrast Response Function');
         obj.analysisFigure.userData.axesHandle = axes('Parent', f);
       end
     end
-
-    % obj.setColorWeights();
-    [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
-
-    % online analysis prep
-    x = 0:0.001:((obj.stimTime - 1) * 1e-3);
-    obj.stimValues = zeros(1, length(x));
-    if strcmp(obj.paradigmClass, 'ID')
-      for ii = 1:length(x)
-        if strcmp(obj.temporalClass, 'sinewave')
-          obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.bkg + obj.bkg;
-        else
-          obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.bkg + obj.bkg;
-        end
-      end
-    else
-        obj.stimValues(:) = 1;
-    end
-
-    obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
-
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
-
-    obj.xaxis = 1:obj.numberOfAverages;
-    obj.F1 = zeros(1, obj.numberOfAverages);
-    obj.F2 = zeros(1, obj.numberOfAverages);
   end
 
 %% analysis figure functions
-% not complete for RGB STA!!
   function MTFanalysis(obj, ~, epoch) % for STA
     response = epoch.getResponse(obj.rig.getDevice(obj.amp));
     responseTrace = response.getData();
@@ -120,9 +113,8 @@ methods
 
     % analyze response by type
     responseTrace = obj.getResponseByType(responseTrace, obj.onlineAnalysis);
-
-    % get f1 amplitude and phase
     responseTrace = responseTrace(obj.preTime/1000*sampleRate+1:end);
+
     % bin data at 60 hz
     binWidth = sampleRate / obj.frameRate;
     numBins = floor(obj.stimTime/1000 * obj.frameRate);
@@ -244,10 +236,10 @@ methods
       if time >= 0
         if strcmpi(obj.paradigmClass, 'ID')
           if strcmpi(obj.temporalClass, 'squarewave')
-            c = obj.contrast * obj.colorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.bkg + obj.bkg;
+            c = obj.contrast * obj.colorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
             c = c(:)';
           else
-            c = obj.contrast * obj.colorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.bkg + obj.bkg;
+            c = obj.contrast * obj.colorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
             c = c(:)';
           end
         elseif strcmpi(obj.paradigmClass, 'STA')
@@ -256,12 +248,12 @@ methods
           elseif strcmp(obj.chromaticClass, 'RGB-gaussian')
             c = uint8((obj.stdev * obj.contrast * obj.noiseStream.rand(1,3) * 0.5 + 0.5) * 255);
           else
-            c = obj.stdev * (obj.noiseStream.randn * obj.colorWeights) * obj.bkg + obj.bkg;
+            c = obj.stdev * (obj.noiseStream.randn * obj.colorWeights) * obj.backgroundIntensity + obj.backgroundIntensity;
             c = c(:)';
           end
         end
       else
-        c = obj.bkg;
+        c = obj.backgroundIntensity;
       end
     end
   end
