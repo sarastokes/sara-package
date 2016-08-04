@@ -8,6 +8,7 @@ properties
   preTime
   stimTime
   temporalFrequency
+  demoMode
 end
 
 properties (Access = private)
@@ -28,13 +29,20 @@ properties (Access = private)
 end
 
 methods
-  function obj = ConeIsoFigure(device, searchValues, onlineAnalysis, preTime, stimTime, temporalFrequency)
+  function obj = ConeIsoFigure(device, searchValues, onlineAnalysis, preTime, stimTime, temporalFrequency, varargin)
     obj.device = device;
     obj.searchValues = searchValues;
     obj.onlineAnalysis = onlineAnalysis;
     obj.stimTime = stimTime;
     obj.preTime = preTime;
     obj.temporalFrequency = temporalFrequency;
+
+    % demo mode option to test off rig
+    ip = inputParser();
+    ip.addParameter('demoMode', [false], @(x)islogical(x) || @(x)char(x));
+    ip.parse(varargin{:});
+    obj.demoMode = ip.Results.demoMode;
+
 
     obj.epochSort = 0;
     obj.epochCap = 2 * length(obj.searchValues);
@@ -43,6 +51,7 @@ methods
     obj.searchAxis = 'green';
     obj.ledIndex = 2;
 
+    % i don't think i need redAxis, greenAxis.. will remove once working
     obj.redAxis = obj.searchValues; obj.redF1 = zeros(size(obj.redAxis));
     obj.greenAxis = obj.searchValues; obj.greenF1 = zeros(size(obj.greenF1));
     fprintf('size of greenAxis is %u and size of greenF1 is %u\n', length(obj.greenAxis), length(obj.greenF1));
@@ -97,10 +106,19 @@ methods
       error(['Epoch does not contain a response for ' obj.device.name]);
     end
 
-    response = epoch.getResponse(obj.device);
-    responseTrace = response.getData();
-    sampleRate = response.sampleRate.quantityInBaseUnits;
+    if obj.demoMode
+      load demoResponse; % mat file saved in utils
+      expTime = (obj.preTime + obj.stimTime + obj.tailTime) * 10;
+      n = randi(length(response) - expTime, 1);
+      responseTrace = response(n + 1 : n + expTime);
+      sampleRate = 10000;
+    else
+      response = epoch.getResponse(obj.device);
+      responseTrace = response.getData();
+      sampleRate = response.sampleRate.quantityInBaseUnits;
+    end
 
+    % some of this should probably go back in ConeIsoSearch..
     responseTrace = getResponseByType(responseTrace, obj.onlineAnalysis);
 
     % get the f1 amplitude and phase
@@ -128,7 +146,7 @@ methods
     ft = fft(cycleData);
 
     % reset after green found
-    if obj.epochSort > obj.epochCap
+    if obj.epochSort > length(obj.searchValues)
       % switch to red led
       obj.ledIndex = 1;
       obj.searchAxis = 'red';

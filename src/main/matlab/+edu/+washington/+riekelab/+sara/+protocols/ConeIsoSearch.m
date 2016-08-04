@@ -17,7 +17,7 @@ properties
   numberOfAverages = uint16(130)
 end
 
-properties (Hidden)
+properties (Hidden) % not all are necessary.. clean up later
   ampType
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog', 'demo'})
@@ -43,19 +43,6 @@ properties (Hidden)
   stimValues
   stimTitle
   sweepColor
-end
-
-% output figure properties
-properties (Hidden)
-  currentNDF
-  currentOBJ
-  greenLED
-  redLED
-  blueLED
-end
-
-properties (Hidden, Transient)
-  analysisFigure
 end
 
 methods
@@ -109,76 +96,9 @@ methods
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace);
 
     if ~strcmp(obj.onlineAnalysis, 'none')
-      obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.searchValues, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency);
+      obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.searchValues, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency, 'demoMode', obj.demoMode);
     end
   end
-  % will cut this out once ConeIsoFigure is totally functional
-    function MTFanalysis(obj, ~, epoch)
-      if obj.demoMode
-        load demoResponse; % mat file saved in utils
-        expTime = (obj.preTime + obj.stimTime + obj.tailTime) * 10;
-        n = randi(length(response) - expTime, 1);
-        responseTrace = response(n + 1 : n + expTime);
-        sampleRate = 10000;
-      else
-        response = epoch.getResponse(obj.rig.getDevice(obj.amp));
-        responseTrace = response.getData();
-        sampleRate = response.sampleRate.quantityInBaseUnits;
-      end
-
-      % analyze response by type
-      responseTrace = obj.getResponseByType(responseTrace, obj.onlineAnalysis);
-
-      % get the f1 amplitude and phase
-      responseTrace = responseTrace(obj.preTime/1000*sampleRate+1 : end);
-      binRate = 60;
-      binWidth = sampleRate / binRate;
-      numBins = floor(obj.stimTime/1000 * binRate);
-      binData = zeros(1, numBins);
-
-      for k = 1 : numBins
-        index = round((k-1) * binWidth + 1 : k*binWidth);
-        binData(k) = mean(responseTrace(index));
-      end
-
-      binsPerCycle = binRate / obj.temporalFrequency;
-      numCycles = floor(length(binData)/binsPerCycle);
-      cycleData = zeros(1, floor(binsPerCycle));
-
-      for k = 1:numCycles
-        index = round(k-1)*binsPerCycle + (1 : floor(binsPerCycle));
-        cycleData = cycleData + binData(index);
-      end
-      cycleData = cycleData / k;
-
-      ft = fft(cycleData);
-      % find the F1 amplitude for red/green axis
-      if strcmp(obj.searchAxis, 'red')
-        if isempty(obj.redAxis)
-          index = 1;
-        else
-          index = length(obj.redAxis) + 1;
-        end
-        obj.redAxis(index) = obj.ledContrasts(obj.ledIndex);
-        obj.redF1(index) = abs(ft(2)) / length(ft)*2;
-      else
-        obj.greenAxis(obj.numEpochsCompleted) = obj.ledContrasts(obj.ledIndex);
-        obj.greenF1(obj.numEpochsCompleted) = abs(ft(2)) / length(ft)*2;
-      end
-
-      %----------------------------------------------------------------------
-      axesHandle = obj.analysisFigure.userData.axesHandle;
-      cla(axesHandle);
-      hold(axesHandle, 'on');
-      plot(obj.greenAxis, obj.greenF1, 'o-', 'color', [0 0.73 0.30], 'Parent', axesHandle);
-      if strcmp(obj.searchAxis, 'red')
-        plot(obj.redAxis, obj.redF1, 'o-', 'color', [0.82, 0, 0], 'Parent', axesHandle);
-      end
-      hold(axesHandle, 'off'); % why turn this back off?
-      set(axesHandle, 'TickDir', 'out');
-      ylabel(axesHandle, 'F1 amp');
-      title(['Epoch ', num2str(obj.numEpochsCompleted), ' of ', num2str(obj.numberOfAverages)], 'Parent', axesHandle);
-    end
 
     function p = createPresentation(obj)
       p = stage.core.Presentation ((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
@@ -213,19 +133,30 @@ methods
       prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
       n = obj.numEpochsCompleted - length(obj.searchValues);
-      if n == 0
+      if n == 0  % prep first red axis epoch
         obj.searchAxis = 'red';
         if strcmp(obj.onlineAnalysis, 'none')
+          obj.greenMin = 0;
+        elseif obj.demoMode
           obj.greenMin = 0;
         else
           % changed greenMin to greenF1
           obj.greenMin = obj.searchValues(find(obj.greenMin == min(obj.greenF1), 1));
           fprintf('Green Minimum is %.5f\n', obj.greenMin);
+          epoch.addParameter('foundGreenMin', true);
+          epoch.addParameter('greenMin', obj.greenMin);
+          if isempty(obj.greenMin)
+            obj.greenMin == 0;
+            fprintf('Did not find green minimum, set to %u\n', obj.greenMin);
+            epoch.addParameter('foundGreenMin', false);
+          end
         end
       end
+
       if n == length(obj.searchValues)
         fprintf('Red minimum\n');
       end
+
       if obj.numEpochsCompleted+1 > length(obj.searchValues)
         obj.searchAxis = 'red';
       else
@@ -245,11 +176,14 @@ methods
       obj.stimTitle = sprintf('Epoch number %u - LED contrasts at [%.3f %.3f 1]', obj.numEpochsCompleted - 1, obj.ledContrasts(1), obj.ledContrasts(2));
 
       % this throws an error (index exceeds matrix dimensions) at end of green
+      % didn't find greenMin?
 %      fprintf('epoch %u - LED contrasts are %.5f %.5f %u\n', obj.numEpochsCompleted+1, obj.ledContrasts(1), obj.ledContrasts(2), obj.ledContrasts(3));
 
       epoch.addParameter('searchAxis', obj.searchAxis);
       epoch.addParameter('ledIndex', obj.ledIndex);
-      epoch.addParameter('ledContrasts', obj.ledContrasts);
+      epoch.addParameter('redLED', obj.ledContrasts(1));
+      epoch.addParameter('greenLED', obj.ledContrasts(2));
+      epoch.addParameter('blueLED', obj.ledContrasts(3));
     end
 
     function tf = shouldContinuePreparingEpochs(obj)
