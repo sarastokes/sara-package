@@ -26,6 +26,8 @@ properties (Access = private)
   currentContrasts
   minContrast
   searchAxis
+  objectiveMag
+  ndf
 end
 
 methods
@@ -39,17 +41,20 @@ methods
 
     % demo mode option to test off rig
     ip = inputParser();
-    ip.addParameter('demoMode', [false], @(x)islogical(x) || @(x)char(x));
+    ip.addParameter('demoMode', [], @(x)islogical(x) || @(x)char(x));
     ip.parse(varargin{:});
     obj.demoMode = ip.Results.demoMode;
 
+    if isempty(obj.demoMode)
+      obj.demoMode = false;
+    end
 
+    % epoch counter
     obj.epochSort = 0;
     obj.epochCap = 2 * length(obj.searchValues);
 
     % begin with green axis
-    obj.searchAxis = 'green';
-    obj.ledIndex = 2;
+    obj.searchAxis = 'green'; obj.ledIndex = 2;
 
     % i don't think i need redAxis, greenAxis.. will remove once working
     obj.redAxis = obj.searchValues; obj.redF1 = zeros(size(obj.redAxis));
@@ -73,6 +78,12 @@ methods
       'Separator', 'on',...
       'ClickedCallback', @obj.onSelectedExistingContrasts);
     setIconImage(existingContrastsButton, symphonyui.app.App.getResource('icons', 'experiment_view.png'));
+
+    findContrastMinsButton = uipushtool('Parent', toolbar,...
+      'TooltipString', 'Find contrast minimums',...
+      'Separator', 'on',...
+      'ClickedCallback', @obj.onSelectedFindContrastMins);
+    setIconImage(findContrastMinsButton, symphonyui.app.App.getResource('icons', 'valid.png'));
 
     % create axes
     obj.axesHandle(1) = subplot(1,2,1, ...
@@ -186,13 +197,39 @@ end
 methods (Access = private)
   function onSelectedStoreContrasts(obj, ~, ~)
     fprintf('LED contrasts are [%.5f %.5f 1]\n', obj.redMin, obj.greenMin);
-    global customColorWeights
-    customColorWeights = [obj.redMin obj.greenMin 1];
+  %  global customColorWeights
+  %  customColorWeights = [obj.redMin obj.greenMin 1];
+
+    % get date and obj/ndf
+    d = datestr(now,'mmmdd');
+    fw = obj.rig.getDevices('FilterWheel');
+    if ~isempty(fw)
+      filterWheel = fw{1};
+      obj.objectiveMag = filterWheel.getObjective();
+      obj.ndf = filterWheel.getNDF();
+    else
+      error('ConeIsoFigure did not find FilterWheel');
+    end
+
+    load customColorWeights.mat;
+    % if ~isempty(customColorWeights.(sprintf('%sobj%undf%u'), d, obj.ndf, obj.objectiveMag));
+    customColorWeights.(sprintf('%sobj%undf%u', d, obj.ndf, obj.objectiveMag)) = [obj.redMin obj.greenMin 1];
+    save('customColorWeights.mat', 'customColorWeights', '-append');
   end
 
   function onSelectedExistingContrasts(obj, ~, ~)
-    global customColorWeights
-    fprintf('Existing LED contrasts are [%.5f %.5f 1]\n', customColorWeights(1), customColorWeights(2));
+  %  global customColorWeights
+  %  fprintf('Existing LED contrasts are [%.5f %.5f 1]\n', customColorWeights(1), customColorWeights(2));
   end
+
+  function findContrastMins(obj, ~, ~)
+    if obj.demoMode
+      obj.greenMin = 0;
+    else
+      obj.greenMin = min(obj.greenF1);
+    end
+    [rows, cols, vals] = find(obj.greenF1 == obj.greenMin);
+    fprintf('rows = %u, cols = %u, vals = %u\n', rows,cols,vals);
+end
 end
 end
