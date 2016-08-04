@@ -3,6 +3,7 @@ classdef ConeSweep < edu.washington.riekelab.manookin.protocols.ManookinLabStage
 properties
   amp
   stimClass = 'lms'
+  useCustomConeIso = false
   reverseOrder = false
   preTime = 200
   stimTime = 1000
@@ -68,7 +69,7 @@ function prepareRun(obj)
 
 
     if ~strcmp(obj.onlineAnalysis, 'none')
-      obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+      obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
     end
   end
 

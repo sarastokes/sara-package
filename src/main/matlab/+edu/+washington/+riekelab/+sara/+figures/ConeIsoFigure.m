@@ -1,190 +1,120 @@
 classdef ConeIsoFigure < symphonyui.core.FigureHandler
+  % for ConeIsoSearch protocol
 
 properties
   device
-  stimClass
-  stimTrace
+  searchValues
+  redAxis
+  redF1
+  greenAxis
+  greenF1
 end
 
 properties (Access = private)
   axesHandle
-  traceHandle
-  plotStim
   epochSort
   epochCap
-  epochColors
-  epochNames
-  sweepOne
-  sweepTwo
-  sweepThree
+  greenMin
+  redMin
+  currentContrasts
+  minContrast
+  searchAxis
+  ledIndex
 end
 
 methods
-  function obj = ConeIsoFigure(device, stimClass, varargin)
+  function obj = ConeIsoFigure(device, searchValues, redAxis, redF1, greenAxis, greenF1)
     obj.device = device;
-    obj.stimClass = stimClass;
+    obj.searchValues = searchValues;
+    obj.redAxis = redAxis;
+    obj.redF1 = redF1;
+    obj.greenAxis = greenAxis;
+    obj.greenF1 = greenF1;
+
     obj.epochSort = 0;
+    obj.epochCap = length(obj.searchValues);
 
-    ip = inputParser();
-    ip.addParameter('stimTrace', [], @(x)isvector(x));
-    ip.parse(varargin{:});
-    obj.stimTrace = ip.Results.stimTrace;
-
-    obj.epochCap = length(obj.stimClass);
-    fprintf('epoch cap = %u\n', obj.epochCap);
-
-    if isempty(obj.stimTrace)
-      obj.plotStim = false;
-    else
-      obj.plotStim = true;
-    end
-
-    obj.epochColors = zeros(length(obj.stimClass),3);
-    for ii = 1:length(obj.stimClass)
-      colorCall = obj.stimClass(ii);
-      switch colorCall
-      case 'l'
-        obj.epochNames{ii} = 'L-iso';
-        obj.epochColors(ii, :) = [0.82353, 0, 0];
-      case 'm'
-        obj.epochNames{ii} = 'M-iso';
-        obj.epochColors(ii, :) = [0, 0.52941, 0.21569];
-      case 's'
-        obj.epochNames{ii} = 'S-iso';
-        obj.epochColors(ii,:) = [0.14118, 0.20784, 0.84314];
-      case 'y'
-        obj.epochNames{ii} = 'LM-iso';
-        obj.epochColors(ii,:) = [0.90588, 0.43529, 0.31765];
-      % no reason, just curious:
-      case 'c'
-        obj.epochNames{ii} = 'MS-iso';
-        obj.epochColors(ii,:) = [0, 0.74902, 0.68627];
-      case 'p'
-        obj.epochNames{ii} = 'LS-iso';
-        obj.epochColors(ii,:) = [0.64314, 0.011765, 0.43529];
-      otherwise
-        obj.epochNames{ii} = [0 0 0];
-        obj.epochColors(ii,:) = 'Achromatic';
-      end
-    end
-    fprintf('Epoch Colors (1,1) = %.2f and (3,3) = %.2f\n', obj.epochColors(1,1), obj.epochColors(3,3));
+    % begin with green axis
+    obj.searchAxis = 'green';
+    obj.ledIndex = 2;
 
     obj.createUi();
   end
 
   function createUi(obj)
     import appbox.*;
-  %  toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
 
-    if isempty(obj.epochColors)
-      obj.epochColors = zeros(obj.epochCap, 3);
-    end
-    %if isempty(obj.epochNames)
-  %    obj.epochNames{1:obj.epochCap} = '';
-  %  end
-%    if obj.plotStim
-%      m = obj.epochCap + 1;
-%      n = zeros(m, 2);
-     % for ii = 1:obj.epochCap
-     %   n(ii) = [(2*ii - 1) (2*ii)];
-     % end
-    %else
-    fprintf('epochCap = %u\n', obj.epochCap);
-    if obj.plotStim
-      m = 2 * obj.epochCap + 1;
-    else
-      m = 2 * obj.epochCap; %n = 1:obj.epochCap;
-    end
-
-    %end
+    toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+    storeContrastsButton = uipushtool('Parent', 'toolbar',...
+      'TooltipString', 'Store Sweep',...
+      'Separator', 'on',...
+      'ClickedCallback', @obj.onSelectedStoreContrasts);
+    setIconImage(storeContrastsButton, symphonyui.app.App.getResource('icons', 'valid.png'));
+    existingContrastsButton = uipushtool('Parent', 'toolbar',...
+      'TooltipString', 'Print Existing Contrasts',...
+      'Separator', 'on',...
+      'ClickedCallback', @obj.onSelectedExistingContrasts);
+    setIconImage(existingContrastsButton, symphonyui.app.App.getResource('icons', 'experiment_view.png'));
 
     % create axes
-    obj.axesHandle(1) = subplot(m, 1, 1:2,...
+    obj.axesHandle(1) = subplot(1,2,1, ...
       'Parent', obj.figureHandle,...
       'FontName', 'Roboto',...
-      'FontSize',9,...
+      'FontSize', 9,...
       'XTickMode', 'auto');
-    obj.axesHandle(2) = subplot(m, 1, 3:4,...
-        'Parent', obj.figureHandle,...
-        'FontName', 'Roboto',...
-        'FontSize',9,...
-        'XTickMode', 'auto');
-    obj.axesHandle(3) = subplot(m, 1, 5:6,...
-        'Parent', obj.figureHandle,...
-        'FontName', 'Roboto',...
-        'FontSize',9,...
-        'XTickMode', 'auto');
-    if obj.epochCap == 4
-      obj.axesHandle(4) = subplot(m,1,7:8,...
-        'Parent', obj.figureHandle,...
-        'FontName', 'Roboto',...
-        'FontSize', 10,...
-        'XTickMode', 'auto');
-        if ~isempty(obj.epochNames)
-          title(sprintf('%s Response', obj.epochNames{ii}));
-        end
-    end
-    if obj.plotStim
-      obj.traceHandle = subplot(m,1,m,...
-        'Parent', obj.figureHandle,...
-        'FontName', 'Roboto',...
-        'FontSize', 10,...
-        'XTickMode', 'auto');
-    end
+    obj.axesHandle(2) = subplot(1,2,2,...
+      'Parent', obj.figureHandle,...
+      'FontName', 'Roboto',...
+      'FontSize', 9,...
+      'XTickMode', 'auto');
   end
 
   function clear(obj)
-    cla(obj.axesHandle(1)); cla(obj.axesHandle(2)); cla(obj.axesHandle(3));
-    obj.sweepOne = []; obj.sweepTwo; obj.sweepThree;
+    cla(obj.axesHandle(1)); cla(obj.axesHandle(2));
+    obj.greenTrace = []; obj.redTrace = [];
+    obj.epochSort = 0;
   end
 
   function handleEpoch(obj, epoch)
-    if ~epoch.hasResponse(obj.device)
-      error(['Epoch does not contain a response for ' obj.device.name]);
-    end
-    response = epoch.getResponse(obj.device);
-    [quantities, units] = response.getData();
-    sampleRate = response.sampleRate.quantityInBaseUnits;
-
-    obj.epochSort = obj.epochSort + 1;
+    % keep track of current epoch
+    obj.epochSort = obj.epochSort+1;
+    % reset after green found
     if obj.epochSort > obj.epochCap
       obj.epochSort = 1;
+      % switch to red led
+      obj.ledIndex = 1;
+      obj.searchAxis = 'red';
     end
-    fprintf('epochSort = %u\n', obj.epochSort);
 
-    if numel(quantities) > 0
-      x = (1:numel(quantities)) / sampleRate;
-      y = quantities;
+    % plot
+    if obj.ledIndex == 2
+      cla(obj.axesHandle(1));
+      hold(obj.axesHandle(1), 'on');
+      plot(obj.greenAxis, obj.greenF1, 'o-', 'color', [0 0.73 0.30], 'Parent', obj.axesHandle(1));
+      hold(obj.axesHandle(1), 'off');
+      set(obj.axesHandle(1), 'TickDir', 'out');
+      ylabel(obj.axesHandle(1), 'F1 amp');
     else
-      x = []; y = [];
+      cla(obj.axesHandle(2));
+      hold(obj.axesHandle(2), 'on');
+      plot(obj.redAxis, obj.redF1, 'o-', 'color', [0.82, 0, 0], 'Parent', obj.axesHandle(2));
+      hold(obj.axesHandle(2), 'off');
+      set(obj.axesHandle(2), 'TickDirection', 'out');
+      ylabel('F1 amp');
     end
+  end
+end
 
-    % plot sweep
-    if obj.epochSort == 1
-      if isempty(obj.sweepOne)
-        obj.sweepOne = line(x, y, 'Parent', obj.axesHandle(1), 'Color', obj.epochColors(1,:));
-      else
-        set(obj.sweepOne, 'XData', x, 'YData', y);
-      end
-    elseif obj.epochSort == 2
-      if isempty(obj.sweepTwo)
-        obj.sweepTwo = line(x, y, 'Parent', obj.axesHandle(2), 'Color', obj.epochColors(2,:));
-      else
-        set(obj.sweepTwo, 'XData', x, 'YData', y);
-      end
-    elseif obj.epochSort == 3
-      if isempty(obj.sweepThree)
-        obj.sweepThree = line(x, y, 'Parent', obj.axesHandle(3), 'Color', obj.epochColors(3,:));
-      else
-        set(obj.sweepThree, 'XData', x, 'YData', y);
-      end
-    end
+methods (Access = private)
+  function onSelectedStoreContrasts(obj, ~, ~)
+    fprintf('LED contrasts are [%.5f %.5f 1]\n', obj.redMin, obj.greenMin);
+    global customColorWeights
+    customColorWeights = [obj.redMin obj.greenMin 1];
+  end
 
-
-    % plot trace
-    if obj.plotStim
-      plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle, 'color', 'k');
-    end
+  function onSelectedExistingContrasts(obj, ~, ~)
+    global customColorWeights
+    fprintf('Existing LED contrasts are [%.5f %.5f 1]\n', customColorWeights(1), customColorWeights(2));
   end
 end
 end

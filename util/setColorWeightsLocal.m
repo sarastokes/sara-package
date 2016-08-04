@@ -1,5 +1,6 @@
 function [w, p, c] = setColorWeightsLocal(obj, colorCall)
   % use when there's >1 chromaticClass or to get extra info
+  % also for colorweights found by ConeIsoSearch
 
     % Cone iso options
     if strcmp(colorCall, 'L-iso') || strcmp(colorCall, 'l')
@@ -27,7 +28,7 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
       w = obj.quantalCatch(:,1:3)' \ [1 0 1]';
       w = w / max(w); c = 'LS-iso';
       p = [0.64314, 0.011765, 0.43529];
-      
+
     % Chromatic options
     elseif strcmp(colorCall, 'red')
       w = [1 0 0];
@@ -47,6 +48,11 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
     elseif strcmp(colorCall, 'magenta')
       w = [1 0 1];
       p = [0.64314, 0.011765, 0.43529];
+    % get color weights defined by ConeIsoSearch
+    elseif strcmp(colorCall, 'custom')
+      global customColorWeights;
+      w = customColorWeights;
+      p = [0.14118, 0.20784, 0.84314];
     else
       w = [1 1 1];
       p = [0 0 0];

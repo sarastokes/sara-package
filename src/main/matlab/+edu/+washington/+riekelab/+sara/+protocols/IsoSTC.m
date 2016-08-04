@@ -1,6 +1,6 @@
 classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % ID and get temporal RF - will divide up into seperate protocols eventually
-    % 25Jul16 - rgb STA works, MTFanalysis doesn't
+    % 25Jul16 - rgb sta works, f1f2 mtf doesn't
 
 properties
   amp                                     % amplifier
@@ -18,6 +18,7 @@ properties
   onlineAnalysis = 'none'                 % type of online analysis
   randomSeed = true                       % if STA, use random seed
   stdev = 0.3;                            % if STA, gaussian noise sd
+  demoMode = false                        % demo figures without rig connection
   numberOfAverages = uint16(1)            % number of epochs
 end
 
@@ -25,7 +26,7 @@ properties (Hidden)
   ampType
   paradigmClassType = symphonyui.core.PropertyType('char', 'row', {'ID', 'STA'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-  chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'RGB-binary', 'RGB-gaussian'})
+  chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso', 'MS-iso', 'LS-iso', 'RGB-binary', 'RGB-gaussian'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   seed
   noiseStream
@@ -55,11 +56,9 @@ methods
   function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
-
-    % obj.setColorWeights();
     [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 
-    % setup response trace
+    % online analysis prep
     x = 0:0.001:((obj.stimTime - 1) * 1e-3);
     obj.stimValues = zeros(1, length(x));
     if strcmp(obj.paradigmClass, 'ID')
@@ -78,7 +77,6 @@ methods
 
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
 
-
     if ~strcmp(obj.onlineAnalysis, 'none')
       if strcmp(obj.paradigmClass, 'STA')
         obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
@@ -93,7 +91,6 @@ methods
         end
         y = size(obj.linearFilter); fprintf('size of linearFilter is %u %u\n', y(1), y(2));
       elseif strcmp(obj.paradigmClass, 'ID')
-        % preallocate variables
         obj.xaxis = 1:obj.numberOfAverages;
         obj.F1 = zeros(1, obj.numberOfAverages);
         obj.F2 = zeros(1, obj.numberOfAverages);
@@ -107,6 +104,18 @@ methods
 
 %% analysis figure functions
   function MTFanalysis(obj, ~, epoch) % for STA
+    if obj.demoMode
+      load demoResponse; % mat file saved in utils
+      expTime = (obj.preTime + obj.stimTime + obj.tailTime) * 10;
+      n = randi(length(response) - expTime, 1);
+      responseTrace = response(n + 1 : n + expTime);
+      sampleRate = 10000;
+    else
+      response = epoch.getResponse(obj.rig.getDevice(obj.amp));
+      responseTrace = response.getData();
+      sampleRate = response.sampleRate.quantityInBaseUnits;
+    end
+
     response = epoch.getResponse(obj.rig.getDevice(obj.amp));
     responseTrace = response.getData();
     sampleRate = response.sampleRate.quantityInBaseUnits;

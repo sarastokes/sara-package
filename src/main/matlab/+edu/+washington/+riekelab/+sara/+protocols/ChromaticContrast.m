@@ -20,7 +20,7 @@ classdef ChromaticContrast < edu.washington.riekelab.manookin.protocols.Manookin
     properties (Hidden)
         ampType
         temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'pulse-positive', 'pulse-negative'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta'})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso', 'MS-iso', 'LS-iso', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         stimulusClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
         sequence

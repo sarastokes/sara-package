@@ -24,7 +24,7 @@ classdef ChromaticSpatialNoise < edu.washington.riekelab.manookin.protocols.Mano
         ampType
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         noiseClassType = symphonyui.core.PropertyType('char', 'row', {'binary', 'gaussian'})
-        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB', 'L-iso', 'M-iso', 'S-iso'})
+        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB', 'L-iso', 'M-iso', 'S-iso', 'custom'})
         noiseStream
         numXChecks
         numYChecks

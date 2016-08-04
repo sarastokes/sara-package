@@ -19,7 +19,7 @@ classdef IsoBarCentering < edu.washington.riekelab.manookin.protocols.ManookinLa
 
     properties (Hidden)
         ampType
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso','S-iso'})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso','S-iso', 'custom', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta'})
         searchAxisType = symphonyui.core.PropertyType('char', 'row', {'xaxis', 'yaxis'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         position
@@ -30,6 +30,7 @@ classdef IsoBarCentering < edu.washington.riekelab.manookin.protocols.ManookinLa
         xaxis
         stimTrace
         stimColor
+        stimValues
     end
 
     properties (Hidden, Transient)
@@ -51,15 +52,14 @@ classdef IsoBarCentering < edu.washington.riekelab.manookin.protocols.ManookinLa
 
             % get stim trace
             x = 0:0.001:((obj.stimTime - 1) * 1e-3);
-            stimValues = zeros(1, length(x));
+            obj.stimValues = zeros(1, length(x));
             for ii = 1:length(x)
-              stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+              obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
             end
-            obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
+
+            obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
-
-%            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
             if ~strcmp(obj.onlineAnalysis, 'none')
                 obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CTRanalysis);

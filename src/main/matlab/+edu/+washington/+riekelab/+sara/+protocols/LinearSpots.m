@@ -2,7 +2,7 @@ classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabSta
     % test spatial (non)linearity - checks if inputs sum/null
 
 
-    % 18Jul - currently only makes sense for achromatic
+    % 3Aug - fixed issue for cone-iso stim
 
 properties
   amp
@@ -10,18 +10,18 @@ properties
   stimTime = 200                        % stim duration (ms)
   tailTime = 200                        % time after stim (ms)
   backgroundIntensity = 0.5             % mean light level (0-1)
-  centerOffsetA = [-200,-200]           % location of spot A (pix: x,y)
-  radiusA = 75                          % size of spot A (pix)
-  centerOffsetB = [200,200]             % location of spot B (pix - x,y)
-  radiusB = 75                          % size of spot B (pix)
-  chromaticClassA = 'achromatic'        % spot A color
-  chromaticClassB = 'achromatic'        % spot B color
+  centerOffsetOne = [-200,-200]         % location of spot A (pix: x,y)
+  radiusOne = 75                        % size of spot A (pix)
+  centerOffsetTwo = [200,200]           % location of spot B (pix - x,y)
+  radiusTwo = 75                        % size of spot B (pix)
+  chromaticClassOne = 'achromatic'      % spot A color
+  chromaticClassTwo = 'achromatic'      % spot B color
   paradigmClass = 'sum_up'              % experiment sequence
   controlSpot = false                   % include a control spot
   controlContrast = 1                   % increment or decrement (0-1)
-  centerOffsetC = [0,0]                 % if true, control spot center
-  radiusC = 100                         % if true, control spot radius
-  chromaticClassC = 'achromatic'        % if true, control spot color
+  controlCenterOffset = [0,0]                 % if true, control spot center
+  controlRadius = 100                         % if true, control spot radius
+  chromaticClassThree = 'achromatic'        % if true, control spot color
   onlineAnalysis = 'none'               % online analysis type
   numberOfAverages = uint16(1)          % number of epochs
 end
@@ -29,14 +29,14 @@ end
 properties (Hidden)
   ampType
   paradigmClassType = symphonyui.core.PropertyType('char', 'row', {'sum_up', 'sum_down', 'null_wb', 'null_bw', 'baselineA_up', 'baselineB_up', 'baselineA_down', 'baselineB_down'})
-  chromaticClassAType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
-  chromaticClassBType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
-  chromaticClassCType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
+  chromaticClassOneType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso'})
+  chromaticClassTwoType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso'})
+  chromaticClassThreeType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   spotValues
-  colorWeightsA
-  colorWeightsB
-  colorWeightsC
+  colorWeightsOne
+  colorWeightsTwo
+  colorWeightsThree
 end
 
 properties (Hidden) % relating to online analysis
@@ -68,9 +68,9 @@ function prepareRun(obj)
       obj.spotValues = [1, 1];
     elseif strcmp(obj.paradigmClass, 'sum_down')
       obj.spotValues = [0, 0];
-    elseif strcmpi(obj.paradigmClass, 'null_wb')
+    elseif strcmp(obj.paradigmClass, 'null_wb')
       obj.spotValues = [1, 0];
-    elseif strcmpi(obj.paradigmClass, 'null_bw')
+    elseif strcmp(obj.paradigmClass, 'null_bw')
       obj.spotValues = [0, 1];
     end
 
@@ -87,11 +87,11 @@ function prepareRun(obj)
 
     obj.stimTrace = [(obj.backgroundIntensity * ones(obj.stimPerSweep, obj.preTime)) obj.stimValue (obj.backgroundIntensity * ones(obj.stimPerSweep, obj.tailTime))];
 
-    [obj.colorWeightsA, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassA);
-    [obj.colorWeightsB, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassB);
+    [obj.colorWeightsOne, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassOne);
+    [obj.colorWeightsTwo, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassTwo);
 
-    if obj.controlSpot && ~strcmp(obj.chromaticClassC, 'achromatic')
-      obj.colorWeightsC = setColorWeightsLocal(obj, obj.chromaticClassC);
+    if obj.controlSpot && ~strcmp(obj.chromaticClassThree, 'achromatic')
+      obj.colorWeightsThree = setColorWeightsLocal(obj, obj.chromaticClassThree);
     end
 
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimPerSweep', obj.stimPerSweep);
@@ -102,48 +102,48 @@ function prepareRun(obj)
     p.setBackgroundColor(obj.backgroundIntensity);
 
     % 1st spot setup
-    spotA = stage.builtin.stimuli.Ellipse();
-    spotA.radiusX = obj.radiusA; spotA.radiusY = obj.radiusA;
-    spotA.position = obj.canvasSize/2 + obj.centerOffsetA;
-    if strcmp(obj.chromaticClassA, 'achromatic')
-      spotA.color = obj.spotValues(1);
+    spotOne = stage.builtin.stimuli.Ellipse();
+    spotOne.radiusX = obj.radiusOne; spotOne.radiusY = obj.radiusOne;
+    spotOne.position = obj.canvasSize/2 + obj.centerOffsetOne;
+    if strcmp(obj.chromaticClassOne, 'achromatic')
+      spotOne.color = obj.spotValues(1);
     else
-      spotA.color = obj.colorWeightsA * obj.spotValues(1);
+      spotOne.color = (2*obj.colorWeightsOne - 1) * obj.spotValues(1);
     end
-    visibleControllerA = stage.builtin.controllers.PropertyController(spotA, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+    visibleControllerA = stage.builtin.controllers.PropertyController(spotOne, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
     % 2nd spot setup
-    spotB = stage.builtin.stimuli.Ellipse();
-    spotB.radiusX = obj.radiusB; spotB.radiusY = obj.radiusB;
-    spotB.position = obj.canvasSize/2 + obj.centerOffsetB;
-    if strcmp(obj.chromaticClassB, 'achromatic')
-      spotB.color = obj.spotValues(2);
+    spotTwo = stage.builtin.stimuli.Ellipse();
+    spotTwo.radiusX = obj.radiusTwo; spotTwo.radiusY = obj.radiusTwo;
+    spotTwo.position = obj.canvasSize/2 + obj.centerOffsetTwo;
+    if strcmp(obj.chromaticClassTwo, 'achromatic')
+      spotTwo.color = obj.spotValues(2);
     else
-      spotB.color = obj.colorWeightsB * obj.spotValues(2);
+      spotTwo.color = (2*obj.colorWeightsTwo - 1) * obj.spotValues(2);
     end
     % 2nd spot controllers
-    visibleControllerB = stage.builtin.controllers.PropertyController(spotB, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+    visibleControllerB = stage.builtin.controllers.PropertyController(spotTwo, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
     if obj.controlSpot
-      spotC = stage.builtin.stimuli.Ellipse();
-      spotC.radiusX = obj.radiusC; spotC.radiusY = obj.radiusC;
-      spotC.position = obj.canvasSize/2 + obj.centerOffsetC;
-      if strcmp(obj.chromaticClassC, 'achromatic')
-        spotC.color = obj.controlContrast;
+      spotThree = stage.builtin.stimuli.Ellipse();
+      spotThree.radiusX = obj.controlRadius; spotThree.radiusY = obj.controlRadius;
+      spotThree.position = obj.canvasSize/2 + obj.controlCenterOffset;
+      if strcmp(obj.chromaticClassThree, 'achromatic')
+        spotThree.color = obj.controlContrast;
       else
-        spotC.color = obj.colorWeightsC * obj.controlContrast;
+        spotThree.color = obj.colorWeightsThree * (2*obj.controlContrast - 1);
       end
-      visibleControllerC = stage.builtin.controllers.PropertyController(spotC, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+      visibleControllerC = stage.builtin.controllers.PropertyController(spotThree, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
     end
 
-    p.addStimulus(spotA);
+    p.addStimulus(spotOne);
     p.addController(visibleControllerA);
 
-    p.addStimulus(spotB);
+    p.addStimulus(spotTwo);
     p.addController(visibleControllerB);
 
     if obj.controlSpot
-      p.addStimulus(spotC);
+      p.addStimulus(spotThree);
       p.addController(visibleControllerC);
     end
   end

@@ -18,7 +18,7 @@ classdef IsoChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinL
 
     properties (Hidden)
         ampType
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso','M-iso','S-iso','LM-iso', 'MS-iso', 'LS-iso',})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso','M-iso','S-iso', 'custom', 'LM-iso', 'MS-iso', 'LS-iso',})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         intensity
         stimColor
@@ -35,8 +35,6 @@ classdef IsoChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinL
 
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
-
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
             % Get the canvas size.
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
