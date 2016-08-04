@@ -15,6 +15,7 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
   properties (Access = private)
     axesHandle
     sweep
+    stim
     storedSweep
   end
 
@@ -24,6 +25,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     obj.device = device;
     obj.stimTrace = stimTrace;
     ip = inputParser();
+
+    fprintf('Length of stimTrace is %u. At 500 = %.2f and 1000 = %.2f\n', length(obj.stimTrace), obj.stimTrace(1,500), obj.stimTrace(1, 1000));
 
     ip.addParameter('stimPerSweep', [], @(x)isvector(x));
     ip.addParameter('sweepColor', [], @(x)ischar(x) || isvector(x));
@@ -36,7 +39,7 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     obj.storedSweepColor = ip.Results.storedSweepColor;
     obj.stimColor = ip.Results.stimColor;
     obj.stimPerSweep = ip.Results.stimPerSweep;
-    obj.stimTitle = ip.Results.stimTitle
+    obj.stimTitle = ip.Results.stimTitle;
 
     obj.createUi();
   end
@@ -58,18 +61,21 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       'FontSize', 10,...
       'XTickMode', 'auto');
     xlabel(obj.axesHandle(1), 'sec');
-    title(obj.axesHandle(1), obj.stimTitle);
 
-    obj.setTitle([obj.device.name ' Response and Stimulus']);
+    if isempty(obj.stimTitle)
+      obj.setTitle([obj.device.name ' Response and Stimulus']);
+    else
+      obj.setTitle(obj.stimTitle);
+    end
 
     obj.axesHandle(2) = subplot(4,1,4,...
       'Parent', obj.figureHandle,...
       'FontName', 'Roboto',...
       'FontSize', 10,...
       'XTickMode', 'auto',...
-      'YLim', [-0.1 1.1]);
-%    xlabel(obj.axesHandle(2), 'sec');
+      'XTick', [], 'XColor', 'w');
 
+      set(obj.figureHandle, 'Color', 'w');
   end
 
   function setTitle(obj, t)
@@ -113,16 +119,21 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       set(obj.sweep, 'XData', x, 'YData', y);
     end
     ylabel(obj.axesHandle(1), units, 'Interpreter', 'none');
-
+    % plot stimuli
     if ~isempty(obj.stimTrace)
       if obj.stimPerSweep > 1
         plot((obj.stimTrace)', 'Parent', obj.axesHandle(2));
-      else
-        plot(obj.stimTrace, 'Parent', obj.axesHandle(2), 'color', obj.stimColor);
       end
+      if isempty(obj.stim)
+        obj.stim = line(1:length(obj.stimTrace), obj.stimTrace, 'Parent', obj.axesHandle(2), 'Color', obj.stimColor);
+      else
+        set(obj.stim, 'XData', 1:length(obj.stimTrace), 'YData', obj.stimTrace);
+      end
+      ylabel(obj.axesHandle(2), 'contrast', 'Interpreter', 'none');
+%        plot(obj.stimTrace, 'Parent', obj.axesHandle(2), 'color', obj.stimColor);
+     end
     end
   end
-end
 
   methods (Access = private)
 

@@ -53,11 +53,18 @@ classdef IsoBarCentering < edu.washington.riekelab.manookin.protocols.ManookinLa
             % get stim trace
             x = 0:0.001:((obj.stimTime - 1) * 1e-3);
             obj.stimValues = zeros(1, length(x));
-            for ii = 1:length(x)
-              obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+            if obj.backgroundIntensity == 0
+              for ii = 1:length(x)
+                obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) + obj.backgroundIntensity;
+              end
+            else
+              for ii = 1:length(x)
+                obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+              end
             end
 
             obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
+            fprintf('Length of stimTrace is %u. At 500 = %.2f and 1000 = %.2f\n', length(obj.stimTrace), obj.stimTrace(1,500), obj.stimTrace(1, 1000));
 
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
 

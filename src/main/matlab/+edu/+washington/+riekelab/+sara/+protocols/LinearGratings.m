@@ -63,11 +63,11 @@ function prepareRun(obj)
     obj.stimValues = zeros(2, length(x));
     for ii = 1:length(x)
       if strcmp(obj.temporalClass, 'sinewave')
-        obj.stimValues(1, ii) = obj.contrastOne * obj.colorWeightsOne * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
-        obj.stimValues(2, ii) = obj.contrastTwo * obj.colorWeightsTwo * sin(obj.temporalFrequency * x(ii) * 2 * pi + obj.phaseRads) * obj.backgroundIntensity + obj.backgroundIntensity;
+        obj.stimValues(1, ii) = obj.contrastOne * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+        obj.stimValues(2, ii) = obj.contrastTwo * sin(obj.temporalFrequency * x(ii) * 2 * pi + obj.phaseRads) * obj.backgroundIntensity + obj.backgroundIntensity;
       else
-        obj.stimValues(1, ii) = obj.contrastOne * obj.colorWeightsOne * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
-        obj.stimValues(2, ii) = obj.contrastTwo * obj.colorWeightsTwo * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi + obj.phaseRads)) * obj.backgroundIntensity + obj.backgroundIntensity;
+        obj.stimValues(1, ii) = obj.contrastOne * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+        obj.stimValues(2, ii) = obj.contrastTwo * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi + obj.phaseRads)) * obj.backgroundIntensity + obj.backgroundIntensity;
       end
     end
     if strcmp(obj.paradigmClass, 'baselineOne')

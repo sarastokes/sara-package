@@ -14,7 +14,7 @@ properties
   temporalClass = 'sinewave'
   onlineAnalysis = 'none'
   demoMode = false                   % if not connected to rig
-  numberOfAverages = uint16(78)
+  numberOfAverages = uint16(130)
 end
 
 properties (Hidden)
@@ -31,14 +31,14 @@ properties (Hidden)
   foundRedMin
   greenMin
   redMin
-  searchValues                % values to search
+  searchValues
   minStep
   maxStep
   searchAxis
 end
 
 % response figure properties
-properties
+properties (Hidden)
   stimTrace
   stimValues
   stimTitle
@@ -67,35 +67,27 @@ methods
   function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
-  %  obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+    if strcmp(obj.stageClass, 'LightCrafter')
+      error('Set to video mode or use manookin package ConeIsoSearch');
+    end
 
-    x = 0:0.001:((obj.stimTime -1) * 1e-3)
+    x = 0:0.001:((obj.stimTime -1) * 1e-3);
     obj.stimValues = zeros(1, length(x));
     for ii = 1:length(x)
       if strcmp(obj.temporalClass, 'squarewave')
-        obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+        obj.stimValues(1,ii) = sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
       else
-        obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+        obj.stimValues(1,ii) = sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
       end
     end
 
     obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
-
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'sweepColor', obj.sweepColor, 'stimTitle', obj.stimTitle);
 
     if ~strcmp(obj.onlineAnalysis, 'none')
       obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
       f = obj.analysisFigure.getFigureHandle();
       set(f, 'Name', 'S-iso search');
       obj.analysisFigure.userData.axesHandle = axes('Parent', f);
-    end
-
-    if ~strcmp(obj.onlineAnalysis, 'none')
-      obj.showfigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.searchValues, obj.greenAxis, obj.greenF1, obj.redAxis, obj.redF1);
-    end
-
-    if strcmp(obj.stageClass, 'LightCrafter')
-      error('Set to video mode or use manookin package ConeIsoSearch');
     end
 
     %% from organizeParameters(obj)
@@ -105,13 +97,24 @@ methods
     % initialize search axis with the max step
     obj.searchValues = [(-1 : obj.minStep:1), (-0.4375:obj.minStep:-0.2031), (0:obj.minStep:0.125)];
     obj.searchValues = unique(obj.searchValues);
+    fprintf('Number of unique search values is %u\n', length(obj.searchValues))
+    if obj.numberOfAverages < (2 * obj.searchValues)
+      error('Need more averages to account for all search values');
+    end
 
     % begin with green axis
     obj.searchAxis = 'green'; obj.ledIndex = 2;
-  end
 
+    % response and online analysis figures
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace);
+
+    if ~strcmp(obj.onlineAnalysis, 'none')
+      obj.showFigure('edu.washington.riekelab.sara.figures.ConeIsoFigure', obj.rig.getDevice(obj.amp), obj.searchValues, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency);
+    end
+  end
+  % will cut this out once ConeIsoFigure is totally functional
     function MTFanalysis(obj, ~, epoch)
-      if demoMode
+      if obj.demoMode
         load demoResponse; % mat file saved in utils
         expTime = (obj.preTime + obj.stimTime + obj.tailTime) * 10;
         n = randi(length(response) - expTime, 1);
@@ -215,11 +218,12 @@ methods
         if strcmp(obj.onlineAnalysis, 'none')
           obj.greenMin = 0;
         else
-          obj.greenMin = obj.searchValues(find(obj.greenMin == min(obj.greenMin), 1));
+          % changed greenMin to greenF1
+          obj.greenMin = obj.searchValues(find(obj.greenMin == min(obj.greenF1), 1));
           fprintf('Green Minimum is %.5f\n', obj.greenMin);
         end
       end
-      if n == (2 * length(obj.searchValues))
+      if n == length(obj.searchValues)
         fprintf('Red minimum\n');
       end
       if obj.numEpochsCompleted+1 > length(obj.searchValues)
@@ -238,71 +242,15 @@ methods
           obj.ledIndex = 2; obj.sweepColor = [0 0.73 0.30];
       end
 
-      obj.stimTitle = strcmp('Epoch number %u - LED contrasts at [%.3f %.3f 1]', obj.numEpochsCompleted - 1, obj.ledContrasts(1), obj.ledContrasts(2));
+      obj.stimTitle = sprintf('Epoch number %u - LED contrasts at [%.3f %.3f 1]', obj.numEpochsCompleted - 1, obj.ledContrasts(1), obj.ledContrasts(2));
+
+      % this throws an error (index exceeds matrix dimensions) at end of green
+%      fprintf('epoch %u - LED contrasts are %.5f %.5f %u\n', obj.numEpochsCompleted+1, obj.ledContrasts(1), obj.ledContrasts(2), obj.ledContrasts(3));
 
       epoch.addParameter('searchAxis', obj.searchAxis);
       epoch.addParameter('ledIndex', obj.ledIndex);
       epoch.addParameter('ledContrasts', obj.ledContrasts);
     end
-
-  %  function completeRun(obj)
-  %    completeRun@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj)
-      % will i still be allowed to access ManookinLabStageProtocol stuff?
-
-
-      % create string for ndf
-      % ndString = num2str(obj.ndf * 10);
-      % if length(ndString) == 1
-      %     ndString = ['0', ndString];
-      % end
-      %
-      % coneIsoValues = figure('units', 'pixels',...
-      %   'position', screenCenter(200, 200),...
-      %   'tag', 'coneisofig',...
-      %   'numbertitle', 'off',...
-      %   'color', 'w',...
-      %   'handlevisibility', 'on',...
-      %   'CloseRequestFcn', @onCloseReq(obj));
-      % mainLayout = uix.HBox( ...
-      %   'Parent', coneIsoValues, ...
-      %   'Padding', 11, ...
-      %   'Spacing', 7);
-      %
-      % rgbLayout = uix.Grid( ...
-      %     'Parent', mainLayout, ...
-      %     'Spacing', 7);
-      %
-      % Label('Parent', rgbLayout, 'String', 'NDF');
-      % Label('Parent', rgbLayout, 'String', 'Objective');
-      % Label('Parent', rgbLayout, 'String', 'Red LED: ');
-      % Label('Parent', rgbLayout, 'String', 'Green LED: ');
-      % Label('Parent', rgbLayout, 'String', 'Blue LED: ');
-      % obj.currentNDF = uicontrol('Parent', rgbLayout,...
-      %   'Style', 'text', 'String', ndString,...
-      %   'HorizontalAlignment', 'left');
-      % obj.currentOBJ = uicontrol('Parent', rgbLayout,...
-      %   'Style', 'text', 'String', strcmp('%sx', num2str(obj.objectiveMag)),...
-      %   'HorizontalAlignment', 'left');
-      % obj.redLED = uicontrol('Parent', rgbLayout,...
-      %   'Style', 'text', 'String', 'default'...
-      %   'HorizontalAlignment', num2str(obj.redMin));
-      % obj.greenLED = uicontrol('Parent', rgbLayout, ...
-      %   'Style', 'text', 'String', 'default',...
-      %   'HorizontalAlignment', num2str(obj.greenMin));
-      % obj.blueLED = uicontrol('Parent', rgbLayout,...
-      %   'Style', 'text', 'String', 'default'...
-      %   'HorizontalAlignment', '1');
-      %
-      % function onCloseReq(obj)
-      %   selection = questdlg('Close coneIsoSearch figure?',... 'Close Request Function', 'Yes','No', 'Yes');
-      %   switch selection
-      %     case 'Yes',
-      %       delete(gcf);
-      %     case 'No'
-      % end
-
-
-%    end
 
     function tf = shouldContinuePreparingEpochs(obj)
         tf = obj.numEpochsPrepared < obj.numberOfAverages;
