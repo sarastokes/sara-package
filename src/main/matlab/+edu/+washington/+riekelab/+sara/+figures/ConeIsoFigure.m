@@ -57,7 +57,7 @@ methods
     obj.searchAxis = 'green'; obj.ledIndex = 2;
 
     % i don't think i need redAxis, greenAxis.. will remove once working
-    obj.redAxis = obj.searchValues; obj.redF1 = zeros(size(obj.redAxis));
+    obj.redAxis = obj.searchValues; obj.redF1 = zeros(size(obj.redAxis)); obj.redF1 = 0;
     obj.greenAxis = obj.searchValues; obj.greenF1 = zeros(size(obj.greenF1));
     fprintf('size of greenAxis is %u and size of greenF1 is %u\n', length(obj.greenAxis), length(obj.greenF1));
     obj.createUi();
@@ -83,7 +83,7 @@ methods
       'TooltipString', 'Find contrast minimums',...
       'Separator', 'on',...
       'ClickedCallback', @obj.onSelectedFindContrastMins);
-    setIconImage(findContrastMinsButton, symphonyui.app.App.getResource('icons', 'valid.png'));
+    setIconImage(findContrastMinsButton, symphonyui.app.App.getResource('icons', 'experiment_new.png'));
 
     % create axes
     obj.axesHandle(1) = subplot(1,2,1, ...
@@ -168,8 +168,9 @@ methods
 
     % find the F1 amplitude for red/green axis
     if strcmp(obj.searchAxis, 'red')
-      index = epochSort - length(obj.redAxis)
+      index = obj.epochSort - length(obj.redAxis);
       obj.redF1(index) = abs(ft(2)) / length(ft)*2;
+      fprintf('Length of redF1 is %u and epochSort is %u\n', length(obj.redF1), obj.epochSort);
     else
       obj.greenF1(obj.epochSort) = abs(ft(2)) / length(ft) * 2;
       fprintf('Length of greenF1 is %u and epochSort is %u\n', length(obj.greenF1), obj.epochSort);
@@ -187,8 +188,10 @@ methods
       hold(obj.axesHandle(2), 'on');
       plot(obj.redAxis(1:length(obj.redF1)), obj.redF1, 'o-', 'color', [0.82, 0, 0], 'Parent', obj.axesHandle(2));
       hold(obj.axesHandle(2), 'off');
-      set(obj.axesHandle(2), 'TickDirection', 'out');
-      ylabel('F1 amp');
+      set(obj.axesHandle(2), 'TickDir', 'out');
+      ylabel(obj.axesHandle(2), 'F1 amp');
+      title(obj.axesHandle(1), strcmp('greenMin = %.5f', obj.greenMin));
+      title(obj.axesHandle(2), ['Epoch ', num2str(obj.epochSort), ' of ', num2str(obj.epochCap)]);
     end
     obj.setTitle(['Epoch ', num2str(obj.epochSort), ' of ', num2str(obj.epochCap)]);
   end

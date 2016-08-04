@@ -38,7 +38,6 @@ end
 properties (Hidden) % relating to online analysis
   stimValues
   stimTrace
-%  plotColor
 end
 
 methods
@@ -76,10 +75,9 @@ function prepareRun(obj)
       obj.stimValues(1, :) = 0.5;
     end
 
-    obj.stimTrace = [(obj.backgroundIntensity * ones(2, obj.preTime)) obj.stimValue (obj.backgroundIntensity * ones(2, obj.tailTime))];
+    obj.stimTrace = [(obj.backgroundIntensity * ones(2, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(2, obj.tailTime))];
 
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimPerSweep', 2);
-
   end
 
   function p = createPresentation(obj)

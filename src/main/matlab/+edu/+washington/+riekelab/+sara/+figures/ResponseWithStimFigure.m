@@ -26,8 +26,6 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     obj.stimTrace = stimTrace;
     ip = inputParser();
 
-    fprintf('Length of stimTrace is %u. At 500 = %.2f and 1000 = %.2f\n', length(obj.stimTrace), obj.stimTrace(1,500), obj.stimTrace(1, 1000));
-
     ip.addParameter('stimPerSweep', [], @(x)isvector(x));
     ip.addParameter('sweepColor', [], @(x)ischar(x) || isvector(x));
     ip.addParameter('stimColor', [], @(x)ischar(x) || isvector(x));

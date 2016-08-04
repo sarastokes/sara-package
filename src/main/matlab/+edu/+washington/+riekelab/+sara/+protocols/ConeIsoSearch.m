@@ -12,9 +12,11 @@ properties
   backgroundIntensity = 0.5
   centerOffset = [0,0]
   temporalClass = 'sinewave'
+  searchAxis = 'green'
+  inputGreenMin = 0                 % if searchAxis = 'red'
   onlineAnalysis = 'none'
   demoMode = false                   % if not connected to rig
-  numberOfAverages = uint16(130)
+  numberOfAverages = uint16(78)
 end
 
 properties (Hidden) % not all are necessary.. clean up later
@@ -34,7 +36,6 @@ properties (Hidden) % not all are necessary.. clean up later
   searchValues
   minStep
   maxStep
-  searchAxis
 end
 
 % response figure properties
@@ -58,7 +59,7 @@ methods
       error('Set to video mode or use manookin package ConeIsoSearch');
     end
 
-    x = 0:0.001:((obj.stimTime -1) * 1e-3);
+    x = 0:0.001:((obj.stimTime -1) * 1e-3); fprintf('length of x is %u\n', length(x));
     obj.stimValues = zeros(1, length(x));
     for ii = 1:length(x)
       if strcmp(obj.temporalClass, 'squarewave')
@@ -70,19 +71,12 @@ methods
 
     obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
-    if ~strcmp(obj.onlineAnalysis, 'none')
-      obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
-      f = obj.analysisFigure.getFigureHandle();
-      set(f, 'Name', 'S-iso search');
-      obj.analysisFigure.userData.axesHandle = axes('Parent', f);
-    end
-
     %% from organizeParameters(obj)
     obj.minStep = 2^obj.minStepBits / 256 * 2;
     obj.maxStep = 2^obj.maxStepBits / 256 * 2;
 
     % initialize search axis with the max step
-    obj.searchValues = [(-1 : obj.minStep:1), (-0.4375:obj.minStep:-0.2031), (0:obj.minStep:0.125)];
+    obj.searchValues = [(-1 : obj.maxStep:1), (-0.4375:obj.minStep:-0.2031), (0:obj.minStep:0.125)];
     obj.searchValues = unique(obj.searchValues);
     fprintf('Number of unique search values is %u\n', length(obj.searchValues))
     if obj.numberOfAverages < (2 * obj.searchValues)
@@ -137,27 +131,30 @@ methods
         obj.searchAxis = 'red';
         if strcmp(obj.onlineAnalysis, 'none')
           obj.greenMin = 0;
-        elseif obj.demoMode
-          obj.greenMin = 0;
         else
           % changed greenMin to greenF1
+          fprintf('Green min is %.5f\n', min(obj.greenF1));
           obj.greenMin = obj.searchValues(find(obj.greenMin == min(obj.greenF1), 1));
           fprintf('Green Minimum is %.5f\n', obj.greenMin);
-          epoch.addParameter('foundGreenMin', true);
           epoch.addParameter('greenMin', obj.greenMin);
           if isempty(obj.greenMin)
-            obj.greenMin == 0;
-            fprintf('Did not find green minimum, set to %u\n', obj.greenMin);
+            obj.greenMin = 0;
+            fprintf('Did not find green minimum, set to %.5f\n', obj.greenMin);
             epoch.addParameter('foundGreenMin', false);
           end
         end
       end
 
-      if n == length(obj.searchValues)
-        fprintf('Red minimum\n');
+      if n >= length(obj.searchValues)
+        obj.redMin = obj.searchValues(find(obj.redMin == min(obj.redF1), 1));
+        if isempty(obj.redMin)
+          obj.redMin = 0; fprintf('Red minimum not found, set at %u\n', obj.redMin);
+        end
+        fprintf('Red minimum = %.5f\n', obj.redMin);
+        epoch.addParameter('redMin', obj.redMin);
       end
 
-      if obj.numEpochsCompleted+1 > length(obj.searchValues)
+      if n > length(obj.searchValues)
         obj.searchAxis = 'red';
       else
         obj.searchAxis = 'green';
@@ -175,15 +172,11 @@ methods
 
       obj.stimTitle = sprintf('Epoch number %u - LED contrasts at [%.3f %.3f 1]', obj.numEpochsCompleted - 1, obj.ledContrasts(1), obj.ledContrasts(2));
 
-      % this throws an error (index exceeds matrix dimensions) at end of green
-      % didn't find greenMin?
-%      fprintf('epoch %u - LED contrasts are %.5f %.5f %u\n', obj.numEpochsCompleted+1, obj.ledContrasts(1), obj.ledContrasts(2), obj.ledContrasts(3));
-
       epoch.addParameter('searchAxis', obj.searchAxis);
       epoch.addParameter('ledIndex', obj.ledIndex);
       epoch.addParameter('redLED', obj.ledContrasts(1));
       epoch.addParameter('greenLED', obj.ledContrasts(2));
-      epoch.addParameter('blueLED', obj.ledContrasts(3));
+  %    epoch.addParameter('blueLED', obj.ledContrasts(3));
     end
 
     function tf = shouldContinuePreparingEpochs(obj)

@@ -56,6 +56,7 @@ end
 function prepareRun(obj)
     prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
+    clear obj.stimValue;
     if strcmp(obj.paradigmClass, 'baselineA_up')
       obj.spotValues = [1, obj.backgroundIntensity];
     elseif strcmp(obj.paradigmClass, 'baselineA_down')
@@ -79,13 +80,18 @@ function prepareRun(obj)
       obj.spotValues(end+1) = obj.controlContrast;
     else
       obj.stimPerSweep = 2;
+      obj.stimValue = zeros(2, obj.stimTime);
     end
 
-    for ii = 1:length(obj.spotValues)
-      obj.stimValue(ii, :) = obj.spotValues(ii) * ones(1, obj.stimTime);
+    for ii = 1:obj.stimPerSweep
+      obj.stimValue(ii, :) = obj.spotValues(1, ii) * ones(1, obj.stimTime);
     end
+    n = size(obj.stimValue);
+    fprintf('Size of stimValue is %u, %u\n', n(1), n(2));
 
     obj.stimTrace = [(obj.backgroundIntensity * ones(obj.stimPerSweep, obj.preTime)) obj.stimValue (obj.backgroundIntensity * ones(obj.stimPerSweep, obj.tailTime))];
+    n = size(obj.stimTrace);
+    fprintf('Size of stimTrace is %u, %u\n', n(1), n(2));
 
     [obj.colorWeightsOne, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassOne);
     [obj.colorWeightsTwo, ~, ~] = setColorWeightsLocal(obj, obj.chromaticClassTwo);
