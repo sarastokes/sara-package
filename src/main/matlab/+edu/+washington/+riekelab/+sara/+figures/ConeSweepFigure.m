@@ -18,6 +18,7 @@ properties (Access = private)
   sweepOne
   sweepTwo
   sweepThree
+  sweepFour
 end
 
 methods
@@ -54,15 +55,41 @@ methods
         obj.epochNames{ii} = 'S-iso';
         obj.epochColors(ii,:) = [0.14118, 0.20784, 0.84314];
       case 'y'
-        obj.epochNames{ii} = 'LM-iso';
+        if strcmp(obj.stimClass(1), 'r') % this is needlessly complex, fix later
+          obj.epochNames{ii} = 'yellow'; % LEDs = [1 1 0]
+        elseif strcmp(obj.stimClass, 'rgby')
+          obj.epochNames{ii} = 'L-(S+M)';
+        else
+          obj.epochNames{ii} = 'LM-iso';
+        end
         obj.epochColors(ii,:) = [0.90588, 0.43529, 0.31765];
-      % no reason, just curious:
       case 'c'
-        obj.epochNames{ii} = 'MS-iso';
+        if strcmp(obj.stimClass(1), 'g')
+          obj.epochNames{ii} = 'cyan'; % LEDs = [0 1 1]
+        else
+          obj.epochNames{ii} = 'MS-iso';
+        end
         obj.epochColors(ii,:) = [0, 0.74902, 0.68627];
       case 'p'
-        obj.epochNames{ii} = 'LS-iso';
+        if strcmp(obj.stimClass(1), 'r')
+          obj.epochNames{ii} = 'purple';
+        else
+          obj.epochNames{ii} = 'LS-iso';
+        end
         obj.epochColors(ii,:) = [0.64314, 0.011765, 0.43529];
+      case 'r'
+        if strcmp(obj.stimClass,'rgby')
+          obj.epochNames{ii} = '(S+L)-M';
+        else
+          obj.epochNames{ii} = 'red'; % red LED
+        end
+        obj.epochColors(ii, :) = [0.82353, 0, 0];
+      case 'g'
+        obj.epochNames{ii} = 'green'; % green LED
+        obj.epochColors(ii, :) = [0, 0.52941, 0.21569];
+      case 'b'
+        obj.epochNames{ii} = 'blue'; % blue LED
+        obj.epochColors(ii,:) = [0.14118, 0.20784, 0.84314];
       otherwise
         obj.epochNames{ii} = [0 0 0];
         obj.epochColors(ii,:) = 'Achromatic';
@@ -125,6 +152,11 @@ methods
           title(sprintf('%s Response', obj.epochNames{ii}));
         end
     end
+
+    for ii = 1:epochCap
+      title(obj.axesHandle(ii), obj.epochNames{ii});
+    end
+
     if obj.plotStim
       obj.traceHandle = subplot(m,1,m,...
         'Parent', obj.figureHandle,...
@@ -136,7 +168,7 @@ methods
 
   function clear(obj)
     cla(obj.axesHandle(1)); cla(obj.axesHandle(2)); cla(obj.axesHandle(3));
-    obj.sweepOne = []; obj.sweepTwo; obj.sweepThree;
+%    obj.sweepOne = []; obj.sweepTwo; obj.sweepThree;
   end
 
   function handleEpoch(obj, epoch)
@@ -179,8 +211,13 @@ methods
       else
         set(obj.sweepThree, 'XData', x, 'YData', y);
       end
+    elseif obj.epochSort == 4 && obj.epochCap == 4
+      if isempty(obj.sweepFour)
+        obj.sweepFour = line(x, y, 'Parent', obj.axesHandle(4), 'Color', obj.epochColors(4,:));
+      else
+        set(obj.sweepFour, 'XData', x, 'YData', y);
+      end
     end
-
 
     % plot trace
     if obj.plotStim
