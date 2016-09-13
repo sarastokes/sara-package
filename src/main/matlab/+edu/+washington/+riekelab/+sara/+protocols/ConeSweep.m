@@ -3,28 +3,29 @@ classdef ConeSweep < edu.washington.riekelab.manookin.protocols.ManookinLabStage
 properties
   amp
   stimClass = 'lms'
-  useCustomConeIso = false
-  reverseOrder = false
   preTime = 200
   stimTime = 1000
   tailTime = 200
   contrast = 1
   backgroundIntensity = 0.5
   radius = 100
-  centerOffset = [0,0]
-  temporalFrequency = 2
   temporalClass = 'sinewave'
+  temporalFrequency = 2
+  centerOffset = [0,0]
+  reverseOrder = false
+  equalQuantalCatch = false
   onlineAnalysis = 'none'
   numberOfAverages = uint16(12)
 end
 
 properties (Hidden)
   ampType
-  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'alms', 'cpy', 'alms', 'ysa'})
+  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'cpy', 'ysa', 'alms'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'flash'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   chromaticClass
   currentColorWeights
+  currentContrast
   currentEpoch
 end
 
@@ -33,7 +34,9 @@ properties (Hidden) % online analysis properties
   stimValues
   sweepColor
   plotColors
-  F1
+  plotColor % some of these are unnecessary, condense later
+  f1phase
+  f1amp
   F2
 end
 
@@ -62,16 +65,16 @@ function prepareRun(obj)
   obj.stimValues = zeros(1, length(x));
   for ii = 1:length(x)
     if strcmp(obj.temporalClass, 'sinewave')
-      obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+      obj.stimValues(1,ii) = sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
     elseif strcmp(obj.temporalClass, 'squarewave')
-      obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+      obj.stimValues(1,ii) = sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
     end
   end
 
   obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
     % preallocate variables for F1figure
-    obj.f1amp = zeros(obj.numberOfAverages/obj.length(stimClass), length(obj.stimClass));
+    obj.f1amp = zeros(obj.numberOfAverages/length(obj.stimClass), length(obj.stimClass));
     obj.f1phase = zeros(size(obj.f1amp));
 
     % set up figures
@@ -79,10 +82,10 @@ function prepareRun(obj)
 
     if ~strcmp(obj.onlineAnalysis, 'none')
       obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
-      obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CTRAnalysis);
-      f = obj.analysisFigure.getFigureHandle();
-      set(f, 'Name', 'cone sweep f1');
-      obj.analysisFigure.userData.axesHandle = axes('Parent', f);
+%      obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CTRAnalysis);
+%      f = obj.analysisFigure.getFigureHandle();
+%      set(f, 'Name', 'cone sweep f1');
+%      obj.analysisFigure.userData.axesHandle = axes('Parent', f);
     end
   end
 
@@ -107,7 +110,7 @@ function prepareRun(obj)
     numCycles = floor(length(binData)/binsPerCycle);
     cycleData = zeros(1, floor(binsPerCycle));
 
-    for k = 1:numCycle
+    for k = 1:numCycles
       index = round((k-1)*binsPerCycle) + (1 : floor(binsPerCycle));
       cycleData = cycleData + binData(index);
     end
@@ -118,12 +121,13 @@ function prepareRun(obj)
     f1amp = abs(ft(2))/length(ft)*2;
     f1phase = angle(ft(2)) * 180/pi;
 
-    obj.currentEpoch = obj.numEpochsCompleted + 1;
+    obj.currentEpoch = obj.numEpochsCompleted;
     index = rem(obj.currentEpoch,length(obj.stimClass));
     if index == 0
       index = length(obj.stimClass);
     end
-    trial = ceil(obj.currentEpoch/obj.numberOfAverages);
+    trial = ceil(obj.currentEpoch/double(obj.numberOfAverages));
+    fprintf('index = %u, trial = %u\n', index, trial);
 
     obj.f1amp(index, trial) = f1amp;
     obj.f1phase(index, trial) = f1phase;
@@ -134,8 +138,8 @@ function prepareRun(obj)
     hold(axesHandle, 'on');
     for ii = 1:length(obj.stimClass)
       c1 = obj.plotColors(ii,:); c2 = c1 + ((1-c1).*0.5);
-      plot(obj.f1phase(ii,:), obj.f1amp(ii, :), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2, 'Parent', axesHandle);
-      plot(mean(obj.f1phase(ii,:), 2), mean(obj.f1amp(ii,:), 2), 'o', 'MarkerFaceColor', 'MarkerEdgeColor', c1,'Parent', axesHandle);
+      plot(obj.f1phase(ii,:), obj.f1amp(ii, :), '-o', 'w', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2, 'Parent', axesHandle);
+      plot(mean(obj.f1phase(ii,:), 2), mean(obj.f1amp(ii,:), 2), '-o', 'w', 'MarkerFaceColor', 'MarkerEdgeColor', c1,'Parent', axesHandle);
     end
     hold(axesHandle,'off');
     set(axesHandle,'TickDir', 'out');
@@ -168,9 +172,9 @@ function prepareRun(obj)
       function c = getSpotColor(obj, time)
           if time >= 0
               if strcmp(obj.temporalClass, 'sinewave')
-                c = obj.contrast * obj.currentColorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+                c = obj.currentContrast * obj.currentColorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
               elseif strcmp(obj.temporalClass, 'squarewave')
-                 c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+                 c = obj.currentContrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
               end
           else
               c = obj.backgroundIntensity;
@@ -189,10 +193,26 @@ function prepareRun(obj)
       end
       colorCall = obj.stimClass(index);
 
+      if obj.equalQuantalCatch && strcmp(obj.stimClass, 'lms')
+        switch colorCall
+          case 'm'
+            obj.currentContrast = 0.73;
+          case 's'
+            obj.currentContrast = 0.28;
+          otherwise
+            obj.currentContrast = 1;
+        end
+      else
+        obj.currentContrast = obj.contrast;
+      end
+      epoch.addParameter('currentContrast', obj.currentContrast);
+
+
       [obj.currentColorWeights, obj.sweepColor, obj.chromaticClass]  = setColorWeightsLocal(obj, colorCall);
+        fprintf('for epoch %u, current color weights are %u %u %u\n', obj.currentEpoch, obj.currentColorWeights(1), obj.currentColorWeights(2), obj.currentColorWeights(3));
        obj.plotColor = obj.sweepColor;
       epoch.addParameter('chromaticClass', obj.chromaticClass);
-      epoch.addParameter('sweepColor') = obj.sweepColor;
+      epoch.addParameter('sweepColor', obj.sweepColor);
 
   end
 

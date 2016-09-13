@@ -117,7 +117,6 @@ methods
      %   n(ii) = [(2*ii - 1) (2*ii)];
      % end
     %else
-    fprintf('epochCap = %u\n', obj.epochCap);
     if obj.plotStim
       m = 2 * obj.epochCap + 1;
     else
@@ -153,7 +152,7 @@ methods
         end
     end
 
-    for ii = 1:epochCap
+    for ii = 1:obj.epochCap
       title(obj.axesHandle(ii), obj.epochNames{ii});
     end
 

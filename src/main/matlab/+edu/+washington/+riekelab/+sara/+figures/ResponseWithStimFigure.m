@@ -83,7 +83,7 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
 
   function clear(obj)
     cla(obj.axesHandle(1)); cla(obj.axesHandle(2));
-    obj.sweep = [];
+    obj.sweep = []; obj.stim = [];
   end
 
   function handleEpoch(obj, epoch)
