@@ -91,6 +91,8 @@ methods
       [obj.colorWeightsMatrix(1,:),~,~] = setColorWeightsLocal(obj, 'L-iso');
       [obj.colorWeightsMatrix(2,:),~,~] = setColorWeightsLocal(obj, 'M-iso');
       [obj.colorWeightsMatrix(3,:),~,~] = setColorWeightsLocal(obj, 'S-iso');
+      
+      obj.colorWeightsMatrix
 
       % Automated analysis figure.
       if ~strcmp(obj.onlineAnalysis,'none')
@@ -115,7 +117,7 @@ methods
           obj.frameValues(:,:,:,ii) = obj.currentColorWeights(ii) * M;
         end
         obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks,3));
-        obj.frameValues = uint8(255*(obj.intensity*obj.frameValues*obj.backgroundIntensity+obj.backgroundIntensity));
+        obj.frameValues = uint8(obj.intensity*255*obj.frameValues);
       % elseif strcmp(obj.noiseClass, 'gaussian')
       %     M = uint8((0.3 * obj.intensity * obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) * 0.5 + 0.5) * 255);
       %     M = repmat(M, [1 1 1 3]);
