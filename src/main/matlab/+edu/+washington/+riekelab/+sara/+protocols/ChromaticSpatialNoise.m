@@ -15,7 +15,7 @@ properties
     maskRadius = 0                  % Mask radius in pixels.
     useRandomSeed = true            % Random seed (bool).
     noiseClass = 'binary'           % Noise class (binary or Gaussian)
-    onlineAnalysis = 'none'
+    onlineAnalysis = 'extracellular'
     runFullProtocol = true         % cycle thru LMS-iso
     equalQuantalCatch = false
     numberOfAverages = uint16(50)    % Number of epochs
@@ -95,7 +95,7 @@ methods
       % Automated analysis figure.
       if ~strcmp(obj.onlineAnalysis,'none')
         params = [obj.preTime, obj.stimTime, obj.numXChecks, obj.numYChecks, obj.frameRate, obj.frameDwell]; % params
-        obj.showFigure('edu.washington.riekelab.sara.figures.ConeInputFigure', obj.rig.getDevice(obj.amp), obj.seedList, obj.onlineAnalysis, obj.noiseClass, params);
+        obj.showFigure('edu.washington.riekelab.sara.figures.ConeInputFigure', obj.rig.getDevice(obj.amp), obj.onlineAnalysis, obj.noiseClass, params);
       end
   end
 

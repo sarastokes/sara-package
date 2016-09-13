@@ -2,19 +2,16 @@ classdef ConeInputFigure < symphonyui.core.FigureHandler
 
 properties
   device
-  seedList
   onlineAnalysis
   noiseClass
   params
 end
 
 properties (Access = private)
-  imHandle
   axesHandle
   epochNum
   frameValues
   strf
-  spatialRF
   seed
   numXChecks
   numYChecks
@@ -29,33 +26,24 @@ properties (Access = private)
 end
 
 methods
-  function obj = ConeInputFigure(device, seedList, onlineAnalysis, noiseClass, params, varargin)
+  function obj = ConeInputFigure(device, onlineAnalysis, noiseClass, params, varargin)
     obj.device = device;
-    obj.seedList = seedList;
     obj.onlineAnalysis = onlineAnalysis;
     obj.noiseClass = noiseClass;
-    obj.preTime = params(1); obj.preTime
-    obj.stimTime = params(2); obj.stimTime
-    obj.numXChecks = params(3); obj.numXChecks
-    obj.numYChecks = params(4); obj.numYChecks
-    obj.frameRate = params(5); obj.frameRate
-    obj.frameDwell = params(6); obj.frameDwell
-%    obj.intensity = intensity;
-
-    % ip = inputParser();
-    % ip.addParameter('numReps', 1, @(x)isnumeric(x) || isvector(x));
-    % ip.parse(varargin{:});
+    obj.preTime = params(1);
+    obj.stimTime = params(2);
+    obj.numXChecks = params(3); 
+    obj.numYChecks = params(4);
+    obj.frameRate = params(5); 
+    obj.frameDwell = params(6); 
 
     obj.epochNum = 0;
 
-    % init strf and spatialRF
+    % init strf
     if obj.epochNum == 0
       obj.strf.l = zeros(obj.numYChecks, obj.numXChecks, floor(obj.frameRate*0.5/obj.frameDwell));
-      obj.spatialRF.l = zeros(obj.numYChecks, obj.numXChecks);
       obj.strf.m = zeros(size(obj.strf.l));
-      obj.spatialRF.m = zeros(size(obj.spatialRF.l));
       obj.strf.s = zeros(size(obj.strf.l));
-      obj.spatialRF.s = zeros(size(obj.spatialRF.m));
     end
     obj.cmap = 'parula'; % default
     obj.createUi();
@@ -64,11 +52,12 @@ methods
   function createUi(obj)
     import appbox.*;
     toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
-    changeCMap = uipushtool('parent', toolbar,....
+    changeCMapButton = uipushtool('parent', toolbar,....
       'TooltipString', 'Change color map',...
       'Separator', 'on',...
       'ClickedCallback', @obj.onSelectedChangeCMap);
-
+   setIconImage(changeCMapButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
+           
     obj.axesHandle(1) = subplot(3,1,1,...
       'Parent', obj.figureHandle,...
       'FontName', 'roboto',...
@@ -186,12 +175,16 @@ end
 
 methods (Access = private)
   function onSelectedChangeCMap(obj,~,~)
-    cmaps = {'parula' 'gray' 'cubicYF'};
-    cmapIndex = cmapIndex + 1;
-    if cmapIndex > length(cmaps)
-      cmapIndex = 1;
-    end
-    obj.cmap = cmaps{cmapIndex};
-  end
+if strcmp(obj.cmap, 'parula')
+    obj.cmap = 'bone';
+elseif strcmp(obj.cmap, 'bone')
+    obj.cmap = pmkmp(126,'cubicYF');
+elseif strcmp(obj.cmap, 'cubicYF')
+    obj.cmap = 'parula';
+end
+colormap(obj.axesHandle(1), obj.cmap);
+colormap(obj.axesHandle(2), obj.cmap);
+colormap(obj.axesHandle(3), obj.cmap);
+end
 end
 end
