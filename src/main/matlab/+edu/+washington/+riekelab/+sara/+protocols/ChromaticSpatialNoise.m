@@ -14,6 +14,7 @@ properties
     centerOffset = [0,0]            % Center offset in pixels (x,y)
     maskRadius = 0                  % Mask radius in pixels.
     useRandomSeed = true            % Random seed (bool)
+    chromaticClass = 'achromatic'   %
     noiseClass = 'binary'           % Noise class (binary or Gaussian)
     onlineAnalysis = 'none'
     runFullProtocol = true         % cycle thru LMS-iso
@@ -97,12 +98,6 @@ methods
         params = [obj.preTime, obj.stimTime, obj.numXChecks, obj.numYChecks, obj.frameRate, obj.frameDwell]; % params
         obj.showFigure('edu.washington.riekelab.sara.figures.ConeInputFigure', obj.rig.getDevice(obj.amp), obj.seedList, obj.onlineAnalysis, obj.noiseClass, params);
       end
-
-      % Get the frame values for repeating epochs.
-      if ~obj.useRandomSeed
-          obj.seed = 1;
-          obj.getFrameValues();
-      end
   end
 
   function getFrameValues(obj) % called from prepareEpoch
@@ -118,7 +113,7 @@ methods
         M = (2*M)-1; % matrix of -1 and 1
         obj.frameValues = zeros(numFrames, obj.numYChecks, obj.numXChecks,3);
         for ii = 1:3
-          obj.frameValues(:,:,:,ii) = obj.currentColorWeights(ii) * M;
+          obj.frameValues(:,:,:,ii) = obj.currentColorWeights(ii,:) * M;
         end
         obj.backgroundFrame = uint8(obj.backgroundIntensity*ones(obj.numYChecks,obj.numXChecks,3));
         obj.frameValues = uint8(obj.intensity*255*obj.frameValues);
@@ -215,16 +210,14 @@ methods
       end
       obj.currentColorWeights = obj.colorWeightsMatrix(index,:);
 
-      % obj.currentChromaticClass = cones(index); obj.currentChromaticClass
-      % [obj.currentColorWeights,~,~] = setColorWeightsLocal(obj, obj.currentChromaticClass);
       % Deal with the seed.
-      if obj.useRandomSeed
-          obj.seed = obj.seedList(obj.numEpochsCompleted+1);
-          % Get the frame values for the epoch.
-                % Get the number of frames.
-                obj.getFrameValues();
-      end
+        if obj.useRandomSeed
+            obj.seed = RandStream.shuffleSeed;
+        else
+            obj.seed = 1;
+        end
 
+        obj.getFrameValues();
 
       epoch.addParameter('seed', obj.seed);
       epoch.addParameter('numXChecks', obj.numXChecks);

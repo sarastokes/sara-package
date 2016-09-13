@@ -96,7 +96,7 @@ methods
     end
     cone = coneOrder(index);
 
-    obj.seed = obj.seedList(obj.epochNum);
+    obj.seed = epoch.parameters('seed');
 
 %% get response
 response = epoch.getResponse(obj.device);
