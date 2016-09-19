@@ -102,28 +102,17 @@ methods
 
   function createUi(obj)
     import appbox.*;
-  %  toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+    toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
 
     if isempty(obj.epochColors)
       obj.epochColors = zeros(obj.epochCap, 3);
     end
-    %if isempty(obj.epochNames)
-  %    obj.epochNames{1:obj.epochCap} = '';
-  %  end
-%    if obj.plotStim
-%      m = obj.epochCap + 1;
-%      n = zeros(m, 2);
-     % for ii = 1:obj.epochCap
-     %   n(ii) = [(2*ii - 1) (2*ii)];
-     % end
-    %else
+
     if obj.plotStim
       m = 2 * obj.epochCap + 1;
     else
       m = 2 * obj.epochCap; %n = 1:obj.epochCap;
     end
-
-    %end
 
     % create axes
     obj.axesHandle(1) = subplot(m, 1, 1:2,...
@@ -147,13 +136,12 @@ methods
         'FontName', 'Roboto',...
         'FontSize', 10,...
         'XTickMode', 'auto');
-        if ~isempty(obj.epochNames)
-          title(sprintf('%s Response', obj.epochNames{ii}));
-        end
     end
 
-    for ii = 1:obj.epochCap
-      title(obj.axesHandle(ii), obj.epochNames{ii});
+    if ~isempty(obj.epochNames)
+      for ii = 1:obj.epochCap
+        title(obj.axesHandle(ii), obj.epochNames{ii});
+      end
     end
 
     if obj.plotStim
@@ -167,7 +155,8 @@ methods
 
   function clear(obj)
     cla(obj.axesHandle(1)); cla(obj.axesHandle(2)); cla(obj.axesHandle(3));
-%    obj.sweepOne = []; obj.sweepTwo; obj.sweepThree;
+    obj.sweepOne = []; obj.sweepTwo = []; obj.sweepThree = []; obj.stimTrace = [];
+    obj.sweepFour = [];
   end
 
   function handleEpoch(obj, epoch)

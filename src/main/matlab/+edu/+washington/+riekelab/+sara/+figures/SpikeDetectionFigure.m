@@ -1,16 +1,16 @@
-classdef spikeDetectionFigure < symphonyui.core.figureHandler
+classdef SpikeDetectionFigure < symphonyui.core.FigureHandler
 
 properties
   device
 end
 
 
-properties
+properties (Access = private)
   axesHandle
 end
 
 methods
-  function obj = spikeDetectionFigure(device, varargin)
+  function obj = SpikeDetectionFigure(device)
     obj.device = device;
 
     obj.createUi();
@@ -35,6 +35,7 @@ methods
       'FontName', 'roboto',...
       'FontSize', 10,...
       'XTickMode', 'auto');
+    set (obj.figureHandle, 'color','w');
   end
 
   function handleEpoch(obj, epoch)
@@ -42,7 +43,7 @@ methods
     responseTrace = response.getData();
     sampleRate = response.sampleRate.quantityInBaseUnits;
 
-    response = wavefilter(response(:)', 6);
+    response = wavefilter(responseTrace(:)', 6);
     S = spikeDetectorOnline(response);
     spikes = zeros(size(response));
     spikes(S.sp) = 1;
@@ -50,11 +51,24 @@ methods
     spikeTimes = S.sp;
 
     plot(response, 'parent', obj.axesHandle(1));
-    set(obj.axesHandle(1), 'XColor', 'w','XTick', {}, 'box', 'off', 'YLim', [0 length(response)], 'XLim', [floor(response) ceil(response)]);
+    set(obj.axesHandle(1), 'XColor', 'w','XTick', {}, 'box', 'off',... 
+        'YLim', [0 ceil(max(response))], 'XLim', [0 length(response)]);
+    ylabel(obj.axesHandle(1), 'response (nA)');
 
-    plot(spikes, 'parent'  axesHandle(2));
-    set(obj.axesHandle(2), 'XColor', 'w', 'XTick', {}, 'Box', 'off', 'YLim', [0 1], 'XLim', [0 length(response)]);
+    plot(spikes, 'parent', obj.axesHandle(2));
+    set(obj.axesHandle(2), 'XColor', 'w', 'XTick', {}, 'Box', 'off',... 
+        'YLim', [0 1], 'XLim', [0 length(response)]);
+    ylabel(obj.axesHandle(2), 'spikes');
 
-    plot(obj.axesHandle(3), spikeAmps);
-    set(obj.axesHandle(3), 'XColor', 'w', 'XTick', {}, 'Box', 'off', 'YGrid', 'on', 'YMinorGrid', 'on', 'ylim', [0 ceil(max(spikeAmps))], 'xlim', [0 length(response)]);
+    if ~isempty(find(spikes,1))
+      plot(spikeTimes, spikeAmps, 'parent', obj.axesHandle(3));
+      set(obj.axesHandle(3), 'XColor', 'w', 'XTick', {}, 'Box', 'off',... 
+        'YGrid', 'on', 'YMinorGrid', 'on', 'xlim', [0 length(response)],...
+        'ylim', [0 ceil(max(spikeAmps))]);
+      ylabel(obj.axesHandle(3), 'spike amplitudes');
+    else
+      xlabel(obj.axesHandle(3), 'no spikes detected');
+    end
   end
+end
+end
