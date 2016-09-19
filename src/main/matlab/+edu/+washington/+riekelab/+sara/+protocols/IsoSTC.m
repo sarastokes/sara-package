@@ -19,6 +19,7 @@ properties
   randomSeed = true                       % if STA, use random seed
   stdev = 0.3;                            % if STA, gaussian noise sd
   demoMode = false                        % demo figures without rig connection
+  checkSpikeDetection = true              % show SpikeDetectionFigure
   numberOfAverages = uint16(1)            % number of epochs
 end
 
@@ -76,6 +77,10 @@ methods
     obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+
+    if checkSpikeDetection
+      obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
+    end
 
     if ~strcmp(obj.onlineAnalysis, 'none')
       if strcmp(obj.paradigmClass, 'STA')

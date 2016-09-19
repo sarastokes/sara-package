@@ -52,26 +52,24 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
     % hue basis
     elseif strcmp(colorCall, 'sml')
       w = obj.quantalCatch(:, 1:3)' \ [-1 1 1]';
+      w = w / max(abs(w));
       p = [0.14118, 0.20784, 0.84314];
       c = 'blue (S+M)-L';
     elseif strcmp(colorCall, 'lsm')
       w = obj.quantalCatch(:, 1:3)' \ [1 -1 -1]';
+      w = w / max(abs(w));
       p = [0.90588, 0.43529, 0.31765];
       c = 'yellow L-(S+M)';
     elseif strcmp(colorCall, 'slm')
       w = obj.quantalCatch(:, 1:3)' \ [1 -1 1]';
+      w = w / max(abs(w));
       p = [0.82353, 0, 0];
       c = 'red (S+L)-M';
     elseif strcmp(colorCall, 'msl')
-      w = [-1 1 -1]
+      w = obj.quantalCatch(:,1:3)' \ [-1 1 -1];
+      w = w / max(abs(w));
       p = [0, 0.52941, 0.21569];
       c = 'green M-(S+L)';
-
-    % get color weights defined by ConeIsoSearch
-    elseif strcmp(colorCall, 'custom')
-      global customColorWeights;
-      w = customColorWeights;
-      p = [0.14118, 0.20784, 0.84314];
     else
       w = [1 1 1];
       p = [0 0 0];

@@ -140,31 +140,20 @@ function handleEpoch(obj, epoch)
   obj.F1amp(obj.epochNum) = f1amp;
   obj.F1phase(obj.epochNum) = f1phase;
 
-  % obj.xpt = obj.xvals(obj.epochNum);        % x for incoming stimuli
-  % size(obj.xpt)
-  % fprintf('at epoch %u, xpt = %u\n', obj.epochNum, obj.xpt);
-  % size(obj.xvals)
-  % index = find(obj.xvals == obj.xpt);
-  % xInd = find(obj.xaxis == obj.xpt);        % x for unique xaxis
-  % obj.meanf1amp(xInd) = mean(obj.F1amp(index));
-  % obj.meanf1phase(xInd) = mean(obj.F1phase(index));
-
   if isempty(obj.fa)
     obj.fa = line(obj.xaxis, obj.F1amp, 'parent', obj.axesHandle(1));
     set(obj.fa, 'Color', obj.plotColor(1,:), 'linewidth', 1, 'marker', 'o');
   else
     set(obj.fa, 'XData', obj.xaxis, 'YData', obj.F1amp);
+    set(obj.axesHandle, 'XLim', [floor(min(obj.xaxis)) ceil(max(obj.xaxis))]);
   end
-  %fm = line(obj.xaxis, obj.meanf1amp, 'parent', obj.axesHandle(1));
-  %set(fm, 'color', obj.plotColor(1,:), 'linewidth', 1, 'marker', 'o');
+
   if isempty(obj.pa)
     obj.pa = line(obj.xaxis, obj.F1phase, 'parent', obj.axesHandle(2));
     set(obj.pa, 'Color', obj.plotColor(1,:), 'linewidth', 1, 'marker', 'o');
   else
     set(obj.pa, 'XData', obj.xaxis, 'YData', obj.F1phase);
   end
-  %pm = line(obj.xaxis, obj.meanf1phase, 'parent', obj.axesHandle(2));
-  %set(pm, 'color', obj.plotColor(1,:), 'linewidth', 1, 'marker', 'o');
 end
 end
 end
