@@ -17,17 +17,12 @@ function r = analyzeDataOnline(r)
         stim = length(r.params.stimClass);
       end
       trial = ceil(ep / length(r.params.stimClass));
-
       respBlock(stim, trial, :) = r.spikes(ep,:);
 
-      % r.trials(ep).chromaticClass = epoch.protocolParameters('chromaticClass');
       [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
     end
     r.ptsh.binSize = 200;
       for stim = 1:length(r.params.stimClass)
-%        spikeTrials = squeeze(respBlock(stim,:,:));
-  %      for nn = 1:(r.numEpochs/r.params.stimClass)
-  %        stimSpikes(nn,:) = r.
         r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(respBlock(stim,:,:)), 200);
       end
   end
@@ -48,6 +43,19 @@ function r = analyzeDataOnline(r)
           [r.analysis.lf(ep,:,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
         end
       end
+    elseif strcmp(r.params.paradigmClass, 'STA')
+      for ep = 1:r.numEpochs
+        [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
+      end
+      if r.numEpochs > 1
+        r.analysis.meanAmp = mean(r.analysis.f1amp(ep));
+        r.analysis.meanPhase = mean(r.analysis.f1phase(ep));
+      else
+        r.analysis.meanAmp = r.analysis.f1amp;
+        r.analysis.meanPhase = r.analysis.f1phase;
+      end
+      r.analysis.ptshBin = 200;
+      r.analysis.ptsh = getPTSH(r, r.spikes, 200);
     end
   end
 
@@ -173,21 +181,21 @@ function r = analyzeDataOnline(r)
   if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.SpatialNoise')
     r.epochCount = 0;
     % init spatialReverseCorr params
-    if strcmp(r.params.chromaticClass, 'RGB')
-      r.analysis.temporalRF = zeros(3, size(r.analysis.strf, 4));
-      r.analysis.epochSTA = zeros(r.numEpochs, 3, size(r.analysis.strf,4));
-    else
-      r.analysis.temporalRF = zeros(size(r.analysis.strf, 3), 1);
-      r.analysis.epochSTA = zeros(r.numEpochs, size(r.analysis.strf,4));
-    end
+    % if strcmp(r.params.chromaticClass, 'RGB')
+    %   r.analysis.temporalRF = zeros(3, size(r.analysis.strf, 4));
+    %   r.analysis.epochSTA = zeros(r.numEpochs, 3, size(r.analysis.strf,4));
+    % else % achromatic and cone iso
+    %   r.analysis.temporalRF = zeros(size(r.analysis.strf, 3), 1);
+    %   r.analysis.epochSTA = zeros(r.numEpochs, size(r.analysis.strf,4));
+    % end
+
+    r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
 
     for ii = 1:r.numEpochs
       r.epochCount = r.epochCount + 1;
       r = getSTRFOnline(r, r.spikes(ii,:), r.seed(ii));
-
       % extra analyses for temporal receptive field
   %    r = spatialReverseCorr(r, r.analysis.epochSTRF(ii));
-
   %    r.analysis.epochFilters(r.numEpochs, 1:length(r.analysis.tempRF)) = r.analysis.tempRF;
     end
   end

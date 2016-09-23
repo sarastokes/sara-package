@@ -170,12 +170,14 @@ function r = parseDataOnline(symphonyInput)
     r.params.radius = epochBlock.protocolParameters('radius');
     r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
     if strcmp(r.params.paradigmClass,'ID')
-      r.params.temporalClass = epoch.protocolParameters('temporalClass');
+      r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
+      r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     elseif strcmp(r.params.paradigmClass, 'STA')
       r.params.randomSeed = epochBlock.protocolParameters('randomSeed');
       r.params.stdev = epochBlock.protocolParameters('stdev');
     end
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
+    [r.params.plotColor, ~] = getPlotColor(r.params.chromaticClass);
     for ep = 1:numEpochs
       epoch = epochBlock.epochs{ep}; % get epoch
       if strcmp(r.params.paradigmClass, 'STA')
@@ -271,8 +273,6 @@ function r = parseDataOnline(symphonyInput)
   end
 
   if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.SpatialNoise')
-  %  r.params.runFullProtocol = epochBlock.protocolParameters('runFullProtocol');
-  %  r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
     r.params.chromaticClass =  epochBlock.protocolParameters('chromaticClass');
@@ -285,12 +285,7 @@ function r = parseDataOnline(symphonyInput)
     r.params.numXChecks = epoch.protocolParameters('numXChecks');
     r.params.numYChecks = epoch.protocolParameters('numYChecks');
     r.params.useRandomSeed = epochBlock.protocolParameters('useRandomSeed');
-    % params specific to my cone-iso protocol
-    % if strcmp(r.protocol, 'washington.edu.riekelab.sara.protocols.ChromaticSpatialNoise')
-    %   r.params.colorWeights = epoch.protocolParameters('colorWeights');
-    %   r.params.equalQuantalCatch = epoch.protocolParameters('equalQuantalCatch');
-    % end
-    % init analysis and trial params
+
     if r.params.useRandomSeed
       r.seed = zeros(numEpochs, 1);
     else

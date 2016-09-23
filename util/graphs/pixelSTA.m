@@ -20,7 +20,7 @@ function pixelSTA(r, x, y, ax)
 
     else
       strf = r.analysis.strf;
-      [~, ~, msec] = size(strf);
+      msec = size(strf, 3);
       plot(ax, 0:msec-1, squeeze(strf(x,y,:)), 'k', 'linewidth', 1); hold on;
       set(gca, 'box', 'off', 'TickDir', 'out'); ylim([-0.5 0.5]);
     end
