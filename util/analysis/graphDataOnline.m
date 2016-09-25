@@ -9,7 +9,7 @@ if ~isfield(r, 'protocol')
 %    if strcmp(r(1).params.protocol, 'edu.washington.riekelab.manookin.protocols.ChromaticSpot')
     for ii = 1:length(r)
       params = r(ii).params;
-      r(ii).stimTrace = getStimTrace(params);
+      r(ii).stimTrace = getStimTrace(params, 'pulse', 'offline');
       contrast = r(ii).params.contrast *100;
       [n, ~] = size(r(ii).resp);
       r(ii).binSize = 200;
@@ -101,7 +101,7 @@ else
       subplot(411);
       title([r.cellName ' - ' r.params.stimClass ' cone iso ' num2str(ceil(2 * r.params.radiusMicrons)) ' micron spot']);
       subplot(818);
-      r.analysis.stimTrace = getStimTrace(r);
+      r.analysis.stimTrace = getStimTrace(r.params, 'modulation', 'offline');
       plot(r.analysis.stimTrace, 'k', 'linewidth', 1);
       set(gca, 'box', 'off', 'XColor', 'w', 'XTick', []);
       ylabel('contrast'); ylim([0 1]);
@@ -247,7 +247,7 @@ else
        fprintf('F1amp is %.3f and F1phase is %.3f\n', r.analysis.meanAmp, r.analysis.meanPhase);
      end
 
-     r.params.stimTrace = getStimTrace(r);
+     r.params.stimTrace = getStimTrace(r.params, 'modulation', 'offline');
 
      % plot PTSH
      figure; set(gcf, 'color', 'w');

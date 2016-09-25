@@ -17,6 +17,7 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     sweep
     stim
     storedSweep
+    epochNum
   end
 
 
@@ -38,6 +39,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     obj.stimColor = ip.Results.stimColor;
     obj.stimPerSweep = ip.Results.stimPerSweep;
     obj.stimTitle = ip.Results.stimTitle;
+
+    obj.epochNum = 0;
 
     obj.createUi();
   end
@@ -91,6 +94,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       error(['Epoch does not contain a response for ' obj.device.name]);
     end
 
+    obj.epochNum = obj.epochNum + 1;
+
     response = epoch.getResponse(obj.device);
     [quantities, units] = response.getData();
 
@@ -117,21 +122,28 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       set(obj.sweep, 'XData', x, 'YData', y);
     end
     ylabel(obj.axesHandle(1), units, 'Interpreter', 'none');
+    
     % plot stimuli
     if ~isempty(obj.stimTrace)
+      % multiple stim traces per epoch
       if obj.stimPerSweep > 1
-        plot((obj.stimTrace)', 'Parent', obj.axesHandle(2));
+        plot((obj.stimTrace)', 'Parent', obj.axesHandle(2)); % this works but i'm going to try a better way later
+      else % single stim trace per epoch
+        if size(obj.stimTrace, 1) > 1
+          currentStimTrace = obj.stimTrace(obj.epochNum, :);
+        else
+          currentStimTrace = obj.stimTrace;
+        end
+        if isempty(obj.stim)
+          obj.stim = line(1:length(currentStimTrace), currentStimTrace, 'Parent', obj.axesHandle(2), 'Color', obj.stimColor);
+        else
+          set(obj.stim, 'XData', 1:length(currentStimTrace), 'YData', currentStimTrace);
+        end
+        ylabel(obj.axesHandle(2), 'contrast', 'Interpreter', 'none');
       end
-      if isempty(obj.stim)
-        obj.stim = line(1:length(obj.stimTrace), obj.stimTrace, 'Parent', obj.axesHandle(2), 'Color', obj.stimColor);
-      else
-        set(obj.stim, 'XData', 1:length(obj.stimTrace), 'YData', obj.stimTrace);
-      end
-      ylabel(obj.axesHandle(2), 'contrast', 'Interpreter', 'none');
-%        plot(obj.stimTrace, 'Parent', obj.axesHandle(2), 'color', obj.stimColor);
-     end
     end
-  end
+  end % handleEpoch
+end % methods
 
   methods (Access = private)
 
@@ -144,5 +156,5 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       'color', obj.storedSweepColor,...
       'HandleVisibility', 'off');
     end
-  end
-end
+  end % methods
+end % classdef

@@ -31,22 +31,22 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
 
     % Chromatic options
     elseif strcmp(colorCall, 'red')
-      w = [1 0 0];
+      w = [1 0 0]; c = 'red';
       p = [0.82353, 0, 0];
     elseif strcmp(colorCall, 'green')
-      w = [0 1 0];
+      w = [0 1 0]; c = 'green';
       p = [0, 0.52941, 0.21569];
     elseif strcmp(colorCall, 'blue')
-      w = [0 0 1];
+      w = [0 0 1]; c = 'blue';
       p = [0.14118, 0.20784, 0.84314];
     elseif strcmp(colorCall, 'yellow')
-      w = [1 1 0];
+      w = [1 1 0]; c = 'yellow';
       p = [0.90588, 0.43529, 0.31765];
     elseif strcmp(colorCall, 'cyan')
-      w = [0 1 1];
+      w = [0 1 1]; c = 'cyan';
       p = [0, 0.74902, 0.68627];
     elseif strcmp(colorCall, 'magenta')
-      w = [1 0 1];
+      w = [1 0 1]; c = 'magenta';
       p = [0.64314, 0.011765, 0.43529];
 
     % hue basis

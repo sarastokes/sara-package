@@ -77,8 +77,6 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
-
             % Calculate the spatial phase in radians.
             obj.spatialPhaseRad = obj.spatialPhase / 180 * pi;
 
@@ -89,7 +87,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency, 'plotColor', obj.stimColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor);
         end
 
         function MTFanalysis(obj, ~, epoch)

@@ -9,6 +9,7 @@ properties
   contrast = 1
   backgroundIntensity = 0.5
   radius = 100
+  maskRadius = 0
   temporalClass = 'sinewave'
   temporalFrequency = 2
   centerOffset = [0,0]
@@ -24,6 +25,7 @@ properties (Hidden)
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'flash'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   chromaticClass
+  stimulusClass
   currentColorWeights
   currentContrast
   currentEpoch
@@ -53,6 +55,13 @@ end
 
 function prepareRun(obj)
   prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+
+  % set stimulus class
+  if obj.maskRadius == 0
+    obj.stimulusClass = 'spot';
+  else
+    obj.stimulusClass = 'annulus';
+  end
 
   % find plotColors
   for ii = 1:length(obj.stimClass)
@@ -159,15 +168,27 @@ function prepareRun(obj)
     spot.radiusY = obj.radius;
     spot.position = obj.canvasSize/2 + obj.centerOffset;
 
-    % control when the spot is visible
     spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
     spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
 
-    % Add the stimulus to the presentation.
     p.addStimulus(spot);
     p.addController(spotVisibleController);
     p.addController(spotColorController);
+
+    % center mask for annulus
+    if obj.maskRadius > 0
+      mask = stage.builtin.stimuli.Ellipse();
+      mask.radiusX = obj.maskRadius;
+      mask.radiusY = obj.maskRadius;
+      mask.position = obj.canvasSize/2 + obj.centerOffset;
+      mask.color = obj.backgroundIntensity;
+
+      maskVisibleController = stage.builtin.controllers.PropertyController(mask, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+
+      p.addStimulus(mask);
+      p.addController(maskVisibleController);
+    end
 
       function c = getSpotColor(obj, time)
           if time >= 0
@@ -209,10 +230,10 @@ function prepareRun(obj)
 
 
       [obj.currentColorWeights, obj.sweepColor, obj.chromaticClass]  = setColorWeightsLocal(obj, colorCall);
-        fprintf('for epoch %u, current color weights are %u %u %u\n', obj.currentEpoch, obj.currentColorWeights(1), obj.currentColorWeights(2), obj.currentColorWeights(3));
        obj.plotColor = obj.sweepColor;
       epoch.addParameter('chromaticClass', obj.chromaticClass);
       epoch.addParameter('sweepColor', obj.sweepColor);
+      epoch.addParameter('stimulusClass', obj.stimulusClass);
 
   end
 
