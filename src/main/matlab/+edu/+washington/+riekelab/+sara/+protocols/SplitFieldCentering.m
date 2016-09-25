@@ -1,6 +1,6 @@
 classdef SplitFieldCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % Max's SplitFieldCentering protocol with a few ManookinLabStageProtocol changes and chromatic options
-% right now this is working for achromatic and chromatic.. committing now before I try to change absolutely everything for cone-iso
+% Different stimulus set up for cone-iso stim that's limited to splitField
 
 properties
     preTime = 250 % ms
@@ -8,11 +8,11 @@ properties
     tailTime = 250 % ms
     contrast = 0.9 % relative to mean (0-1)
     chromaticClass = 'achromatic'
-    temporalClass = 'sinewave'
+    temporalClass = 'squarewave'
     temporalFrequency = 4 % Hz
     radius = 300; % um
     maskRadius = 0 % um
-    splitField = false
+    splitField = true
     rotation = 0;  % deg
     backgroundIntensity = 0.5 % (0-1)
     centerOffset = [0, 0] % [x,y] (um)
@@ -53,8 +53,14 @@ function prepareRun(obj)
   prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
   % catch some errors
-  if strcmp(obj.temporalClass, 'sinewave') && ~isempty(strfind(obj.chromaticClass, '-iso'))
-    error('cone iso only works with squarewave splitfield, use conesweep for ff sinewave');
+
+  if ~isempty(strfind(obj.chromaticClass, '-iso'))
+    if obj.rotation ~= 90 && obj.rotation ~= 0
+      error('cone iso only works for 0 and 90 degrees right now');
+    end
+    if strcmp(obj.temporalClass, 'sinewave')
+      error('cone iso only works with squarewave splitfield, use conesweep for uniform spot stuff');
+    end
   end
 
   [obj.currentColorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
@@ -128,49 +134,74 @@ function p = createPresentation(obj)
   p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3); %create presentation of specified duration
   p.setBackgroundColor(obj.backgroundIntensity); % Set background intensity
 
-  % Create grating stimulus.
-  grate = stage.builtin.stimuli.Grating('square'); %square wave grating
-  grate.orientation = obj.rotation;
-  grate.size = [2 * obj.radius, 2 * obj.radius];
-  grate.position = obj.canvasSize/2 + obj.centerOffset;
-  grate.spatialFreq = 1/(4*obj.radius);
-  if (obj.splitField)
-      grate.phase = 90;
-  else %full-field
-      grate.phase = 0;
-  end
-  p.addStimulus(grate); %add grating to the presentation
-
-  %make it contrast-reversing
-  if (obj.temporalFrequency > 0)
-     if strcmp(obj.chromaticClass, 'achromatic')
-      grateContrast = stage.builtin.controllers.PropertyController(grate, 'contrast', @(state)getGrateContrast(obj, state.time - obj.preTime/1e3));
-      p.addController(grateContrast); %add the controller
-     else
-       grateColor = stage.builtin.controllers.PropertyController(grate, 'color', @(state)getGrateColor(obj, state.time - obj.preTime/1e3));
-       p.addController(grateColor);
-     end
-  end
-
-  function c = getGrateContrast(obj, time)
-    if strcmp(obj.temporalClass, 'sinewave')
-      c = obj.contrast.*sin(2 * pi * obj.temporalFrequency * time);
-    else
-      c = obj.contrast.*sign(sin(2 * pi * obj.temporalFrequency * time));
+  if isempty(strfind(obj.chromaticClass, '-iso')) % old working code
+    % Create grating stimulus.
+    grate = stage.builtin.stimuli.Grating('square'); %square wave grating
+    grate.orientation = obj.rotation;
+    grate.size = [2 * obj.radius, 2 * obj.radius];
+    grate.position = obj.canvasSize/2 + obj.centerOffset;
+    grate.spatialFreq = 1/(4*obj.radius);
+    if (obj.splitField)
+        grate.phase = 90;
+    else %full-field
+        grate.phase = 0;
     end
+    p.addStimulus(grate); %add grating to the presentation
+
+    %make it contrast-reversing
+    if (obj.temporalFrequency > 0)
+       if strcmp(obj.chromaticClass, 'achromatic')
+        grateContrast = stage.builtin.controllers.PropertyController(grate, 'contrast', @(state)getGrateContrast(obj, state.time - obj.preTime/1e3));
+        p.addController(grateContrast); %add the controller
+       else
+         grateColor = stage.builtin.controllers.PropertyController(grate, 'color', @(state)getGrateColor(obj, state.time - obj.preTime/1e3));
+         p.addController(grateColor);
+       end
+    end
+
+    %hide during pre & post
+    grateVisibleController = stage.builtin.controllers.PropertyController(grate, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+    p.addController(grateVisibleController);
   end
 
-  function c = getGrateColor(obj, time)
-    if time >= 0
-      if strcmp(obj.temporalClass, 'sinewave')
-        c = obj.contrast * obj.currentColorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
-      else
-        c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFreuency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
-      end
-    else
-      c = obj.backgroundIntensity;
+  %% new cone iso code
+  if ~isempty(strfind(obj.chromaticClass, '-iso'))
+    barOne = stage.builtin.stimuli.Rectangle();
+    barOne.size = [obj.radius obj.radius];
+
+    barTwo = stage.builtin.stimuli.Rectangle();
+    barTwo.size = [obj.radius obj.radius];
+
+    barOne.position = obj.canvasSize/2 + obj.centerOffset;
+    barTwo.position = obj.canvasSize/2 + obj.centerOffset;
+    % the bar position will have to change with rotation
+    if obj.rotation == 0 % for now... all orientations if this works
+      barOne.position(1) = barOne.position(1) - obj.radius/2;
+      barTwo.position(1) = barTwo.position(1) + obj.radius/2;
+      barOne.size(2) = barOne.size(2) * 2;
+      barTwo.size(2) = barTwo.size(2) * 2;
+     elseif obj.rotation == 90
+       barOne.position(2) = barOne.position(2) - obj.radius/2;
+       barTwo.position(2) = barTwo.position(2) + obj.radius/2;
+       barOne.size(1) = barOne.size(1) * 2;
+       barTwo.size(1) = barTwo.size(1) * 2;
     end
+
+    barOneColorController = stage.builtin.controllers.PropertyController(barOne, 'color', @(state)getBarOneColor(obj, state.time - obj.preTime * 1e-3));
+    barTwoColorController = stage.builtin.controllers.PropertyController(barTwo, 'color', @(state)getBarTwoColor(obj, state.time - obj.preTime * 1e-3));
+    barOneVisibleController = stage.builtin.controllers.PropertyController(barOne, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+    barTwoVisibleController = stage.builtin.controllers.PropertyController(barTwo, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+
+    % add stimuli and their controllers
+    p.addStimulus(barOne);
+    p.addController(barOneColorController);
+    p.addController(barOneVisibleController);
+    p.addStimulus(barTwo);
+    p.addController(barTwoColorController);
+    p.addController(barTwoVisibleController);
   end
+
+
   % Create aperture
   aperture = stage.builtin.stimuli.Rectangle();
   aperture.position = obj.canvasSize/2 + obj.centerOffset;
@@ -193,9 +224,43 @@ function p = createPresentation(obj)
       p.addController(maskVisibleController);
   end
 
-  %hide during pre & post
-  grateVisibleController = stage.builtin.controllers.PropertyController(grate, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
-  p.addController(grateVisibleController);
+  %% controller functions
+  function c = getBarOneColor(obj, time)
+    if time >= 0
+      c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+    else
+      c = obj.backgroundIntensity;
+    end
+  end
+
+  function c = getBarTwoColor(obj, time)
+    if time >= 0
+      c = -1 * obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+    else
+      c = obj.backgroundIntensity;
+    end
+  end
+
+  function c = getGrateContrast(obj, time)
+    if strcmp(obj.temporalClass, 'sinewave')
+      c = obj.contrast.*sin(2 * pi * obj.temporalFrequency * time);
+    else
+      c = obj.contrast.*sign(sin(2 * pi * obj.temporalFrequency * time));
+    end
+  end
+
+  function c = getGrateColor(obj, time)
+    if time >= 0
+      if strcmp(obj.temporalClass, 'sinewave')
+        c = obj.contrast * obj.currentColorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+      else
+        c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFreuency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+      end
+    else
+      c = obj.backgroundIntensity;
+    end
+  end
+
 end
 
 function prepareEpoch(obj, epoch)

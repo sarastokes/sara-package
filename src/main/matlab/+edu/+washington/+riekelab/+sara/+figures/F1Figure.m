@@ -6,7 +6,7 @@ properties
   onlineAnalysis
   preTime
   stimTime
-  temporalFrequency
+  temporalFrequency   % don't pass if temporalFrequency = xvals
   plotColor
   numReps   % pass if numReps would ever be >1, otherwise numReps = 1
 end
@@ -28,25 +28,26 @@ properties
 end
 
 methods
-function obj = F1Figure(device, xvals, onlineAnalysis, preTime, stimTime, temporalFrequency, varargin)
+function obj = F1Figure(device, xvals, onlineAnalysis, preTime, stimTime, varargin)
   obj.device = device;
-  obj.xvals = xvals; xvals
+  obj.xvals = xvals;
   obj.onlineAnalysis = onlineAnalysis;
   obj.preTime = preTime;
   obj.stimTime = stimTime;
-  obj.temporalFrequency = temporalFrequency;
 
   ip = inputParser();
+  ip.addParameter('temporalFrequency', [], @(x)ischar(x) || isvector(x))
   ip.addParameter('plotColor', [0 0 0], @(x)ischar(x) || isvector(x));
   ip.addParameter('numReps', 1, @(x)isnumeric(x) || isvector(x));
   ip.parse(varargin{:});
+
+  obj.temporalFrequency = ip.Results.temporalFrequency;
 
   obj.numReps = ip.Results.numReps;
   obj.plotColor = zeros(2,3);
   obj.plotColor(1,:) = ip.Results.plotColor;
   obj.plotColor(2,:) = obj.plotColor(1,:) + (0.5 * (1-obj.plotColor(1,:)));
 
-  obj.plotColor
   ct = obj.xvals(:) * ones(1, obj.numReps);
   obj.sequence = sort(ct(:));
 
@@ -107,6 +108,13 @@ function handleEpoch(obj, epoch)
 
   obj.epochNum = obj.epochNum + 1;
 
+  % handle protocols with changing temporal frequencies
+  if isempty(obj.temporalFrequency)
+    tempFreq = epoch.parameters('temporalFrequency');
+  else
+    tempFreq = obj.temporalFrequency;
+  end
+
   response = epoch.getResponse(obj.device);
   responseTrace = response.getData();
   sampleRate = response.sampleRate.quantityInBaseUnits;
@@ -118,18 +126,25 @@ function handleEpoch(obj, epoch)
   binRate = 60;
   binWidth = sampleRate / binRate; % Bin at 60 Hz.
   numBins = floor(obj.stimTime/1000 * binRate);
+  fprintf('numBins set to %u based on stimTime(%u) and binRate (%u)\n', numBins, obj.stimTime, binRate);
   binData = zeros(1, numBins);
   for k = 1 : numBins
       index = round((k-1)*binWidth+1 : k*binWidth);
       binData(k) = mean(responseTrace(index));
   end
-  binsPerCycle = binRate / obj.temporalFrequency;
+  binsPerCycle = binRate / tempFreq;
+  fprintf('binsPerCycle is %u\n', binsPerCycle);
   numCycles = floor(length(binData)/binsPerCycle);
+  if numCycles == 0
+    error('Make sure stimTime is long enough for at least 1 complete cycle');
+  end
+  fprintf('numCycles is %u based on length of binData (%u) and binsPerCycle\n', numCycles, length(binData))
   cycleData = zeros(1, floor(binsPerCycle));
   for k = 1 : numCycles
       index = round((k-1)*binsPerCycle) + (1 : floor(binsPerCycle));
       cycleData = cycleData + binData(index);
   end
+  fprintf('size of cycleData is %u, %u and k is %u, %u\n', size(cycleData,1), size(cycleData,2), size(k,1), size(k,2));
   cycleData = cycleData / k;
 
   ft = fft(cycleData);

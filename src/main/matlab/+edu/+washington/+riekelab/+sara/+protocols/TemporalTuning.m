@@ -59,30 +59,14 @@ end
      stimTrace(jj, :) = [(obj.backgroundIntensity * ones(1, obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
    end
 
+   obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+
    if ~strcmp(obj.onlineAnalysis, 'none')
      obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.temporalFrequencies, obj.onlineAnalysis, obj.preTime, obj.stimTime, 'plotColor', obj.plotColor);
    end
 
    % add in randomize later
    obj.sequence = obj.temporalFrequencies;
- end
-
- function ResponseWithStim(obj, ~, epoch)
-   obj.analysisFigure.userData.epochCount = obj.analysisFigure.userData.epochCount + 1;
-   response = epoch.getResponse(obj.rig.getDevice(obj.amp));
-   responseTrace = response.getData();
-
-
-
-   if isempty(obj.plotColor)
-     obj.plotColor = [0 0 0];
-   end
-
-   cla(axesHandle); cla(stimHandle);
-   h1 = line(responseTrace, 'parent', axesHandle);
-   h2 = line(stimTrace, 'color', obj.plotColor, 'linewidth', 1, stimHandle);
-   set(stimHandle, 'xlim', [0 length(response)], 'ylim', [0 1]);
-   set(axesHandle, 'xlim', [0 length(response)]);
  end
 
 function p = createPresentation(obj)

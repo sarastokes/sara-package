@@ -91,11 +91,10 @@ methods
         obj.epochNames{ii} = 'blue'; % blue LED
         obj.epochColors(ii,:) = [0.14118, 0.20784, 0.84314];
       otherwise
-        obj.epochNames{ii} = [0 0 0];
-        obj.epochColors(ii,:) = 'Achromatic';
+        obj.epochColors(ii,:) = [0 0 0];
+        obj.epochNames{ii} = 'Achromatic';
       end
     end
-    fprintf('Epoch Colors (1,1) = %.2f and (3,3) = %.2f\n', obj.epochColors(1,1), obj.epochColors(3,3));
 
     obj.createUi();
   end
