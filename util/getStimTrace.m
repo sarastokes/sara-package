@@ -4,9 +4,9 @@ function stimTrace = getStimTrace(r, stimType, expStatus)
   if nargin < 3
     expStatus = 'online';
   end
-  if strcmp(expStatus, 'offline')
-    r = r.params;
-  end
+  % if strcmp(expStatus, 'offline')
+  %   r = r.params;
+  % end
 
   if ~isfield(r, 'contrast')
     r.contrast = 1;
@@ -23,9 +23,13 @@ function stimTrace = getStimTrace(r, stimType, expStatus)
     x = 0:0.001:((r.stimTime - 1) * 1e-3);
     stimValues = zeros(1, length(x));
     for ii = 1:length(x)
-      if strcmp(r.temporalClass, 'sinewave')
-        stimValues(1,ii) = r.contrast * sin(r.temporalFrequency * x(ii) * 2 * pi) * r.backgroundIntensity + r.backgroundIntensity;
-      elseif strcmp(r.temporalClass, 'squarewave')
+      if isfield(r, 'temporalClass')
+        if strcmp(r.temporalClass, 'sinewave')
+          stimValues(1,ii) = r.contrast * sin(r.temporalFrequency * x(ii) * 2 * pi) * r.backgroundIntensity + r.backgroundIntensity;
+        elseif strcmp(r.temporalClass, 'squarewave')
+          stimValues(1,ii) = r.contrast * sign(sin(r.temporalFrequency * x(ii) * 2 * pi)) * r.backgroundIntensity + r.backgroundIntensity;
+        end
+      else
         stimValues(1,ii) = r.contrast * sign(sin(r.temporalFrequency * x(ii) * 2 * pi)) * r.backgroundIntensity + r.backgroundIntensity;
       end
     end

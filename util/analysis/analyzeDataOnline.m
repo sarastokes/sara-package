@@ -43,7 +43,7 @@ function r = analyzeDataOnline(r)
           [r.analysis.lf(ep,:,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
         end
       end
-    elseif strcmp(r.params.paradigmClass, 'STA')
+    elseif strcmp(r.params.paradigmClass, 'ID')
       for ep = 1:r.numEpochs
         [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
       end
@@ -92,7 +92,7 @@ function r = analyzeDataOnline(r)
     r.analysis.linearFilter = zeros(1, floor(r.params.frameRate));
     r.analysis.lf = zeros(r.numEpochs, floor(r.params.frameRate));
     for ep = 1:r.numEpochs
-  %    [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed(1,ep));
+      %    [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed(1,ep));
       spikes = r.spikes(ep,:); seed = r.params.seed(1,ep);
       responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate+1:end);
 
@@ -109,7 +109,7 @@ function r = analyzeDataOnline(r)
 
       % get the frame values
       if strcmp(r.params.chromaticClass, 'RGB-gaussian')
-        frameValues = r.params.stdev * obj.noiseStream.randn(3, numBins);
+        frameValues = r.params.stdev * noiseStream.randn(3, numBins);
       elseif strcmp(r.params.chromaticClass, 'RGB-binary')
         frameValues = noiseStream.randn(3, numBins) > 0.5;
       else
@@ -141,17 +141,10 @@ function r = analyzeDataOnline(r)
 
   if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise')
     r.epochCount = 1;
-    % r.liso.temporalRF = zeros(size(r.liso.analysis.strf, 3), 1);
-    % r.liso.epochSTA = zeros(r.numEpochs, size(r.liso.analysis.strf,4));
-    % r.miso.temporalRF = zeros(size(r.liso.temporalRF));
-    % r.miso.epochSTA = zeros(size(r.liso.epochSTA));
-    % r.siso.temporalRF = zeros(size(r.liso.temporalRF));
-    % r.siso.epochSTA = zeros(size(r.liso.epochSTA));
 
     cones = {'liso' 'miso' 'siso'};
     indCount = 1;
     r.seed = r.liso.seed(1);
-
 
     r.liso.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
     r.liso.analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
@@ -180,16 +173,13 @@ function r = analyzeDataOnline(r)
 
   if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.SpatialNoise')
     r.epochCount = 0;
-    % init spatialReverseCorr params
-    % if strcmp(r.params.chromaticClass, 'RGB')
-    %   r.analysis.temporalRF = zeros(3, size(r.analysis.strf, 4));
-    %   r.analysis.epochSTA = zeros(r.numEpochs, 3, size(r.analysis.strf,4));
-    % else % achromatic and cone iso
-    %   r.analysis.temporalRF = zeros(size(r.analysis.strf, 3), 1);
-    %   r.analysis.epochSTA = zeros(r.numEpochs, size(r.analysis.strf,4));
-    % end
 
     r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
+    r.analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
+
+    % x/y axes in microns
+    r.params.xaxis = linspace(-r.params.numXChecks/2, r.params.numXChecks/2, r.params.numXChecks) * r.params.stixelSize;
+    r.params.yaxis = linspace(-r.params.numYChecks/2, r.params.numYChecks/2, r.params.numYChecks) * r.params.stixelSize;
 
     for ii = 1:r.numEpochs
       r.epochCount = r.epochCount + 1;
@@ -200,16 +190,13 @@ function r = analyzeDataOnline(r)
     end
   end
 
-
-
   if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.sMTFspot')
     for ep = 1:r.numEpochs
       [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, r.spikes(ep,:));
     end
   end
 
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   function [f1amp, f1phase, f2amp, f2phase] = CTRanalysis(r, spikes)
     responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate+1 : end);
     binRate = 60;
@@ -283,7 +270,7 @@ function r = analyzeDataOnline(r)
 
     % get the frame values
     if strcmp(r.params.chromaticClass, 'RGB-gaussian')
-      frameValues = r.params.stdev * obj.noiseStream.randn(3, numBins);
+      frameValues = r.params.stdev * noiseStream.randn(3, numBins);
     elseif strcmp(r.params.chromaticClass, 'RGB-binary')
       frameValues = noiseStream.randn(3, numBins) > 0.5;
     else
@@ -362,7 +349,7 @@ function r = analyzeDataOnline(r)
      STA = STA/numSpikes;
    end
 
-   function [lf, linearFilter] = STRFanalysis(r, spikes, seed)
+  function [lf, linearFilter] = STRFanalysis(r, spikes, seed)
     % lf is individual epoch
     % linearFilter is mean of epochs analyzed so far, pulled from struct
 

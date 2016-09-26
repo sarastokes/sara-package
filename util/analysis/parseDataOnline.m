@@ -293,7 +293,7 @@ function r = parseDataOnline(symphonyInput)
     end
     for ep = 1:numEpochs
       epoch = epochBlock.epochs{ep}; % get epoch
-      r.frame(ep,:) = epoch.responses{2}.getData; % get response
+      % r.frame(ep,:) = epoch.responses{2}.getData; % get frames
       r.seed(ep) = epoch.protocolParameters('seed');
     end
   end

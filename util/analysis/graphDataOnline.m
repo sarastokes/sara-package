@@ -274,11 +274,24 @@ else
 
   if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.SpatialNoise')
     figure;
-    imagesc(r.analysis.spatialRF);
-    title([r.cellName ' spatial receptive field']);
-    if strcmp(r.params.chromaticClass, 'RGB')
-      STRF = shiftdim(r.analysis.strf, 1); %#ok<NASGU>
+    imagesc('XData', r.params.xaxis, 'YData', r.params.yaxis, 'CData', r.analysis.spatialRF);
+    if strcmp(r.params.chromaticClass, 'achromatic')
+      colormap(bone);
     end
+    axis tight; axis equal;
+    title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
+
+    % also plot in pixels... makes it easier for pixelSTA stuff
+    figure;
+    imagesc(r.analysis.spatialRF);
+    axis tight; axis equal;
+    if strcmp(r.params.chromaticClass, 'achromatic')
+      colormap(bone);
+    end
+    title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
+    % if strcmp(r.params.chromaticClass, 'RGB')
+    %   STRF = shiftdim(r.analysis.strf, 1); %#ok<NASGU>
+    % end
   end
 
   if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.ChromaticSpatialNoise')
