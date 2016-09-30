@@ -112,7 +112,8 @@ function r = parseDataOnline(symphonyInput)
   end
 
   %% protocol specific data - could be condensed but keeping separate for now.
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.ChromaticGrating') || strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.TempChromaticGrating')
+  switch r.protocol
+  case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating', 'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
     epoch = epochBlock.epochs{1};
     r.params.waitTime = epochBlock.protocolParameters('waitTime');
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
@@ -132,9 +133,8 @@ function r = parseDataOnline(symphonyInput)
     r.params.plotColor = getPlotColor(r.params.chromaticClass);
     r.params.stimStart = (r.params.preTime + r.params.waitTime) * 10 + 1;
     r.params.stimEnd = (r.params.preTime + r.params.stimTime) * 10;
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.sMTFspot');
+  case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     r.params.stimulusClass = epochBlock.protocolParameters('stimulusClass');
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.contrast = epochBlock.protocolParameters('contrast');
@@ -143,9 +143,8 @@ function r = parseDataOnline(symphonyInput)
     r.params.radii = epochBlock.protocolParameters('radii');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     [r.params.plotColor,~] = getPlotColor(r.params.chromaticClass);
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.ConeSweep')
+  case 'edu.washington.riekelab.sara.protocols.ConeSweep'
     r.params.stimClass = epochBlock.protocolParameters('stimClass');
     r.params.contrast = epochBlock.protocolParameters('contrast');
     r.params.radius = epochBlock.protocolParameters('radius');
@@ -154,6 +153,7 @@ function r = parseDataOnline(symphonyInput)
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     r.params.reverseOrder = epochBlock.protocolParameters('reverseOrder');
+    r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
     for ep = 1:numEpochs
       epoch = epochBlock.epochs{ep}; % get epoch
       if ep <= length(r.params.stimClass)
@@ -161,9 +161,8 @@ function r = parseDataOnline(symphonyInput)
       end
       r.trials(ep).chromaticClass = epoch.protocolParameters('chromaticClass');
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.IsoSTC')
+  case 'edu.washington.riekelab.sara.protocols.IsoSTC'
     r.params.paradigmClass = epochBlock.protocolParameters('paradigmClass');
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.contrast = epochBlock.protocolParameters('contrast');
@@ -184,9 +183,8 @@ function r = parseDataOnline(symphonyInput)
         r.params.seed{ep} = epoch.protocolParameters('seed');
       end
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.GaussianNoise')
+  case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.stimulusClass = epochBlock.protocolParameters('stimulusClass');
     r.params.radius = epochBlock.protocolParameters('radius');
@@ -203,9 +201,8 @@ function r = parseDataOnline(symphonyInput)
       epoch = epochBlock.epochs{ep};
       r.params.seed(1, ep) = epoch.protocolParameters('seed');
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot')
+  case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
     r.params.radius = epochBlock.protocolParameters('radius');
     r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
@@ -215,9 +212,8 @@ function r = parseDataOnline(symphonyInput)
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     [r.params.plotColor, ~] = getPlotColor(r.params.chromaticClass);
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.BarCentering')
+  case 'edu.washington.riekelab.manookin.protocols.BarCentering'
     r.params.searchAxis = epochBlock.protocolParameters('searchAxis');
     r.params.barSize = epochBlock.protocolParameters('barSize');
     r.params.barSizeMicrons = r.params.barSize * r.params.micronsPerPixel;
@@ -225,9 +221,8 @@ function r = parseDataOnline(symphonyInput)
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.positions = epochBlock.protocolParameters('positions');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise')
+  case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
     r.params.stixelSize = epochBlock.protocolParameters('stixelSize');
     r.params.stixelSizeMicrons = r.params.stixelSize * r.params.micronsPerPixel;
@@ -270,9 +265,8 @@ function r = parseDataOnline(symphonyInput)
         indCount = indCount + 1;
       end
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.SpatialNoise')
+  case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
     r.params.chromaticClass =  epochBlock.protocolParameters('chromaticClass');

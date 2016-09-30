@@ -1,73 +1,71 @@
 function r = analyzeDataOnline(r)
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.ChromaticGrating') || strcmp(r.protocol,'edu.washington.riekelab.sara.protocols.TempChromaticGrating')
+  switch r.protocol
+    case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',  'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
     r.analysis = sMTFanalysis(r);
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.ConeSweep')
-    r.analysis.f1amp = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
-    r.analysis.f1phase = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
-    r.params.plotColors = zeros(length(r.params.stimClass), 3);
+    case 'edu.washington.riekelab.sara.protocols.ConeSweep'
+      r.analysis.f1amp = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
+      r.analysis.f1phase = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
+      r.params.plotColors = zeros(length(r.params.stimClass), 3);
 
-    respBlock = zeros(length(r.params.stimClass), (r.numEpochs/length(r.params.stimClass)), length(r.resp));
+      respBlock = zeros(length(r.params.stimClass), (r.numEpochs/length(r.params.stimClass)), length(r.resp));
 
-    for ep = 1:r.numEpochs
-      stim = rem(ep, length(r.params.stimClass));
-      if stim == 0
-        stim = length(r.params.stimClass);
-      end
-      trial = ceil(ep / length(r.params.stimClass));
-      respBlock(stim, trial, :) = r.spikes(ep,:);
-
-      [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
-    end
-    r.ptsh.binSize = 200;
-      for stim = 1:length(r.params.stimClass)
-        r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(respBlock(stim,:,:)), 200);
-      end
-  end
-
-  if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.IsoSTC')
-    if strcmp(r.params.paradigmClass, 'STA')
-      if isempty(strfind(r.params.chromaticClass, 'RGB'))
-        c = 1;
-      else
-        c = 3;
-      end
-      r.analysis.lf = zeros(r.numEpochs, c, 60);
-      r.analysis.linearFilter = zeros(c, 60);
       for ep = 1:r.numEpochs
-        if isempty(strfind(r.params.chromaticClass,'RGB'))
-          [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
-        else
-          [r.analysis.lf(ep,:,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
+        stim = rem(ep, length(r.params.stimClass));
+        if stim == 0
+          stim = length(r.params.stimClass);
         end
-      end
-    elseif strcmp(r.params.paradigmClass, 'ID')
-      for ep = 1:r.numEpochs
-        [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
-      end
-      if r.numEpochs > 1
-        r.analysis.meanAmp = mean(r.analysis.f1amp(ep));
-        r.analysis.meanPhase = mean(r.analysis.f1phase(ep));
-      else
-        r.analysis.meanAmp = r.analysis.f1amp;
-        r.analysis.meanPhase = r.analysis.f1phase;
-      end
-      r.analysis.ptshBin = 200;
-      r.analysis.ptsh = getPTSH(r, r.spikes, 200);
-    end
-  end
+        trial = ceil(ep / length(r.params.stimClass));
+        respBlock(stim, trial, :) = r.spikes(ep,:);
 
+        [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
+      end
+      r.ptsh.binSize = 200;
+        for stim = 1:length(r.params.stimClass)
+          r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(respBlock(stim,:,:)), 200);
+        end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.BarCentering')
+    case 'edu.washington.riekelab.sara.protocols.IsoSTC'
+      switch r.params.paradigmClass
+        case 'STA'
+          if isempty(strfind(r.params.chromaticClass, 'RGB'))
+            c = 1;
+          else
+            c = 3;
+          end
+          r.analysis.lf = zeros(r.numEpochs, c, 60);
+          r.analysis.linearFilter = zeros(c, 60);
+          for ep = 1:r.numEpochs
+            if isempty(strfind(r.params.chromaticClass,'RGB'))
+              [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
+            else
+              for cc = 1:3
+                [r.analysis.lf(ep,c,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
+              end
+            end
+          end
+        case 'ID'
+          for ep = 1:r.numEpochs
+            [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
+          end
+          if r.numEpochs > 1
+            r.analysis.meanAmp = mean(r.analysis.f1amp(ep));
+            r.analysis.meanPhase = mean(r.analysis.f1phase(ep));
+          else
+            r.analysis.meanAmp = r.analysis.f1amp;
+            r.analysis.meanPhase = r.analysis.f1phase;
+          end
+          r.analysis.ptshBin = 200;
+          r.analysis.ptsh = getPTSH(r, r.spikes, 200);
+        end
+
+  case 'edu.washington.riekelab.manookin.protocols.BarCentering'
     for ep = 1:r.numEpochs
       [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, r.spikes(ep,:));
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot')
-
+  case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
     r.analysis.f1amp = zeros(1, length(r.numEpochs));
     r.analysis.f1phase = zeros(size(r.analysis.f1amp));
     r.analysis.f2amp = zeros(size(r.analysis.f1amp));
@@ -86,9 +84,8 @@ function r = analyzeDataOnline(r)
        r.analysis.mean_f2amp(xpt) = mean(r.analysis.f2amp(numReps));
        r.analysis.mean_f2phase(xpt) = mean(r.analysis.f2phase(numReps));
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.GaussianNoise')
+  case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
     r.analysis.linearFilter = zeros(1, floor(r.params.frameRate));
     r.analysis.lf = zeros(r.numEpochs, floor(r.params.frameRate));
     for ep = 1:r.numEpochs
@@ -137,9 +134,8 @@ function r = analyzeDataOnline(r)
 
     % get the nonlinearity
     r = nonlinearity(r);
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise')
+  case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
     r.epochCount = 1;
 
     cones = {'liso' 'miso' 'siso'};
@@ -169,9 +165,8 @@ function r = analyzeDataOnline(r)
       end
       indCount = indCount + 1;
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.SpatialNoise')
+  case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
     r.epochCount = 0;
 
     r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
@@ -188,9 +183,8 @@ function r = analyzeDataOnline(r)
   %    r = spatialReverseCorr(r, r.analysis.epochSTRF(ii));
   %    r.analysis.epochFilters(r.numEpochs, 1:length(r.analysis.tempRF)) = r.analysis.tempRF;
     end
-  end
 
-  if strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.sMTFspot')
+  case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     for ep = 1:r.numEpochs
       [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, r.spikes(ep,:));
     end
@@ -435,6 +429,4 @@ function r = analyzeDataOnline(r)
       end
     end
   end
-
-
 end
