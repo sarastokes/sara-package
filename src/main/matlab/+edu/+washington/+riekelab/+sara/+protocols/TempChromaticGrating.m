@@ -1,4 +1,5 @@
 classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+% Chromatic grating but with my response figures and option for mask
     properties
         amp                             % Output amplifier
         preTime = 250                   % Grating leading duration (ms)
@@ -14,6 +15,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         centerOffset = [0,0]            % Center offset in pixels (x,y)
         apertureRadius = 0              % Aperture radius in pixels.
         apertureClass = 'spot'          % Spot or annulus?
+        maskRadius = 0                  % Mask radius in pixels
         spatialClass = 'sinewave'       % Spatial type (sinewave or squarewave)
         temporalClass = 'drifting'      % Temporal type (drifting or reversing)
         chromaticClass = 'achromatic'   % Chromatic type

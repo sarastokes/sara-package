@@ -1,4 +1,5 @@
 function r = diffSpikeDetection(r, threshold, epochNum)
+  % take the differential of spikes and threshold from there
 
   r.old.spikes = r.spikes; r.spikes = [];
   r.old.spikeData = r.spikeData;
