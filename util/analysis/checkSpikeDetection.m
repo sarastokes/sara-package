@@ -1,8 +1,17 @@
-function checkSpikeDetection(r, epochNum)
+function checkSpikeDetection(r, epochNum, method)
+  % INPUTS: r=data structure, 
+  % epochNum = which epoch (0 for all epochs)
+  % method = 'diff' = show differential, 'amps' = show amplitudes
+  if nargin < 2
+    epochNum = 0;
+    method = 'amps';
+  elseif nargin < 3
+    method = 'amps';
+  end
 
-  [n,~] = size(r.resp);
+  n = size(r.resp,1);
   if isfield(r, 'protocol')
-    if nargin < 2
+    if epochNum == 0
       epochList = 1:n;
     else
       epochList = epochNum;
@@ -11,10 +20,10 @@ function checkSpikeDetection(r, epochNum)
       ep = epochList(ii);
 
       % create figure and menubar option
-      fh = figure('color', 'w');
-      plotMenu = uimenu(fh, 'label', 'Plots');
-      uimenu(plotMenu, 'Label', 'differential', 'Callback', @onPlotDiff);
-
+      % fh = figure('color', 'w');
+      % plotMenu = uimenu(fh, 'label', 'Plots');
+      % uimenu(plotMenu, 'Label', 'differential', 'Callback', checkSpikeDetection(r, epochNum, 'diff'));
+      figure('color', 'w');
       subplot(5, 1, 1:2);
       plot(r.resp(ep,:), 'k');
       title(sprintf('spike detection check - epoch %u', ep)); axis tight;
@@ -23,11 +32,14 @@ function checkSpikeDetection(r, epochNum)
       plot(r.spikes(ep,:)); axis tight;
       set(gca, 'XColor', 'w', 'XTick', {}, 'Box', 'off');
       subplot(5, 1, 4:5); respAxes = gca;
-      if any(r.spikes(ep,:)) == 0
-        plot([0 diff(r.resp(ep,:))]);
-      else
+      if strcmp(method, 'amps') && any(r.spikes(ep,:))
         plot(r.spikeData.resp(ep,:));
+        ylabel('detected spike amplitudes')
+      else
+        plot([0 diff(r.resp(ep,:))]);
+        ylabel('differential of response');
       end
+
       axis tight;
       set(gca, 'XColor', 'w', 'XTick', {}, 'Box', 'off');
       set(gca, 'YGrid', 'on', 'YMinorGrid', 'on');
@@ -55,10 +67,4 @@ function checkSpikeDetection(r, epochNum)
       set(gca, 'YGrid', 'on', 'YMinorGrid', 'on');
     end
   end
-
-  function onPlotDiff(r, epochNum)
-    hold(respAxes);
-    plot([0 diff(r.resp(epochNum,:))], 'parent', respAxes);
-  end
-
 end % checkSpikeDetection

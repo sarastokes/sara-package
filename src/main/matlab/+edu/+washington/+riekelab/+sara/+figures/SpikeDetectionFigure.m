@@ -48,6 +48,8 @@ methods
     spikes(S.sp) = 1;
     spikeAmps = S.spikeAmps;
     spikeTimes = S.sp;
+    spikeResponse = zeros(size(spikes));
+    spikeResponse{spikeTimes} = S.spikeAmps;
 
     plot(response, 'parent', obj.axesHandle(1));
     set(obj.axesHandle(1), 'XColor', 'w','XTick', {}, 'box', 'off',... 
@@ -56,13 +58,13 @@ methods
 
     plot(spikes, 'parent', obj.axesHandle(2));
     set(obj.axesHandle(2), 'XColor', 'w', 'XTick', {}, 'Box', 'off',... 
-        'YLim', [0 1], 'XLim', [0 length(response)]);
+        'YLim', [0 1], 'XLim', [0 length(spikes)]);
     ylabel(obj.axesHandle(2), 'spikes');
 
     if ~isempty(find(spikes,1))
-      plot(spikeAmps, 'parent', obj.axesHandle(3));
+      plot(spikeResponse, 'parent', obj.axesHandle(3));
       set(obj.axesHandle(3), 'XColor', 'w', 'XTick', {}, 'Box', 'off',... 
-        'YGrid', 'on', 'YMinorGrid', 'on', 'xlim', [0 length(response)],...
+        'YGrid', 'on', 'YMinorGrid', 'on', 'xlim', [0 length(spikeResponse)],...
         'ylim', [0 ceil(max(spikeAmps))]);
       ylabel(obj.axesHandle(3), 'spike amplitudes');
     else

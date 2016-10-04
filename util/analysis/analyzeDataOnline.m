@@ -179,10 +179,15 @@ function r = analyzeDataOnline(r)
     for ii = 1:r.numEpochs
       r.epochCount = r.epochCount + 1;
       r = getSTRFOnline(r, r.spikes(ii,:), r.seed(ii));
-      % extra analyses for temporal receptive field
-  %    r = spatialReverseCorr(r, r.analysis.epochSTRF(ii));
-  %    r.analysis.epochFilters(r.numEpochs, 1:length(r.analysis.tempRF)) = r.analysis.tempRF;
     end
+
+    % run additional analyses on temporal RF
+    r = spatialReverseCorr(r);
+
+    % NOTE: just testing this out for now, not sure how good it is
+    r.analysis.peaks.on = FastPeakFind(r.analysis.spatialRF);
+    r.analysis.peaks.off = FastPeakFind(-1 * r.analysis.spatialRF);
+
 
   case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     for ep = 1:r.numEpochs

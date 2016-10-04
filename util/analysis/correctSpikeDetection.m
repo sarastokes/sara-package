@@ -11,7 +11,7 @@ function r = correctSpikeDetection(r, threshold, direction, epochs)
   %   epochs = 1:r.numEpochs;
   % end
 
-  [n,~] = size(r.resp);
+  n = size(r.resp,1);
 
 
 if isfield(r, 'protocol')
@@ -38,6 +38,8 @@ if isfield(r, 'protocol')
       end
       r.spikeData.times{ep} = correctedSpikeTimes(2:end);
       r.spikeData.amps{ep} = correctedSpikeAmps(2:end);
+      r.spikeData.resp(epochs,:) = 0;
+      r.spikeData.resp(epochs, correctedSpikeTimes(2:end)) = correctedSpikeAmps(2:end);
       r.spikes(ep,:) = 0;
       r.spikes(ep, r.spikeData.times{ep}) = 1;
     end
@@ -53,6 +55,8 @@ if isfield(r, 'protocol')
     end
     r.spikeData.times{epochs} = correctedSpikeTimes(2:end);
     r.spikeData.amps{epochs} = correctedSpikeAmps(2:end);
+    r.spikeData.resp(epochs,:) = 0;
+    r.spikeData.resp(epochs, correctedSpikeTimes(2:end)) = correctedSpikeAmps(2:end);
     r.spikes(epochs, :) = 0;
     r.spikes(epochs, r.spikeData.times{epochs}) = 1;
   end
@@ -80,6 +84,8 @@ else % ChromaticSpot
       end
       r(ep).spikeData.times = correctedSpikeTimes(2:end);
       r(ep).spikeData.amps = correctedSpikeAmps(2:end);
+      r(ep).spikeData.resp = zeros(size(r(ep).spikes));
+      r(ep).spikeData.resp(correctedSpikeTimes(2:end)) = correctedSpikeAmps(2:end);
       r(ep).spikes(:) = 0;
       r(ep).spikes(r(ep).spikeData.times) = 1;
     end
@@ -96,6 +102,8 @@ else % ChromaticSpot
     end
     r(ep).spikeData.times = correctedSpikeTimes(2:end);
     r(ep).spikeData.amps = correctedSpikeAmps(2:end);
+    r(ep).spikeData.resp = zeros(size(r(ep).spikes));
+    r(ep).spikeData.resp(correctedSpikeTimes(2:end)) = correctedSpikeAmps(2:end);
     r(ep).spikes(:) = 0;
     r(ep).spikes(r(ep).spikeData.times) = 1;
   end
