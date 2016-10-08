@@ -8,9 +8,11 @@ function r = parseDataOnline(symphonyInput)
     numBlocks = length(epochGroup.getEpochBlocks);
     for eb = 1:numBlocks
       epochBlock = epochGroup.getEpochBlocks{eb}; % get epoch block
+      r.protocol = epochBlock.protocolId;
         if eb == 1
           % must be some way around this
-            r.data(1).label = 'foo'; r.data(2).label = 'foo'; r.data(1).chromaticClass = 'foo';
+          r.data = struct();
+            % r.data(1).label = 'foo'; r.data(2).label = 'foo'; r.data(1).chromaticClass = 'foo';
         end
         r = parseSpotStimulus(r, epochBlock, eb);
     end
@@ -19,76 +21,48 @@ function r = parseDataOnline(symphonyInput)
   end
 
   function r = parseSpotStimulus(r, epochBlock, eb)
-    if strcmp(r.protocol, 'edu.washington.riekelab.protocols.SingleSpot')
-      r.numEpochs = length(epochBlock.getEpochs);
-      epoch = epochBlock.getEpochs{1};
-%      r.data(eb).label = epochBlock.epochGroup.source.label(10:end);
-      r.data(eb).contrast = epochBlock.protocolParameters('spotIntensity');
-      r.data(eb).radius = epochBlock.protocolParameters('spotDiameter')/2;
-      r.data(eb).pre = epochBlock.protocolParameters('preTime');
-      r.data(eb).stim = epochBlock.protocolParameters('stimTime');
-      r.data(eb).tail = epochBlock.protocolParameters('tailTime');
-      r.data(eb).avg = epochBlock.protocolParameters('numberOfAverages');
-      r.data(eb).start = datestr(epochBlock.startTime, 'hh:mm:ss');
-
-      % to params structure
-      r.data(eb).params.preTime = r.data(eb).pre;
-      r.data(eb).params.stimTime = r.data(eb).stim;
-      r.data(eb).params.tailTime = r.data(eb).tail;
-      r.data(eb).params.contrast = r.data(eb).contrast;
-      r.data(eb).params.chromaticClass = r.data(eb).chromaticClass;
-      r.data(eb).params.outerRadius = r.data(eb).radius;
-      r.data(eb).params.backgroundIntensity = r.data(eb).bkg;
-      r.data(eb).params.numberOfAverages = r.data(eb).avg;
-      r.data(eb).params.sampleRate = 10000;
-      r.data(eb).params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
-      r.data(eb).params.uuid.epochGroup = epochBlock.epochGroup.uuid;
-      r.data(eb).params.uuid.epochBlock = epochBlock.uuid;
-      r.data(eb).params.protocol = epochBlock.protocolId;
-    elseif strcmp(r.protocol, 'edu.washington.riekelab.manookin.protocols.chromaticSpot')
-      r.numEpochs = length(epochBlock.getEpochs);
-      epoch = epochBlock.getEpochs{1}; % to grab params stored in epochs
-      micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
-      % parameters to display
-     % r.data(eb).label = epochBlock.epochs.source.label(10:end);
-      r.data(eb).label = epochBlock.epochGroup.source.label(10:end);
-      r.data(eb).chromaticClass = epochBlock.protocolParameters('chromaticClass');
-      r.data(eb).contrast = epochBlock.protocolParameters('contrast');
-      r.data(eb).ndf = epoch.protocolParameters('ndf');
-      r.data(eb).bkg = epochBlock.protocolParameters('backgroundIntensity');
-      r.data(eb).radius = epochBlock.protocolParameters('outerRadius');
-      r.data(eb).ring = epochBlock.protocolParameters('innerRadius');
-      r.data(eb).pre = epochBlock.protocolParameters('preTime');
-      r.data(eb).stim = epochBlock.protocolParameters('stimTime');
-      r.data(eb).tail = epochBlock.protocolParameters('tailTime');
-      r.data(eb).avg = epochBlock.protocolParameters('numberOfAverages');
-      r.data(eb).objMag = epoch.protocolParameters('objectiveMag');
-      r.data(eb).start = datestr(epochBlock.startTime, 'hh:mm:ss');
-      % to params structure
-      r.data(eb).params.preTime = r.data(eb).pre;
-      r.data(eb).params.stimTime = r.data(eb).stim;
-      r.data(eb).params.tailTime = r.data(eb).tail;
-      r.data(eb).params.contrast = r.data(eb).contrast;
-      r.data(eb).params.chromaticClass = r.data(eb).chromaticClass;
-      r.data(eb).params.outerRadius = r.data(eb).radius;
-      r.data(eb).params.innerRadius = r.data(eb).ring;
-      r.data(eb).params.radiusMicrons = ceil(r.data(eb).radius * micronsPerPixel);
-      r.data(eb).params.objectiveMag = epoch.protocolParameters('objectiveMag');
-      r.data(eb).params.micronsPerPixel = micronsPerPixel;
-      r.data(eb).params.ndf = r.data(eb).ndf;
-      r.data(eb).params.frameRate = epoch.protocolParameters('frameRate');
-      r.data(eb).params.backgroundIntensity = r.data(eb).bkg;
-      r.data(eb).params.numberOfAverages = r.data(eb).avg;
-      r.data(eb).params.sampleRate = 10000;
-      r.data(eb).params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
-      r.data(eb).params.uuid.epochGroup = epochBlock.epochGroup.uuid;
-      r.data(eb).params.uuid.epochBlock = epochBlock.uuid;
-      r.data(eb).params.protocol = epochBlock.protocolId;    
-    end
+    r.numEpochs = length(epochBlock.getEpochs);
+    epoch = epochBlock.getEpochs{1}; % to grab params stored in epochs
+    micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
+    % parameters to display
+   % r.data(eb).label = epochBlock.epochs.source.label(10:end);
+    r.data(eb).label = epochBlock.epochGroup.source.label(10:end);
+    r.data(eb).chromaticClass = epochBlock.protocolParameters('chromaticClass');
+    r.data(eb).contrast = epochBlock.protocolParameters('contrast');
+    r.data(eb).ndf = epoch.protocolParameters('ndf');
+    r.data(eb).bkg = epochBlock.protocolParameters('backgroundIntensity');
+    r.data(eb).radius = epochBlock.protocolParameters('outerRadius');
+    r.data(eb).ring = epochBlock.protocolParameters('innerRadius');
+    r.data(eb).pre = epochBlock.protocolParameters('preTime');
+    r.data(eb).stim = epochBlock.protocolParameters('stimTime');
+    r.data(eb).tail = epochBlock.protocolParameters('tailTime');
+    r.data(eb).avg = epochBlock.protocolParameters('numberOfAverages');
+    r.data(eb).objMag = epoch.protocolParameters('objectiveMag');
+    r.data(eb).start = datestr(epochBlock.startTime, 'hh:mm:ss');
+    % to params structure
+    r.data(eb).params.preTime = r.data(eb).pre;
+    r.data(eb).params.stimTime = r.data(eb).stim;
+    r.data(eb).params.tailTime = r.data(eb).tail;
+    r.data(eb).params.contrast = r.data(eb).contrast;
+    r.data(eb).params.chromaticClass = r.data(eb).chromaticClass;
+    r.data(eb).params.outerRadius = r.data(eb).radius;
+    r.data(eb).params.innerRadius = r.data(eb).ring;
+    r.data(eb).params.radiusMicrons = ceil(r.data(eb).radius * micronsPerPixel);
+    r.data(eb).params.objectiveMag = epoch.protocolParameters('objectiveMag');
+    r.data(eb).params.micronsPerPixel = micronsPerPixel;
+    r.data(eb).params.ndf = r.data(eb).ndf;
+    r.data(eb).params.frameRate = epoch.protocolParameters('frameRate');
+    r.data(eb).params.backgroundIntensity = r.data(eb).bkg;
+    r.data(eb).params.numberOfAverages = r.data(eb).avg;
+    r.data(eb).params.sampleRate = 10000;
+    r.data(eb).params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
+    r.data(eb).params.uuid.epochGroup = epochBlock.epochGroup.uuid;
+    r.data(eb).params.uuid.epochBlock = epochBlock.uuid;
+    r.data(eb).params.protocol = epochBlock.protocolId;    
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.data(eb).params.uuid.epochs{ep} = epoch.uuid;
-      resp = epoch.getRespones{1}; % get response
+      resp = epoch.getResponses{1}.getData; % get response
       if ep == 1
         r.data(eb).resp = zeros(r.numEpochs, length(resp));
         spikes = zeros(size(r.data(eb).resp));
@@ -269,25 +243,59 @@ function r = parseDataOnline(symphonyInput)
         r.(stim).params = r.params;
         r.(stim).params.chromaticClass = char(stim);
         r.(stim).protocol = r.protocol;
+        r.(stim).cellName = r.cellName;
       end
     end
+
     if ~r.params.useRandomSeed
       r.seed = 1;
+    else
+      for ii = 1:r.numEpochs
+        r.seed(ii) = epoch.protocolParameters('seed');
+      end
     end
-    for ep = 1:r.numEpochs
-      index = rem(ep-1, 3) + 1;
-      stim = cones{index};
-      epoch = epochBlock.epochs{ep}; % get epoch
-      r.params.chromaticClass{ep} = epoch.protocolParameters('chromaticClass');
-      r.(stim).resp(indCount,:) = r.resp(ep,:);
-      r.(stim).spikes(indCount,:) = r.spikes(ep,:)
-      r.(stim).spikeData.resp(indCount, :) = r.spikeData.resp(ep,:);
-      r.(stim).spikeData.times{indCount} = r.spikeData.times{ep};
-      r.(stim).spikeData.amps{indCount} = r.spikeData.amps{ep};
-      % r.(stim).frame(indCount,:) = epoch.getResponses{2}.getData; % get frame
-      r.(stim).seed(indCount) = epoch.protocolParameters('seed');
-      if index == 3
-        indCount = indCount + 1;
+    
+    % for ep = 1:r.numEpochs
+    %   index = rem(ep-1, 3) + 1;
+    %   stim = cones{index};
+    %   epoch = epochBlock.getEpochs{ep};
+    %   r.(stim).resp(indCount,:) = r.resp(ep,:);
+    %   r.(stim).spikes(indCount,:) = r.spikes(ep,:)
+    %   r.(stim).spikeData.resp(indCount, :) = r.spikeData.resp(ep,:);
+    %   r.(stim).spikeData.times{indCount} = r.spikeData.times{ep};
+    %   r.(stim).spikeData.amps{indCount} = r.spikeData.amps{ep};
+    %   % r.(stim).frame(indCount,:) = epoch.getResponses{2}.getData; % get frame
+    %   r.(stim).seed(indCount) = epoch.protocolParameters('seed');
+    %   if index == 3
+    %     indCount = indCount + 1;
+    %   end
+    % end
+    epochCounter = 0;
+
+    for ep = 1:3:r.numEpochs
+      epochCounter = epochCounter + 1;
+      fprintf('ep%u\n', ep);
+      r.liso.resp(epochCounter, :) = r.resp(ep, :);
+      r.liso.spikes(epochCounter, :) = r.spikes(ep, :);
+      r.liso.spikeData.resp(epochCounter, :) = r.spikeData.resp(ep,:);
+      r.liso.spikeData.times{epochCounter} = r.spikeData.times{ep};
+      r.liso.spikeData.amps{epochCounter} = r.spikeData.times{ep};
+      r.liso.seed(epochCounter) = r.seed(ep);
+      if ep + 1 <= r.numEpochs
+        r.miso.resp(epochCounter, :) = r.resp(ep+1, :);
+        r.miso.spikes(epochCounter, :) = r.spikes(ep+1, :);
+        r.miso.spikeData.resp(epochCounter, :) = r.spikeData.resp(ep+1, :);
+        r.miso.spikeData.times{epochCounter} = r.spikeData.times{ep+1};
+        r.miso.spikeData.amps{epochCounter} = r.spikeData.amps{ep+1};
+        r.miso.seed(epochCounter) = r.seed(ep + 1);
+      end
+      if ep+2 <= r.numEpochs
+        r.siso.resp(epochCounter, :) = r.resp(ep+2, :);
+        r.siso.spikes(epochCounter, :) = r.spikes(ep+2, :);
+        r.siso.spikeData.resp(epochCounter, :) = r.spikeData.resp(ep+2,:);
+        r.siso.spikeData.times{epochCounter} = r.spikeData.times{ep+2};
+        r.siso.spikeData.amps{epochCounter} = r.spikeData.amps{ep+2};
+        r.siso.seed(epochCounter) = r.seed(epochCounter + 2);
       end
     end
 

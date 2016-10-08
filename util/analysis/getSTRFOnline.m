@@ -22,13 +22,13 @@ function r = getSTRFOnline(r, spikes, seed)
 
   noiseStream = RandStream('mt19937ar', 'Seed', seed);
 
-  % if strcmpi(r.params.noiseClass, 'binary')
-  %   if strcmpi(r.params.chromaticClass, 'RGB')
-  %       M = noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
+  if strcmpi(r.params.noiseClass, 'binary') && strcmpi(r.params.chromaticClass, 'RGB')
+    % if strcmpi(r.params.chromaticClass, 'RGB')
+        M = noiseStream.rand(r.params.numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
   %   else
   %     M = noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks) > 0.5;
-  %   end
-  %   frameValues = uint8(r.params.intensity * 255 * M);
+    frameValues = uint8(r.params.intensity * 255 * M);
+  else
   % else
   %   if strcmpi(r.params.chromaticClass, 'RGB')
   %     M = uint8((0.3 * r.params.intensity * noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks, 3) * 0.5 + 0.5)*255);
@@ -36,9 +36,9 @@ function r = getSTRFOnline(r, spikes, seed)
   %     M = uint8((0.3 * r.params.intensity * noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks) * 0.5 + 0.5) * 255);
   %   end
   %   frameValues = M;
-  % end
+      frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks, r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
+  end
 
-  frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks, r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
 
   responseTrace = BinSpikeRate(spikes(prePts+1:end), r.params.frameRate, r.params.sampleRate);
 

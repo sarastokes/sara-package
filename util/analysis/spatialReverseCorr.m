@@ -70,7 +70,7 @@ function r = spatialReverseCorr(r)
 
         % OFF filter
         if -min(tmp) > max(tmp)
-          r.analysis.filterSign(ii, jj) = -1
+          r.analysis.filterSign(ii, jj) = -1;
 
           % find the filter peak
           r.analysis.peakTime(ii, jj) = find(tmp == min(tmp), 1) / length(tmp) * 1000 * filterDuration;

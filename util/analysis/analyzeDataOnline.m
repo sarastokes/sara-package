@@ -1,4 +1,27 @@
-function r = analyzeDataOnline(r)
+function r = analyzeDataOnline(r, neuron)
+  % INPUT = r,
+  % optional 2nd input to specify secondary neuron
+
+  % 5Oct2016 - added 2nd neuron option
+
+  if nargin < 2
+    neuron = 1;
+  end
+
+  if neuron == 1
+    spikes = r.spikes;
+    %analysis = r.analysis;
+  elseif neuron == 2
+    if ~isfield(r, 'secondary')
+      error('Second neuron not found');
+    else
+      spikes = r.secondary.spikes;
+      r.primaryAnalysis = r.analysis;
+      %analysis = r.secondary.analysis;
+      fprintf('Analyzed with second neuron\n');
+    end
+  end
+
 
   switch r.protocol
     case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',  'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
@@ -17,9 +40,9 @@ function r = analyzeDataOnline(r)
           stim = length(r.params.stimClass);
         end
         trial = ceil(ep / length(r.params.stimClass));
-        respBlock(stim, trial, :) = r.spikes(ep,:);
+        respBlock(stim, trial, :) = spikes(ep,:);
 
-        [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
+        [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, spikes(ep,:));
       end
       r.ptsh.binSize = 200;
         for stim = 1:length(r.params.stimClass)
@@ -38,16 +61,16 @@ function r = analyzeDataOnline(r)
           r.analysis.linearFilter = zeros(c, 60);
           for ep = 1:r.numEpochs
             if isempty(strfind(r.params.chromaticClass,'RGB'))
-              [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
+              [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
             else
               for cc = 1:3
-                [r.analysis.lf(ep,c,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed{ep});
+                [r.analysis.lf(ep,c,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
               end
             end
           end
         case 'ID'
           for ep = 1:r.numEpochs
-            [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.spikes(ep,:));
+            [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, spikes(ep,:));
           end
           if r.numEpochs > 1
             r.analysis.meanAmp = mean(r.analysis.f1amp(ep));
@@ -57,12 +80,12 @@ function r = analyzeDataOnline(r)
             r.analysis.meanPhase = r.analysis.f1phase;
           end
           r.analysis.ptshBin = 200;
-          r.analysis.ptsh = getPTSH(r, r.spikes, 200);
+          r.analysis.ptsh = getPTSH(r, spikes, 200);
         end
 
   case 'edu.washington.riekelab.manookin.protocols.BarCentering'
     for ep = 1:r.numEpochs
-      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, r.spikes(ep,:));
+      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
     end
 
   case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
@@ -74,7 +97,7 @@ function r = analyzeDataOnline(r)
     r.analysis.mean_f1amp = zeros(size(r.analysis.xaxis));
 
     for ep = 1:r.numEpochs
-      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, r.spikes(ep,:));
+      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
     end
 
     for xpt = 1:length(r.analysis.xaxis)
@@ -89,8 +112,8 @@ function r = analyzeDataOnline(r)
     r.analysis.linearFilter = zeros(1, floor(r.params.frameRate));
     r.analysis.lf = zeros(r.numEpochs, floor(r.params.frameRate));
     for ep = 1:r.numEpochs
-      %    [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.spikes(ep,:), r.params.seed(1,ep));
-      spikes = r.spikes(ep,:); seed = r.params.seed(1,ep);
+      %    [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed(1,ep));
+      spikes = spikes(ep,:); seed = r.params.seed(1,ep);
       responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate+1:end);
 
       % bin data at 60 hz
@@ -136,35 +159,33 @@ function r = analyzeDataOnline(r)
     r = nonlinearity(r);
 
   case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
-    r.epochCount = 1;
-
-    cones = {'liso' 'miso' 'siso'};
-    indCount = 1;
-    r.seed = r.liso.seed(1);
+    r.liso.epochCount = 0; r.miso.epochCount = 0; r.siso.epochCount = 0;
 
     r.liso.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
     r.liso.analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
     r.miso.analysis = r.liso.analysis;
     r.siso.analysis = r.liso.analysis;
 
-    r.liso.analysis.epochSTRF = zeros(length(r.liso.seed), r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate*0.5/r.params.frameDwell));
-    r.miso.analysis.epochSTRF = zeros(length(r.miso.seed), r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate*0.5/r.params.frameDwell));
-    r.siso.analysis.epochSTRF = zeros(length(r.siso.seed), r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate*0.5/r.params.frameDwell));
-
-
-    for ii = 1:3:length(r.liso.seed)
-      r.epochCount = r.epochCount + 1;
-      if indCount <= length(r.liso.seed)
-        r.liso = getSTRFOnline(r.liso, r.liso.spikes(indCount,:), r.liso.seed(indCount));
-      end
-      if indCount <= length(r.miso.seed)
-        r.miso = getSTRFOnline(r.miso, r.miso.spikes(indCount,:), r.miso.seed(indCount));
-      end
-      if indCount <= length(r.siso.seed)
-        r.siso = getSTRFOnline(r.miso, r.siso.spikes(indCount,:), r.siso.seed(indCount));
-      end
-      indCount = indCount + 1;
+    for ii = 1:size(r.liso.resp,1)
+        r.liso.epochCount = r.liso.epochCount + 1;
+        r.liso = getSTRFOnline(r.liso, r.liso.spikes(ii,:), r.liso.seed(ii));
     end
+
+    for ii = 1:size(r.miso.resp,1)
+        r.miso.epochCount = r.miso.epochCount + 1;
+        r.miso = getSTRFOnline(r.miso, r.miso.spikes(ii,:), r.miso.seed(ii));
+    end
+
+    for ii = 1:size(r.siso.resp,1)
+        r.siso.epochCount = r.siso.epochCount + 1;
+        r.siso = getSTRFOnline(r.siso, r.siso.spikes(ii,:), r.siso.seed(ii));
+    end
+
+    r.liso.analysis.strf = r.liso.analysis.strf/size(r.liso.resp,1);
+    r.liso.analysis.spatialRF = squeeze(mean(r.liso.analysis.strf,3));
+    r.miso.analysis.strf = r.miso.analysis.strf/size(r.miso.resp,1);
+    r.siso.analysis.strf = r.siso.analysis.strf/size(r.siso.resp,1);
+    
 
   case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
     r.epochCount = 0;
@@ -178,8 +199,21 @@ function r = analyzeDataOnline(r)
 
     for ii = 1:r.numEpochs
       r.epochCount = r.epochCount + 1;
-      r = getSTRFOnline(r, r.spikes(ii,:), r.seed(ii));
+      if strcmp(r.params.chromaticClass, 'RGB')
+        r = getSTRFOld(r, spikes(ii,:), r.seed(ii));
+      else
+        % updated with mike's new online analysis stuff but now throws errors for RGB noise, will fix at some pt
+        r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
+      end
     end
+
+    % not really sure why i'm saving these (not really a STS)
+    r.analysis.sum.strf = r.analysis.strf;
+    r.analysis.sum.spatialRF = r.analysis.spatialRF;
+    % spike triggered average
+    r.analysis.strf = r.analysis.strf/r.numEpochs;
+    r.analysis.spatialRF = squeeze(mean(r.analysis.strf, 3));
+
 
     % run additional analyses on temporal RF
     r = spatialReverseCorr(r);
@@ -191,7 +225,7 @@ function r = analyzeDataOnline(r)
 
   case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     for ep = 1:r.numEpochs
-      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, r.spikes(ep,:));
+      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
     end
   end
 
@@ -231,7 +265,7 @@ function r = analyzeDataOnline(r)
     result.ph1 = zeros(1, sfNum); result.ph2 = zeros(1, sfNum);
 
    for ee = 1: r.numEpochs
-        data = r.spikes(ee,:);
+        data = spikes(ee,:);
 
       % Bin the data according to type.
       switch result.params.analysisType
@@ -433,5 +467,12 @@ function r = analyzeDataOnline(r)
         linearFilter = r.analysis.linearFilter + lf;
       end
     end
+  end
+
+  if neuron == 2
+    r.secondary.analysis = r.analysis;
+    clear r.analysis;
+    r.analysis = r.primaryAnalysis;
+    clear r.primaryAnalysis
   end
 end

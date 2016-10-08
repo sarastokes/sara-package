@@ -32,7 +32,6 @@ function SpikeGUI(r, epochNum)
 		S.epochNum = epochNum;
     end
 
-
 	% set to userdata
 	setappdata(f.h, 'GUIdata', S);
 
@@ -50,7 +49,8 @@ function SpikeGUI(r, epochNum)
 
 	%% create the user interface panel
 	S.tx1 = uicontrol('Style', 'text', 'Parent', uiLayout,...
-		'String', 'Change Epoch');
+		'String', 'Change Epoch',...
+		'FontName', 'Roboto', 'FontSize', 10);
 
 	% buttons to switch epochs 
 	epochControl = uix.HButtonBox('Parent', uiLayout);
@@ -58,25 +58,35 @@ function SpikeGUI(r, epochNum)
 	S.epochBack = uicontrol('Style', 'pushbutton',... 
 		'Parent', epochControl,...
 		'String', '<--',...
+		'FontName', 'roboto', 'FontSize', 10,...
 		'Tag', 'epochBack');
 	set(S.epochBack, 'Callback', {@onSelected_epochBack,f});
 	if epochNum == 1, set(S.epochBack, 'Enable', 'off'); end	
 	% button to go forward one epoch
 	S.epochFwd = uicontrol('Style', 'pushbutton',...
 		'Parent', epochControl,...
-		'String', '-->');
+		'String', '-->',...
+		'FontName', 'Roboto', 'FontSize', 10);
 	set(S.epochFwd, 'Callback', {@onSelected_epochFwd, f});
 	if epochNum == size(r.resp,1), set(S.epochFwd, 'Visible', 'off'); end
 
 	empty1 = uix.Empty('Parent', uiLayout); %#ok<NASGU>
+	S.preTxt = uicontrol('Style', 'text', 'Parent', uiLayout,...
+		'String', '', 'FontName', 'roboto', 'FontSize', 10);
 
 	S.thesholdTxt = uicontrol('Style', 'edit',... 
 		'Parent', uiLayout,...
 		'String', '0',...
-		'Tag', 'tInput');
+		'Tag', 'tInput',...
+		'FontName', 'roboto', 'FontSize', 10);
+	S.thresholdTxt2 = uicontrol('Style', 'edit',...
+		'Parent', uiLayout,...
+		'String', '0',...
+		'FontName', 'roboto', 'FontSize', 10);
 	S.applyThreshold = uicontrol('Style', 'pushbutton',... 
 		'Parent', uiLayout,...
-		'String', 'Apply Threshold');
+		'String', 'Apply Threshold',...
+		'FontName', 'roboto', 'FontSize', 10);
 	set(S.applyThreshold, 'Callback', {@onSelected_applyThreshold,f});
 	S.saveThreshold = uicontrol('Style', 'pushbutton',... 
 		'Parent', uiLayout,...
@@ -84,11 +94,19 @@ function SpikeGUI(r, epochNum)
 		'FontName', 'Roboto', 'FontSize', 10);
 	set(S.saveThreshold, 'Callback', {@onSelected_saveThreshold, f});
 
+	% save currently applied threshold to all epochs after
+	S.saveAll = uicontrol('Style', 'checkbox',...
+		'Parent', uiLayout,...
+		'String', 'Save to all epochs',...
+		'FontName', 'Roboto', 'FontSize', 10);
+	set(S.saveAll, 'Callback', {@onSelected_saveAll, f});
+
 	empty2 = uix.Empty('Parent', uiLayout); %#ok<NASGU>
 
 	S.txt2 = uicontrol('Style', 'text',... 
 		'Parent', uiLayout,...
-		'String', 'detection method');
+		'String', 'detection method',...
+		'FontName', 'Roboto', 'FontSize', 10);
 
 	% buttons to change detection method
 %	methodLayout = uix.VButtonBox('Parent', uiLayout);
@@ -105,9 +123,14 @@ function SpikeGUI(r, epochNum)
 		'FontName', 'roboto', 'FontSize', 10,...
 		'Enable', 'off'); % default is SDO
 	set(S.sdo, 'Callback', {@onSelected_sdo,f});
+	S.saveSecondary = uicontrol('Style', 'checkbox',...
+		'Parent', uiLayout,...
+		'String', 'Save 2nd neuron',...
+		'FontName', 'roboto', 'FontSize', 10,...
+		'Tag', 'neuron2');
 
 	% size ratio: 1 for empty and text, 1.5 for everything else
-	set(uiLayout, 'heights', [-1 -1.5 -1 -1.5 -1.5 -1.5 -1 -1 -1.5 -1.5]);
+	set(uiLayout, 'heights', [-1 -1.5 -1 -1 -1.5 -1.5 -1.5 -1.5 -1.5 -1 -1 -1.5 -1.5 -1.5]);
 
 	% create the axes
 	S.respHandle = axes('Parent', axLayout);
@@ -135,7 +158,7 @@ function SpikeGUI(r, epochNum)
 	title(S.spikeHandle, sprintf('Initial detection = %u spikes',... 
 		size(nonzeros(S.r.spikes(S.epochNum)), 1)));
 
-	if isfield(S.r.spikeData,'resp')
+	if isfield(S.r.spikeData,'resp') && ~isfield(S.r, 'old')
 		S.detected = line(1:length(S.r.spikeData.resp(S.epochNum,:)),... 
 			S.r.spikeData.resp(S.epochNum,:),...
 			'Parent', S.detectHandle, 'Color', 'k');
@@ -156,8 +179,17 @@ function SpikeGUI(r, epochNum)
 	if ~isfield(S.r.spikeData, 'threshold')
 		S.r.spikeData.threshold = zeros(1, size(S.r.resp,1));
 		S.r.spikeData.detectionMethod = zeros(1, size(S.r.resp,1));
+		set(S.preTxt, 'String', 'Original Spikes')
+    elseif S.r.spikeData.detectionMethod(1) ~= 0
+    	set(S.preTxt, 'String', 'Corrected Spikes');
     end
+    	
     S.detectionMethod = 1; % default is SDO
+
+    S.secondary.spikes = zeros(size(S.r.spikes));
+    S.secondary.spikeData.amps = zeros(18,1);
+    S.secondary.spikeData.amps = num2cell(S.secondary.spikeData.amps);
+    S.secondary.spikeData.times = S.secondary.spikeData.amps;
 
     setappdata(f.h, 'GUIdata', S);
 
@@ -189,16 +221,24 @@ function SpikeGUI(r, epochNum)
 			size(nonzeros(S.r.spikes(S.epochNum)), 1)));
 		if S.detectionMethod == 1
 			set(S.detected, 'YData', S.r.spikeData.resp(S.epochNum,:));
-			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
-			ceil(min(S.r.spikeData.resp(S.epochNum,:)))]);
+%			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
+%			ceil(min(S.r.spikeData.resp(S.epochNum,:)))]);
 		else
-			set(S.detected, 'YData', [0 diff(S.r.resp(S.epochNum,:))]);
-			set(S.detectHanlde, 'YLim', [floor(min(get(S.detected, 'YData')))... 
-				ceil(max(get(S.detected, 'YData')))]);
+			diffResp = diff([0 S.r.resp(S.epochNum,:)]);
+			set(S.detected, 'YData', diffResp);
+			set(S.detectHandle, 'YLim', [floor(min(diffResp)) ceil(max(diffResp))]);
+			clear diffResp;
         end
 
         % if save button was disabled, enable
         set(S.saveThreshold, 'Enable', 'on');
+
+        % show whether spikes have already been corrected
+		if S.r.spikeData.detectionMethod == 0
+			set(S.preTxt, 'String', 'Original spikes');
+		else
+			set(S.preTxt, 'String', 'Corrected spikes');
+		end
 
         % get rid of new spikes line from last epoch        
         set(S.newSpikes, 'YData', zeros(1, size(S.r.spikes,2)));
@@ -239,18 +279,25 @@ function SpikeGUI(r, epochNum)
 			size(nonzeros(S.r.spikes(S.epochNum)), 1)));
 		if S.detectionMethod == 1
 			set(S.detected, 'YData', S.r.spikeData.resp(S.epochNum,:));
-			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
-			ceil(max(S.r.spikeData.resp(S.epochNum,:)))]);
+%			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
+%			ceil(max(S.r.spikeData.resp(S.epochNum,:)))]);
 		else
 			diffResp = diff([0 S.r.resp(S.epochNum,:)]);
 			set(S.detected, 'YData', diffResp);
-			set(S.detectHandle, 'YLim', [floor(min(diffResp))... 
-				ceil(max(diffResp))]);
+%			set(S.detectHandle, 'YLim', [floor(min(get(S.detected, 'YData')))... 
+%				ceil(max(get(S.detected, 'YData')))]);
 			clear diffResp;
 		end
 		
 		% get rid of prior epoch's newSpikes
 		set(S.newSpikes, 'YData', zeros(1, size(S.r.spikes,2))); % get rid of newSpikes line
+
+		% show whether spikes have already been corrected
+		if S.r.spikeData.detectionMethod == 0
+			set(S.preTxt, 'String', 'Original spikes');
+		else
+			set(S.preTxt, 'String', 'Corrected spikes');
+		end
 
 		setappdata(f.h, 'GUIdata', S);
 	end
@@ -261,24 +308,55 @@ function SpikeGUI(r, epochNum)
 		f = varargin{3};
 		S = getappdata(f.h, 'GUIdata');
 		threshold = str2double(get(findobj(gcbf, 'Tag', 'tInput'), 'String'));
+		threshold2 = str2double(get(S.thresholdTxt2, 'String'));
 
 		% get new spikes
 		if S.detectionMethod == 1
 			correctedSpikeTimes = 0; correctedSpikeAmps = 0;
+			secondarySpikeTimes = 0; secondarySpikeAmps = 0;
+			foundSecondary = 0; % flag for thresholded secondary spikes
     		for ii = 1:length(r.spikeData.times{S.epochNum})
         		if r.spikeData.amps{S.epochNum}(1,ii) > threshold
-          			correctedSpikeTimes(1, end+1) = S.r.spikeData.times{S.epochNum}(ii);
-          			correctedSpikeAmps(1, end+1) = S.r.spikeData.amps{S.epochNum}(ii);
+          			correctedSpikeTimes(end+1) = S.r.spikeData.times{S.epochNum}(ii);
+          			correctedSpikeAmps(end+1) = S.r.spikeData.amps{S.epochNum}(ii);
+          		% get detected spikes of potential second neuron
+          		% all neurons get secondary spikes calculated but only some 
+                else
+                	foundSecondary = 1;
+                	secondarySpikeTimes(end+1) = S.r.spikeData.times{S.epochNum}(ii);
+                	secondarySpikeAmps(end+1) = S.r.spikeData.amps{S.epochNum}(ii);
                 end
             end
     		S.tmp.spikeTimes = correctedSpikeTimes(2:end);
     		S.tmp.spikeAmps = correctedSpikeAmps(2:end);
     		S.tmp.spikes = zeros(1, size(S.r.resp,2));
     		S.tmp.spikes(S.tmp.spikeTimes) = 1;	
-    	else
+    		S.secondary.spikes = zeros(size(S.tmp.spikes));
+    		if foundSecondary == 1
+	    		S.secondary.spikeTimes = secondarySpikeTimes(2:end);
+    			S.secondary.spikeAmps = secondarySpikeAmps(2:end);
+    			S.secondary.spikes(S.secondary.spikeTimes) = 1;
+    		else
+    			S.secondary.spikesTimes = 0;
+    			S.secondary.spikeAmps = 0;
+    		end 
+    	else % derivative method
+    		% first clip for the larger spikes
     		S.tmp.spikeTimes = getThresCross([0 diff(S.r.resp(S.epochNum,:))], threshold, 1);
     		S.tmp.spikes = zeros(size(S.r.resp(S.epochNum,:)));
     		S.tmp.spikes(S.tmp.spikeTimes) = 1;
+    		% rerun with smaller threshold
+    		S.secondary.spikeTimes = getThresCross([0 diff(S.r.resp(S.epochNum, :))], threshold2, 1);
+    		S.secondary.spikes = zeros(size(S.tmp.spikes));
+    		S.secondary.spikes(S.secondary.spikeTimes) = 1;
+    		% the differences b/w the 2 arrays are the actual subthreshold spikes
+    		index = S.tmp.spikes == S.secondary.spikes;
+    		spikeDiff = find(index == 0);
+    		S.secondary.spikes(:) = 0;
+    		S.secondary.spikes(spikeDiff) = 1;
+    		S.secondary.spikeTimes = spikeDiff;
+    		% set spikeAmps to 0 so it doesn't throw off mixed SDO/diff epochBlocks
+    		S.secondary.spikeAmps = 0;
     	end  
 
 		% plot new spikes
@@ -308,6 +386,7 @@ function SpikeGUI(r, epochNum)
 		f = varargin{3};
 		S = getappdata(f.h, 'GUIdata');
 		threshold = str2double(get(findobj(gcbf, 'Tag', 'tInput'), 'String'));
+		threshold2 = str2double(get(S.thresholdTxt2, 'String'));
 
 		% save to the output structure
 		S.r.spikeData.times{S.epochNum} = S.tmp.spikeTimes;
@@ -320,12 +399,24 @@ function SpikeGUI(r, epochNum)
 			S.r.spikeData.amps{S.epochNum} = 0;
 		end
 
+		% keep the 2nd neuron's spikes (if there is one)
+		if (get(S.saveSecondary,'Value') == get(S.saveSecondary,'Max'))
+			S.r.secondary.spikes(S.epochNum,:) = S.secondary.spikes;
+			S.r.secondary.spikeData.times{S.epochNum} = S.secondary.spikeTimes;
+			S.r.secondary.spikeData.amps{S.epochNum} = S.secondary.spikeAmps;
+		end
+
 		% save threshold and method used
 		S.r.spikeData.threshold(S.epochNum) = threshold;
 		S.r.spikeData.detectionMethod(S.epochNum) = S.detectionMethod;
+		S.r.secondary.spikeData.threshold(S.epochNum) = threshold2;
+
 
 		% disable save threshold button so you know it's been saved
 		set(S.saveThreshold, 'Enable', 'off');
+
+		% display that spikes have been corrected
+		set(S.preTxt, 'String', 'Corrected spikes');
 
 		% flag changes to spike detection
 		S.changedSpikes = 1;
@@ -349,8 +440,7 @@ function SpikeGUI(r, epochNum)
 
 		% plot SDO spike amplitudes and update YLim
 		set(S.detected, 'YData', S.r.spikeData.resp(S.epochNum,:));
-		set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
-			ceil(min(S.r.spikeData.resp(S.epochNum,:)))]);
+%		set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:))) ceil(min(S.r.spikeData.resp(S.epochNum,:)))]);
 		set(S.cutoff, 'YData', [0 0]);
 
 		setappdata(f.h, 'GUIdata', S);
@@ -370,6 +460,7 @@ function SpikeGUI(r, epochNum)
 		S.detectionMethod = 2;
 		set(S.sdo, 'Enable', 'on');
 		set(S.diff, 'Enable', 'off');
+		set(S.thresholdTxt2, 'Enable', 'on');
 
 		% plot derivative of response and update YLim
 		diffResp = [0 diff(S.r.resp(S.epochNum, :))];
@@ -380,6 +471,10 @@ function SpikeGUI(r, epochNum)
 		set(S.cutoff, 'YData', [0 0]);
 
 		setappdata(f.h, 'GUIdata', S);
+	end
+
+	function onSelected_saveAll(varargin)
+		% this isn't ready yet
 	end
 
 	function onFigureClose(varargin)

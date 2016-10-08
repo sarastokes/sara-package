@@ -17,6 +17,7 @@ function gridSTA(r)
   end
 
   for x = 1:numXChecks
+    fprintf('Progress report - row %u', x);
     for y = 1:numYChecks
       yy = numYChecks - y + 1; xx = x;%xx = numXChecks - x + 1;
       axHandle = sprintf('ax_%u_%u', xx, yy);
