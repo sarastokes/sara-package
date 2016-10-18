@@ -13,7 +13,7 @@ function makeConeMaps(r, graphType, figureHandle)
 	if nargin < 3
 		fig = figure;
 	else
-		srf = get(fig, 'UserData');
+		srf = get(figureHandle, 'UserData');
 	end
 
 	set(gcf, 'color', 'w',... 
@@ -24,6 +24,20 @@ function makeConeMaps(r, graphType, figureHandle)
 	OFFmap = r.analysis.spatialRF .* (r.analysis.spatialRF < 0);
 
 	switch r.params.chromaticClass
+	case 'achromatic'
+		subtightplot(1,2,1, 0.07);
+		srf.Aon = ONmap;
+		imagesc(srf.Aon); 
+		axis equal; axis tight; axis off;
+		colormap(rgbmap('black','white')); freezeColors;
+		title('Achrom ON', 'FontWeight', 'normal');
+
+		subtightplot(1,2,2,0.07);
+		srf.Aoff = OFFmap;
+		imagesc(srf.Aoff);
+		axis equal; axis tight; axis off;
+		colormap(rgbmap('white','black')); freezeColors;
+		title('Achrom OFF', 'FontWeight', 'normal');
 	case 'L-iso'
 		if strcmp(graphType, 'all') 
 			subtightplot(3, 2, 2, 0.07);
@@ -82,4 +96,4 @@ function makeConeMaps(r, graphType, figureHandle)
 	end
 
 	% save the maps to user data (at least for now)
-	set(fig, 'UserData', srf);
+	set(figureHandle, 'UserData', srf);

@@ -36,7 +36,7 @@ function r = STRFexperiments(r, neuron)
 	stixMat = zeros(size(stixInd, 1), size(analysis.strf, 3));
 	for ii = 1:(r.params.numYChecks * r.params.numXChecks)
 		stixMat(ii, :) = analysis.strf(stixInd(ii,1), stixInd(ii,2), :);
-	end 
+	end
 
 	[u, d, v] = svd(stixMat);
 
@@ -54,6 +54,15 @@ function r = STRFexperiments(r, neuron)
 	imagesc(spatialRF); colormap(bone);
 	title([cellName ' ' r.params.chromaticClass ' SVD spatial receptive field']);
 	axis equal; axis tight;
+
+	% fast peak find (currently also in getSTRFOnline)
+	analysis.peaks.on = FastPeakFind(analysis.spatialRF);
+	analysis.peaks.off = FastPeakFind(-1 * analysis.spatialRF);
+
+	figure;
+	imagesc(spatialRF); colormap(bone); hold on;
+	plot(analysis.peaks.on(1:2:end),analysis.peaks.on(2:2:end),'+', 'color', [0 0.6 0.1], 'MarkerSize', 10);
+	plot(analysis.peaks.off(1:2:end), analysis.peaks.off(2:2:end), 'r+', 'MarkerSize', 10);
 
 	if neuron == 2
 		r.secondary.analysis = analysis;

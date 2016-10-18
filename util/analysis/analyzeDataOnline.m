@@ -63,9 +63,7 @@ function r = analyzeDataOnline(r, neuron)
             if isempty(strfind(r.params.chromaticClass,'RGB'))
               [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
             else
-              for cc = 1:3
-                [r.analysis.lf(ep,c,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
-              end
+              [r.analysis.lf(ep,:,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
             end
           end
         case 'ID'
@@ -113,8 +111,8 @@ function r = analyzeDataOnline(r, neuron)
     r.analysis.lf = zeros(r.numEpochs, floor(r.params.frameRate));
     for ep = 1:r.numEpochs
       %    [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed(1,ep));
-      spikes = spikes(ep,:); seed = r.params.seed(1,ep);
-      responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate+1:end);
+      response = spikes(ep,:); seed = r.params.seed(1,ep);
+      responseTrace = response(r.params.preTime/1000 * r.params.sampleRate+1:end);
 
       % bin data at 60 hz
       binWidth = r.params.sampleRate / r.params.frameRate;
@@ -185,9 +183,9 @@ function r = analyzeDataOnline(r, neuron)
     r.liso.analysis.spatialRF = squeeze(mean(r.liso.analysis.strf,3));
     r.miso.analysis.strf = r.miso.analysis.strf/size(r.miso.resp,1);
     r.siso.analysis.strf = r.siso.analysis.strf/size(r.siso.resp,1);
-    
 
-  case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
+
+  case {'edu.washington.riekelab.manookin.protocols.SpatialNoise', 'edu.washington.riekelab.manookin.protocols.TernaryNoise'}
     r.epochCount = 0;
 
     r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
@@ -200,7 +198,7 @@ function r = analyzeDataOnline(r, neuron)
     for ii = 1:r.numEpochs
       r.epochCount = r.epochCount + 1;
       if strcmp(r.params.chromaticClass, 'RGB')
-        r = getSTRFOld(r, spikes(ii,:), r.seed(ii));
+        r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
       else
         % updated with mike's new online analysis stuff but now throws errors for RGB noise, will fix at some pt
         r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));

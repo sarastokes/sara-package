@@ -1,44 +1,19 @@
 function r = getSTRFOnline(r, spikes, seed)
   % 24Sept - replaced parts with mike's new code which isn't working for RGB so use older version for those analyses.
 
+  r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
   r.params.preF = floor(r.params.preTime/1000 * r.params.frameRate);
   r.params.stimF = floor(r.params.stimTime/1000 * r.params.frameRate);
   prePts = r.params.preTime * 1e-3 * r.params.sampleRate;
 
-% if r.params.useRandomSeed
-%   if strcmp(r.params.chromaticClass, 'achromatic')
-%     r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
-%     r.analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
-%     r.analysis.epochSTRF = zeros(r.numEpochs, r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate*0.5/r.params.frameDwell));
-%   elseif strcmp(r.params.chromaticClass, 'RGB')
-%     r.analysis.strf = zeros(3, r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate*0.5/r.params.frameDwell));
-%     r.analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks, 3);
-%     r.analysis.epochSTRF = zeros(r.numEpochs, 3, r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate*0.5/r.params.frameDwell));
-%   end
-% end
-
-  % from getFrameValues in SpatialNoise protocol
-  r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
-
   noiseStream = RandStream('mt19937ar', 'Seed', seed);
 
   if strcmpi(r.params.noiseClass, 'binary') && strcmpi(r.params.chromaticClass, 'RGB')
-    % if strcmpi(r.params.chromaticClass, 'RGB')
-        M = noiseStream.rand(r.params.numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
-  %   else
-  %     M = noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks) > 0.5;
-    frameValues = uint8(r.params.intensity * 255 * M);
+    frameValues = noiseStream.rand(r.params.numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
+    frameValues = 2*frameValues-1;
   else
-  % else
-  %   if strcmpi(r.params.chromaticClass, 'RGB')
-  %     M = uint8((0.3 * r.params.intensity * noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks, 3) * 0.5 + 0.5)*255);
-  %   else
-  %     M = uint8((0.3 * r.params.intensity * noiseStream.rand(numFrames, r.params.numYChecks, r.params.numXChecks) * 0.5 + 0.5) * 255);
-  %   end
-  %   frameValues = M;
-      frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks, r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
+    frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks, r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
   end
-
 
   responseTrace = BinSpikeRate(spikes(prePts+1:end), r.params.frameRate, r.params.sampleRate);
 

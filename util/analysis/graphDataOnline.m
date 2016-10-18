@@ -3,14 +3,15 @@ function r = graphDataOnline(r, neuron)
 
   if nargin < 2
     neuron = 1;
-    analysis = r.analysis;
+    if isfield(r, 'protocol');
+      analysis = r.analysis;
+    end
   else
     neuron = 2;
-    if ~strcmp(r.protocol, 'edu.washington.riekelab.manookin.ChromaticSpot')
+    if isfield(r, 'protocol')
       analysis = r.secondary.analysis;
-    end
     r.cellName = [r.cellName '*'];
-    if ~isempty(strfind(r.protocol, 'ChromaticSpot'))
+    else
       error('No secondary neuron analysis for spot stimuli - for now');
     end
   end
@@ -144,7 +145,7 @@ else
         subplot(4, 1, ii);
 
         [c1, n] = getPlotColor(r.params.stimClass(ii));
-        bar(r.ptsh.(r.params.stimClass(ii)).binCenters, r.ptsh.(r.params.stimClass(ii)).spikeCounts,... 
+        bar(r.ptsh.(r.params.stimClass(ii)).binCenters/10000, r.ptsh.(r.params.stimClass(ii)).spikeCounts,... 
           'facecolor', c1, 'edgecolor', 'k', 'linestyle', 'none');
         axis tight; set(gca, 'box', 'off', 'TickDir', 'out');
         if ii ~= 3
@@ -338,14 +339,14 @@ else
     figure;
     posMicron = r.params.positions * r.params.micronsPerPixel;
     subplot(3,1,1:2); hold on;
-    plot(posMicron, analysis.f1amp, '-ok', 'linewidth', 1);
+    plot(posMicron, analysis.f1amp, '-o', 'linewidth', 1, 'color', r.params.plotColor);
     title([r.cellName ' - ' r.params.searchAxis ' bar centering (' num2str(ceil(r.params.barSizeMicrons(1))) ' x ' num2str(ceil(r.params.barSizeMicrons(2))) ' um)']);
     xlabel('bar position (microns)'); ylabel('f1 amplitude');
     ax = gca; axis tight; ax.YLim(1) = 0;
     set(gca, 'box', 'off', 'tickdir', 'out');
 
     subplot(9,1,8:9); hold on;
-    plot(posMicron, analysis.f1phase, '-ok', 'linewidth', 1);
+    plot(posMicron, analysis.f1phase, '-o', 'linewidth', 1, 'color', r.params.plotColor);
     axis tight; ylim([-180 180]); ylabel('f1 phase');
     set(gca,'box', 'off','YTick', -180:90:180, 'tickdir', 'out', 'xcolor', 'w');
 

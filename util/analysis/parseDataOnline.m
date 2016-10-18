@@ -1,6 +1,7 @@
 function r = parseDataOnline(symphonyInput)
   % also for quick offline data
   % will soon switch over to better object system
+  % TODO: in meantime add support for paired recordings
 
   % only ChromaticSpot epochGroups for now
   if strcmp(class(symphonyInput), 'symphonyui.core.persistent.EpochGroup')
@@ -10,9 +11,7 @@ function r = parseDataOnline(symphonyInput)
       epochBlock = epochGroup.getEpochBlocks{eb}; % get epoch block
       r.protocol = epochBlock.protocolId;
         if eb == 1
-          % must be some way around this
           r.data = struct();
-            % r.data(1).label = 'foo'; r.data(2).label = 'foo'; r.data(1).chromaticClass = 'foo';
         end
         r = parseSpotStimulus(r, epochBlock, eb);
     end
@@ -25,7 +24,6 @@ function r = parseDataOnline(symphonyInput)
     epoch = epochBlock.getEpochs{1}; % to grab params stored in epochs
     micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
     % parameters to display
-   % r.data(eb).label = epochBlock.epochs.source.label(10:end);
     r.data(eb).label = epochBlock.epochGroup.source.label(10:end);
     r.data(eb).chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.data(eb).contrast = epochBlock.protocolParameters('contrast');
@@ -58,7 +56,7 @@ function r = parseDataOnline(symphonyInput)
     r.data(eb).params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
     r.data(eb).params.uuid.epochGroup = epochBlock.epochGroup.uuid;
     r.data(eb).params.uuid.epochBlock = epochBlock.uuid;
-    r.data(eb).params.protocol = epochBlock.protocolId;    
+    r.data(eb).params.protocol = epochBlock.protocolId;
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.data(eb).params.uuid.epochs{ep} = epoch.uuid;
@@ -76,7 +74,7 @@ function r = parseDataOnline(symphonyInput)
   end
 
   function r = parseEpochBlock(epochBlock)
-  r.numEpochs = length(epochBlock.getEpochs); 
+  r.numEpochs = length(epochBlock.getEpochs);
 
   r.cellName = epochBlock.epochGroup.source.label;
   r.protocol = epochBlock.protocolId; % get protocol name
@@ -213,6 +211,7 @@ function r = parseDataOnline(symphonyInput)
     [r.params.plotColor, ~] = getPlotColor(r.params.chromaticClass);
 
   case 'edu.washington.riekelab.manookin.protocols.BarCentering'
+    r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.searchAxis = epochBlock.protocolParameters('searchAxis');
     r.params.barSize = epochBlock.protocolParameters('barSize');
     r.params.barSizeMicrons = r.params.barSize * r.params.micronsPerPixel;
@@ -254,22 +253,6 @@ function r = parseDataOnline(symphonyInput)
         r.seed(ii) = epoch.protocolParameters('seed');
       end
     end
-    
-    % for ep = 1:r.numEpochs
-    %   index = rem(ep-1, 3) + 1;
-    %   stim = cones{index};
-    %   epoch = epochBlock.getEpochs{ep};
-    %   r.(stim).resp(indCount,:) = r.resp(ep,:);
-    %   r.(stim).spikes(indCount,:) = r.spikes(ep,:)
-    %   r.(stim).spikeData.resp(indCount, :) = r.spikeData.resp(ep,:);
-    %   r.(stim).spikeData.times{indCount} = r.spikeData.times{ep};
-    %   r.(stim).spikeData.amps{indCount} = r.spikeData.amps{ep};
-    %   % r.(stim).frame(indCount,:) = epoch.getResponses{2}.getData; % get frame
-    %   r.(stim).seed(indCount) = epoch.protocolParameters('seed');
-    %   if index == 3
-    %     indCount = indCount + 1;
-    %   end
-    % end
     epochCounter = 0;
 
     for ep = 1:3:r.numEpochs
@@ -312,19 +295,49 @@ function r = parseDataOnline(symphonyInput)
     r.params.numXChecks = epoch.protocolParameters('numXChecks');
     r.params.numYChecks = epoch.protocolParameters('numYChecks');
     r.params.useRandomSeed = epochBlock.protocolParameters('useRandomSeed');
+    r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate / r.params.frameDwell);
 
+    r.seed = zeros(r.numEpochs, 1);
     if r.params.useRandomSeed
-      r.seed = zeros(r.numEpochs, 1);
+      for ep = 1:r.numEpochs
+        epoch = epochBlock.getEpochs{ep}; % get epoch
+        % r.frame(ep,:) = epoch.getResponses{2}.getData; % get frames
+        r.seed(ep) = epoch.protocolParameters('seed');
+      end
     else
-      r.seed = 1;
+      r.seed(:) = 1;
     end
-    for ep = 1:r.numEpochs
-      epoch = epochBlock.getEpochs{ep}; % get epoch
-      % r.frame(ep,:) = epoch.getResponses{2}.getData; % get frames
-      r.seed(ep) = epoch.protocolParameters('seed');
+
+  case 'edu.washington.riekelab.manookin.protocols.TernaryNoise'
+    r.params.stixelSize = epochBlock.protocolParameters('stixelSize');
+    r.params.noiseClass = epochBlock.protocolParameters('noiseClass');
+    r.params.outerRadius = epochBlock.protocolParameters('outerRadius');
+    r.params.orientation = epochBlock.protocolParameters('orientation');
+    r.params.corr = epochBlock.protocolParameters('corr');
+    r.params.dimensionality = epochBlock.protocolParameters('dimensionality');
+    r.params.innerRadius = epochBlock.protocolParameters('innerRadius');
+    r.params.waitTime = epochBlock.protocolParameters('waitTime');
+    r.params.randomSeed = epochBlock.protocolParameters('randomSeed');
+    r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate / r.params.frameDwell);
+
+    r.seed = zeros(r.numEpochs, 1);
+    if r.params.useRandomSeed
+      for ep = 1:r.numEpochs
+        epoch = epochBlock.getEpochs{ep};
+        % r.frame(ep,:) = epoch.getResponses{2}.getData; % get frames
+        r.seed(ep) = epoch.protocolParameters('seed');
+      end
+    else
+      r.seed(:) = 1;
     end
   end
-end 
+
+
+  if isfield(r.params, 'chromaticClass')
+    r.params.plotColor = getPlotColor(r.params.chromaticClass);
+  end
+
+end
 
 
 %% ANALYSIS FUNCTIONS------------------------------------------

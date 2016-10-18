@@ -1,5 +1,5 @@
-function SpikeGUI(r, epochNum)
-	% r = data structure 
+function SpikeDetectionGUI(r, epochNum)
+	% r = data structure
 	% TODO: figure out why output never worked
 	%  		currently set at no output and using assignin to guioutput variable
 	%		not a great idea in the long run
@@ -24,7 +24,7 @@ function SpikeGUI(r, epochNum)
 		'Color', 'w');
     set(f.h, 'CloseRequestFcn', {@onFigureClose,f});
 
-	% create gui data structure		 
+	% create gui data structure
 	S.r = r;
 	if epochNum == 0
 		S.epochNum = 1; % default = start at 1
@@ -38,7 +38,7 @@ function SpikeGUI(r, epochNum)
 	% basic layout
 	mainLayout = uix.HBox('Parent', f.h,...
 		'Padding', 5, 'Spacing', 5,...
-		'BackgroundColor', 'w');	
+		'BackgroundColor', 'w');
 	axLayout = uix.VBoxFlex('Parent', mainLayout,...
 		'Padding', 3, 'Spacing', 1,...
 		'BackgroundColor', 'w');
@@ -52,16 +52,16 @@ function SpikeGUI(r, epochNum)
 		'String', 'Change Epoch',...
 		'FontName', 'Roboto', 'FontSize', 10);
 
-	% buttons to switch epochs 
+	% buttons to switch epochs
 	epochControl = uix.HButtonBox('Parent', uiLayout);
 	% button to go back one epoch
-	S.epochBack = uicontrol('Style', 'pushbutton',... 
+	S.epochBack = uicontrol('Style', 'pushbutton',...
 		'Parent', epochControl,...
 		'String', '<--',...
 		'FontName', 'roboto', 'FontSize', 10,...
 		'Tag', 'epochBack');
 	set(S.epochBack, 'Callback', {@onSelected_epochBack,f});
-	if epochNum == 1, set(S.epochBack, 'Enable', 'off'); end	
+	if epochNum == 1, set(S.epochBack, 'Enable', 'off'); end
 	% button to go forward one epoch
 	S.epochFwd = uicontrol('Style', 'pushbutton',...
 		'Parent', epochControl,...
@@ -74,7 +74,7 @@ function SpikeGUI(r, epochNum)
 	S.preTxt = uicontrol('Style', 'text', 'Parent', uiLayout,...
 		'String', '', 'FontName', 'roboto', 'FontSize', 10);
 
-	S.thesholdTxt = uicontrol('Style', 'edit',... 
+	S.thesholdTxt = uicontrol('Style', 'edit',...
 		'Parent', uiLayout,...
 		'String', '0',...
 		'Tag', 'tInput',...
@@ -83,12 +83,12 @@ function SpikeGUI(r, epochNum)
 		'Parent', uiLayout,...
 		'String', '0',...
 		'FontName', 'roboto', 'FontSize', 10);
-	S.applyThreshold = uicontrol('Style', 'pushbutton',... 
+	S.applyThreshold = uicontrol('Style', 'pushbutton',...
 		'Parent', uiLayout,...
 		'String', 'Apply Threshold',...
 		'FontName', 'roboto', 'FontSize', 10);
 	set(S.applyThreshold, 'Callback', {@onSelected_applyThreshold,f});
-	S.saveThreshold = uicontrol('Style', 'pushbutton',... 
+	S.saveThreshold = uicontrol('Style', 'pushbutton',...
 		'Parent', uiLayout,...
 		'String', 'Save Threshold',...
 		'FontName', 'Roboto', 'FontSize', 10);
@@ -103,7 +103,7 @@ function SpikeGUI(r, epochNum)
 
 	empty2 = uix.Empty('Parent', uiLayout); %#ok<NASGU>
 
-	S.txt2 = uicontrol('Style', 'text',... 
+	S.txt2 = uicontrol('Style', 'text',...
 		'Parent', uiLayout,...
 		'String', 'detection method',...
 		'FontName', 'Roboto', 'FontSize', 10);
@@ -111,13 +111,13 @@ function SpikeGUI(r, epochNum)
 	% buttons to change detection method
 %	methodLayout = uix.VButtonBox('Parent', uiLayout);
 	% detect using differential of response
-	S.diff = uicontrol('Style', 'pushbutton',... 
+	S.diff = uicontrol('Style', 'pushbutton',...
 		'Parent', uiLayout,...
 		'String', 'Differential',...
 		'FontName', 'roboto', 'FontSize', 10);
 	set(S.diff, 'Callback', {@onSelected_diff,f});
 	% detect using SDO
-	S.sdo = uicontrol('Style', 'pushbutton',... 
+	S.sdo = uicontrol('Style', 'pushbutton',...
 		'Parent', uiLayout,...
 		'String', 'SpikeDetectorOnline',...
 		'FontName', 'roboto', 'FontSize', 10,...
@@ -139,27 +139,27 @@ function SpikeGUI(r, epochNum)
 	set(axLayout, 'Heights', [-1.5 -1 -1.5]);
 
 	% plot the input epoch (default = 1)
-	S.resp = line(1:size(S.r.resp, 2), S.r.resp(S.epochNum,:),... 
+	S.resp = line(1:size(S.r.resp, 2), S.r.resp(S.epochNum,:),...
 		'Parent', S.respHandle, 'color', 'k');
-	set(S.respHandle, 'XColor', 'w','XTick', {}, 'box', 'off',... 
+	set(S.respHandle, 'XColor', 'w','XTick', {}, 'box', 'off',...
 		'XLim', [0 length(S.r.resp(S.epochNum,:))],...
 		'YLim', [floor(min(S.r.resp(S.epochNum,:))) ceil(max(S.r.resp(S.epochNum,:)))]);
 	title(S.respHandle, sprintf('epoch %u of %u', S.epochNum, size(S.r.resp,1)));
 
 
 	% plot original SDO spikes
-	S.spikes = line(1:size(S.r.spikes,2), S.r.spikes(S.epochNum,:),... 
+	S.spikes = line(1:size(S.r.spikes,2), S.r.spikes(S.epochNum,:),...
 		'Parent',S.spikeHandle);
 	set(S.spikeHandle, 'XColor', 'w', 'XTick', {}, 'Box', 'off',...
 		'YLim', [0 1], 'XLim', [0 size(S.r.spikes,2)]);
 	% init line for new spikes
-	S.newSpikes = line(1:size(S.r.spikes,2), zeros(1, size(S.r.spikes,2)),... 
+	S.newSpikes = line(1:size(S.r.spikes,2), zeros(1, size(S.r.spikes,2)),...
 		'Parent', S.spikeHandle, 'color', [1 0 0]);
-	title(S.spikeHandle, sprintf('Initial detection = %u spikes',... 
+	title(S.spikeHandle, sprintf('Initial detection = %u spikes',...
 		size(nonzeros(S.r.spikes(S.epochNum)), 1)));
 
 	if isfield(S.r.spikeData,'resp') && ~isfield(S.r, 'old')
-		S.detected = line(1:length(S.r.spikeData.resp(S.epochNum,:)),... 
+		S.detected = line(1:length(S.r.spikeData.resp(S.epochNum,:)),...
 			S.r.spikeData.resp(S.epochNum,:),...
 			'Parent', S.detectHandle, 'Color', 'k');
 	else % this is prob unnecessary, remove when sure
@@ -172,7 +172,7 @@ function SpikeGUI(r, epochNum)
     end
 	set(S.detectHandle, 'XColor', 'w', 'XTick', {}, 'Box', 'off',...
 		'YGrid', 'on', 'YMinorGrid', 'on', 'XLim', [0 size(S.r.resp,2)]);
-	S.cutoff = line([1 size(S.r.spikes,2)], [0 0],... 
+	S.cutoff = line([1 size(S.r.spikes,2)], [0 0],...
      	'Parent', S.detectHandle, 'color', [0.5 0.5 0.5]);
 
 	% init fields for thresholds and detectionMethod if doesn't already exist
@@ -183,7 +183,7 @@ function SpikeGUI(r, epochNum)
     elseif S.r.spikeData.detectionMethod(1) ~= 0
     	set(S.preTxt, 'String', 'Corrected Spikes');
     end
-    	
+
     S.detectionMethod = 1; % default is SDO
 
     S.secondary.spikes = zeros(size(S.r.spikes));
@@ -217,11 +217,11 @@ function SpikeGUI(r, epochNum)
 		set(S.resp, 'YData', S.r.resp(S.epochNum,:));
 		title(S.respHandle, sprintf('epoch %u of %u', S.epochNum, size(S.r.resp,1)));
 		set(S.spikes, 'YData', S.r.spikes(S.epochNum,:));
-		title(S.spikeHandle, sprintf('Initial detection = %u spikes',... 
+		title(S.spikeHandle, sprintf('Initial detection = %u spikes',...
 			size(nonzeros(S.r.spikes(S.epochNum)), 1)));
 		if S.detectionMethod == 1
 			set(S.detected, 'YData', S.r.spikeData.resp(S.epochNum,:));
-%			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
+%			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))...
 %			ceil(min(S.r.spikeData.resp(S.epochNum,:)))]);
 		else
 			diffResp = diff([0 S.r.resp(S.epochNum,:)]);
@@ -240,7 +240,7 @@ function SpikeGUI(r, epochNum)
 			set(S.preTxt, 'String', 'Corrected spikes');
 		end
 
-        % get rid of new spikes line from last epoch        
+        % get rid of new spikes line from last epoch
         set(S.newSpikes, 'YData', zeros(1, size(S.r.spikes,2)));
 
         setappdata(f.h, 'GUIdata', S);
@@ -275,20 +275,20 @@ function SpikeGUI(r, epochNum)
 		set(S.resp, 'YData', r.resp(S.epochNum,:));
 		title(S.respHandle, sprintf('epoch %u of %u', S.epochNum, size(S.r.resp,1)));
 		set(S.spikes, 'YData', r.spikes(S.epochNum,:));
-		title(S.spikeHandle, sprintf('Initial detection = %u spikes',... 
+		title(S.spikeHandle, sprintf('Initial detection = %u spikes',...
 			size(nonzeros(S.r.spikes(S.epochNum)), 1)));
 		if S.detectionMethod == 1
 			set(S.detected, 'YData', S.r.spikeData.resp(S.epochNum,:));
-%			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))... 
+%			set(S.detectHandle, 'YLim', [floor(min(S.r.spikeData.resp(S.epochNum,:)))...
 %			ceil(max(S.r.spikeData.resp(S.epochNum,:)))]);
 		else
 			diffResp = diff([0 S.r.resp(S.epochNum,:)]);
 			set(S.detected, 'YData', diffResp);
-%			set(S.detectHandle, 'YLim', [floor(min(get(S.detected, 'YData')))... 
+%			set(S.detectHandle, 'YLim', [floor(min(get(S.detected, 'YData')))...
 %				ceil(max(get(S.detected, 'YData')))]);
 			clear diffResp;
 		end
-		
+
 		% get rid of prior epoch's newSpikes
 		set(S.newSpikes, 'YData', zeros(1, size(S.r.spikes,2))); % get rid of newSpikes line
 
@@ -320,7 +320,7 @@ function SpikeGUI(r, epochNum)
           			correctedSpikeTimes(end+1) = S.r.spikeData.times{S.epochNum}(ii);
           			correctedSpikeAmps(end+1) = S.r.spikeData.amps{S.epochNum}(ii);
           		% get detected spikes of potential second neuron
-          		% all neurons get secondary spikes calculated but only some 
+          		% all neurons get secondary spikes calculated but only some
                 else
                 	foundSecondary = 1;
                 	secondarySpikeTimes(end+1) = S.r.spikeData.times{S.epochNum}(ii);
@@ -330,7 +330,7 @@ function SpikeGUI(r, epochNum)
     		S.tmp.spikeTimes = correctedSpikeTimes(2:end);
     		S.tmp.spikeAmps = correctedSpikeAmps(2:end);
     		S.tmp.spikes = zeros(1, size(S.r.resp,2));
-    		S.tmp.spikes(S.tmp.spikeTimes) = 1;	
+    		S.tmp.spikes(S.tmp.spikeTimes) = 1;
     		S.secondary.spikes = zeros(size(S.tmp.spikes));
     		if foundSecondary == 1
 	    		S.secondary.spikeTimes = secondarySpikeTimes(2:end);
@@ -339,7 +339,7 @@ function SpikeGUI(r, epochNum)
     		else
     			S.secondary.spikesTimes = 0;
     			S.secondary.spikeAmps = 0;
-    		end 
+    		end
     	else % derivative method
     		% first clip for the larger spikes
     		S.tmp.spikeTimes = getThresCross([0 diff(S.r.resp(S.epochNum,:))], threshold, 1);
@@ -357,17 +357,17 @@ function SpikeGUI(r, epochNum)
     		S.secondary.spikeTimes = spikeDiff;
     		% set spikeAmps to 0 so it doesn't throw off mixed SDO/diff epochBlocks
     		S.secondary.spikeAmps = 0;
-    	end  
+    	end
 
 		% plot new spikes
 		if S.newSpikes == 0
-			S.newSpikes = line(1:length(S.tmp.spikes), S.tmp.spikes,... 
+			S.newSpikes = line(1:length(S.tmp.spikes), S.tmp.spikes,...
 				'parent', S.spikeHandle, 'color', [1 0 0]);
 		else
 			set(S.newSpikes, 'YData', S.tmp.spikes);
 		end
 		% update title to reflect new spike count
-		title(S.spikeHandle, sprintf('Initial detection = %u spikes, new = %u spikes',... 
+		title(S.spikeHandle, sprintf('Initial detection = %u spikes, new = %u spikes',...
 			size(nonzeros(S.r.spikes(S.epochNum)), 1),...
 			size(nonzeros(S.tmp.spikes), 1)));
 
@@ -486,17 +486,16 @@ function SpikeGUI(r, epochNum)
 		if S.changedSpikes == 1
 			selection = questdlg('Save changes before closing?',...
 	      		'Close Request Function',...
-	      		'Yes','No','Yes'); 
-	   		switch selection, 
+	      		'Yes','No','Yes');
+	   		switch selection,
 	      	case 'Yes',
 	      		assignin('base', 'guioutput', S.r);
 	         	delete(gcf);
 	      	case 'No'
-	      		delete(gcf); 
+	      		delete(gcf);
 	      	end
 	    else
 	    	delete(gcf);
 	    end
     end
 end % spikeGUI
-

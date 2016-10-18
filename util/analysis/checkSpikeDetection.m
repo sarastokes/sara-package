@@ -2,6 +2,7 @@ function checkSpikeDetection(r, epochNum, method)
   % INPUTS: r=data structure, 
   % epochNum = which epoch (0 for all epochs)
   % method = 'diff' = show differential, 'amps' = show amplitudes
+
   if nargin < 2
     epochNum = 0;
     method = 'amps';
@@ -9,8 +10,8 @@ function checkSpikeDetection(r, epochNum, method)
     method = 'amps';
   end
 
-  n = size(r.resp,1);
-  if isfield(r, 'protocol')
+  if ~isfield(r, 'data')
+    n = size(r.resp,1);
     if epochNum == 0
       epochList = 1:n;
     else
@@ -18,11 +19,6 @@ function checkSpikeDetection(r, epochNum, method)
     end
     for ii = 1:length(epochList)
       ep = epochList(ii);
-
-      % create figure and menubar option
-      % fh = figure('color', 'w');
-      % plotMenu = uimenu(fh, 'label', 'Plots');
-      % uimenu(plotMenu, 'Label', 'differential', 'Callback', checkSpikeDetection(r, epochNum, 'diff'));
       figure('color', 'w');
       subplot(5, 1, 1:2);
       plot(r.resp(ep,:), 'k');
@@ -46,23 +42,17 @@ function checkSpikeDetection(r, epochNum, method)
 
     end
   else % chromatic spot protocol
-    if nargin < 2
-      epochList = 1:length(r);
-    else
-      epochList = epochNum;
-    end
-    for ii = 1:length(epochList)
-      ep = epochList(ii);
+    for ep = 1:size(r.data(epochNum).resp)
       figure; set(gcf, 'color','w');
       subplot(5, 1, 1:2);
-      plot(r(ep).resp, 'k');
-      title(sprintf('spike detection check - epoch %u', ep)); axis tight;
+      plot(r.data(epochNum).resp(ep,:), 'k'); axis tight;
+      title(sprintf('spike detection check - epoch %u', ep)); 
       set(gca, 'XColor', 'w', 'XTick', {}, 'Box', 'off');
       subplot(513);
-      plot(r(ep).spikes); axis tight;
+      plot(r.data(epochNum).spikes(ep,:)); axis tight;
       set(gca, 'XColor', 'w', 'XTick', {}, 'Box', 'off');
       subplot(5, 1, 4:5);
-      plot(r(ep).spikeData.resp); axis tight;
+      plot(r.data(epochNum).spikeData.resp(ep,:)); axis tight;
       set(gca, 'XColor', 'w', 'XTick', {}, 'Box', 'off');
       set(gca, 'YGrid', 'on', 'YMinorGrid', 'on');
     end

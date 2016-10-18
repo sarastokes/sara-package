@@ -9,11 +9,10 @@ function res = getPSTHOnline(spikeTrials, binSize, temporalFrequency)
   % took out binary flag, added option to find cycleData for chromaticGrating, coneSweep...
   % SSP 082615
 
-  if nargin == 1
-    binSize = 200;
+  if nargin >3
     temporalFrequency = 0;
-  elseif nagrin == 2
-    temporalFreqency = 0;
+  elseif nargin > 2
+    temporalFrequency = 0;
   end
 
   [n d]=size(spikeTrials);
