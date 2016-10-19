@@ -36,7 +36,7 @@ function obj = F1Figure(device, xvals, onlineAnalysis, preTime, stimTime, vararg
   obj.stimTime = stimTime;
 
   ip = inputParser();
-  ip.addParameter('temporalFrequency', [], @(x)ischar(x) || isvector(x))
+  ip.addParameter('temporalFrequency', [], @(x)ischar(x) || isvector(x));
   ip.addParameter('plotColor', [0 0 0], @(x)ischar(x) || isvector(x));
   ip.addParameter('numReps', 1, @(x)isnumeric(x) || isvector(x));
   ip.parse(varargin{:});
@@ -69,7 +69,15 @@ end
 function createUi(obj)
   import appbox.*;
 
-  %toolbar = finall(obj.figureHandle, 'Type', 'uitoolbar');
+  toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+ storeSweepButton = uipushtool( ...
+        'Parent', toolbar, ...
+        'TooltipString', 'Store Sweep', ...
+        'Separator', 'on', ...
+        'ClickedCallback', @obj.onSelectedStoreSweep);
+  setIconImage(storeSweepButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
+            
+
   obj.axesHandle(1) = subplot(3,1,1:2,...
     'Parent', obj.figureHandle,...
     'FontName', 'roboto',...
@@ -170,5 +178,18 @@ function handleEpoch(obj, epoch)
     set(obj.pa, 'XData', obj.xaxis, 'YData', obj.F1phase);
   end
 end
+end
+
+methods (Access = private)
+function onSelectedStoreSweep(obj,~,~)
+  obj.F1 % print to cmd line
+  obj.P1
+  obj.chromaticClass
+
+  outputStruct.F1 = obj.f1amp;
+  outputStruct.P1 = obj.f1phase;
+  outputStruct.chromaticClass = obj.chromaticClass;
+
+  assignin(base, 'outputStruct', 'outputStruct');
 end
 end
