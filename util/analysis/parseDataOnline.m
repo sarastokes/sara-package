@@ -122,8 +122,10 @@ function r = parseDataOnline(symphonyInput)
     r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
     r.params.spatialPhase = epochBlock.protocolParameters('spatialPhase');
     r.params.randomOrder = epochBlock.protocolParameters('randomOrder');
-    r.params.sContrast = epoch.protocolParameters('sContrast');
-    r.params.rodContrast = epoch.protocolParameters('rodContrast');
+    if isKey(epoch.protocolParameters,'sContrast')
+      r.params.sContrast = epoch.protocolParameters('sContrast');
+      r.params.rodContrast = epoch.protocolParameters('rodContrast');
+    end
     r.params.apertureClass = epochBlock.protocolParameters('apertureClass');
     r.params.apertureRadius = epochBlock.protocolParameters('apertureRadius');
     r.params.apertureRadiusMicrons = r.params.apertureRadius * r.params.micronsPerPixel;
@@ -150,10 +152,14 @@ function r = parseDataOnline(symphonyInput)
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     r.params.reverseOrder = epochBlock.protocolParameters('reverseOrder');
-    r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
+    if isKey(epochBlock.protocolParameters, 'equalQuantalCatch')
+      r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
+    else
+      r.params.equalQuantalCatch = 0;
+    end
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep}; % get epoch
-      if ep <= length(r.params.stimClass)
+      if ep <= length(r.params.stimClass) && isKey(epoch.protocolParameters, 'sweepColor')
           r.params.plotColors(ep,:) = epoch.protocolParameters('sweepColor');
       end
       r.trials(ep).chromaticClass = epoch.protocolParameters('chromaticClass');

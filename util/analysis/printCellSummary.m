@@ -100,9 +100,11 @@ function propStr = sortProtocolProperties()
 			radius = [num2str(eBlock.protocolParameters('radius')) 'r'];
 		end
 		propStr = sprintf(', %s, %uhz, %s', eBlock.protocolParameters('temporalClass'), eBlock.protocolParameters('temporalFrequency'), radius);
-		if strcmp('annulus', epoch.protocolParameters('stimulusClass'))
-			propStr = ['annulus, ' propStr];
-		end
+        if isKey(epoch.protocolParameters, 'stimulusClass')
+            if strcmp('annulus', epoch.protocolParameters('stimulusClass'))
+                propStr = ['annulus, ' propStr];
+            end
+        end
 		if eBlock.protocolParameters('equalQuantalCatch') == 1
 			propStr = ['eQCatch, ' propStr];
 		else

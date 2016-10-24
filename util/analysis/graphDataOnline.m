@@ -50,7 +50,7 @@ if ~isfield(r, 'protocol')
         if n > 1
           figure; hold on;
           subplot(4,1,1:3); hold on;
-          bar(r(ii).ptsh.binCenters, r(ii).ptsh.spikeCounts,... 
+          bar(r(ii).ptsh.binCenters, r(ii).ptsh.spikeCounts,...
             'edgecolor', 'k', 'facecolor', c1, 'linestyle', 'none');
           title([r(ii).label ' - ' r(ii).chromaticClass ' spot (' num2str(contrast) '%, ' num2str(r(ii).params.radiusMicrons) 'um radius, ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf, ' num2str(n) ' trials)']);
           set(gca,'box', 'off', 'tickdir', 'out'); axis tight;
@@ -93,9 +93,9 @@ else
       for ii = 1:length(r.params.stimClass)
         [c1, n] = getPlotColor(r.params.stimClass(ii)); %#ok<ASGLU>
         c2 = c1 + (0.5 * (1-c1));
-        plot(analysis.f1phase(ii,:), analysis.f1amp(ii,:), 'o',... 
+        plot(analysis.f1phase(ii,:), analysis.f1amp(ii,:), 'o',...
           'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
-        plot(mean(analysis.f1phase(ii,:), 2), mean(analysis.f1amp(ii,:), 2), 'o',... 
+        plot(mean(analysis.f1phase(ii,:), 2), mean(analysis.f1amp(ii,:), 2), 'o',...
           'MarkerFaceColor', c1, 'MarkerEdgeColor', c1);
       end
       if ~isfield(r.params, 'equalQuantalCatch')
@@ -145,7 +145,7 @@ else
         subplot(4, 1, ii);
 
         [c1, n] = getPlotColor(r.params.stimClass(ii));
-        bar(r.ptsh.(r.params.stimClass(ii)).binCenters/10000, r.ptsh.(r.params.stimClass(ii)).spikeCounts,... 
+        bar(r.ptsh.(r.params.stimClass(ii)).binCenters/10000, r.ptsh.(r.params.stimClass(ii)).spikeCounts,...
           'facecolor', c1, 'edgecolor', 'k', 'linestyle', 'none');
         axis tight; set(gca, 'box', 'off', 'TickDir', 'out');
         if ii ~= 3
@@ -279,7 +279,7 @@ else
        % plot PTSH
        figure; set(gcf, 'color', 'w');
        subplot(3,1,1:2); hold on;
-       bar(analysis.ptsh.binCenters, analysis.ptsh.spikeCounts,... 
+       bar(analysis.ptsh.binCenters, analysis.ptsh.spikeCounts,...
         'facecolor', r.params.plotColor, 'edgecolor', 'k', 'linestyle', 'none');
        set(gca, 'box', 'off', 'tickdir', 'out');
 
