@@ -6,7 +6,7 @@ classdef MeanGratingFigure < symphonyui.core.FigureHandler
 
 	% 23Oct - first version based on max's cycleaveragefigure
 
-properties (SetAccess = private)
+properties 
 	device
 	xvals
 	onlineAnalysis
@@ -14,15 +14,17 @@ properties (SetAccess = private)
 	stimTime
 	temporalFrequency
 	chromaticClass
+    plotColor
 	numReps					% for now, let this stay at 1
 end
 
-properties (Access = private)
+properties
 	axesHandle
-	colorIndex
+%	colorIndex
 	storedSweep
 
 	epochNum
+    xaxis
 	% calculated:
 	F1amp
 	F1phase
@@ -32,7 +34,7 @@ properties (Access = private)
 end
 
 methods
-	function obj = CycleAverageFigure(device, varargin)
+	function obj = MeanGratingFigure(device, xvals, onlineAnalysis, preTime, stimTime, varargin)
 		obj.device = device;
   		obj.xvals = xvals;
   		obj.onlineAnalysis = onlineAnalysis;
@@ -41,24 +43,41 @@ methods
 
   		ip = inputParser();
   		ip.addParameter('temporalFrequency', [], @(x)ischar(x) || isvector(x));
-  		ip.addParameter('chromaticClass', 'achromatic', @(x)ischar(x));
-  		ip.addParameter('plotColor', 'k', @(x)ischar(x) || @(x)isvector(x));
+  		ip.addParameter('chromaticClass',[] , @(x)ischar(x));
   		ip.addParameter('numReps', 1, @(x)isvector(x));
   		ip.parse(varargin{:});
 
   		obj.temporalFrequency = ip.Results.temporalFrequency;
+        obj.chromaticClass = ip.Results.chromaticClass;
 		obj.numReps = ip.Results.numReps;
 
-		obj.plotColor = zeros(2,3);
-  		obj.plotColor(1,:) = ip.Results.plotColor;
+        obj.plotColor = zeros(2,3);
+        if ~isempty(obj.chromaticClass)
+            [obj.plotColor(1,:),~] = getPlotColor(obj.chromaticClass);
+        end
   		obj.plotColor(2,:) = obj.plotColor(1,:) + (0.5 * (1-obj.plotColor(1,:)));
 
 
   		% init some variables
-		obj.epochNum = 0;
+		obj.epochNum = 0;       
 		obj.xaxis = obj.xvals; % will be needed later
 		obj.F1amp = zeros(size(obj.xvals));
 		obj.F1phase = zeros(size(obj.xvals));
+
+		% check for stored data, init if empty
+		[storedData, colorIndex] = obj.storedAverages();
+        if isempty(colorIndex)
+        	colorIndex = [0 0 0 0];
+        end
+        if isempty(storedData)
+        	cc = {'achrom' 'liso' 'miso' 'siso'};
+        	for ii = 1:4
+	        	storedData.(cc{ii}).F1amp = [];
+    	    	storedData.(cc{ii}).F1phase = [];
+    	    end
+        end
+        obj.storedAverages(storedData, colorIndex);
+
 		obj.createUi();
 	end
 
@@ -102,7 +121,7 @@ methods
 
 	function setTitle(obj, t)
 		set(obj.figureHandle, 'Name', t);
-		title(obj.axesHandle, t);
+		title(obj.axesHandle(1), t);
 	end
 
 	function clear(obj)
@@ -133,7 +152,6 @@ methods
   		binRate = 60;
   		binWidth = sampleRate / binRate; % Bin at 60 Hz.
   		numBins = floor(obj.stimTime/1000 * binRate);
-
   		binData = zeros(1, numBins);
 		for k = 1 : numBins
 	        index = round((k-1)*binWidth+1 : k*binWidth);
@@ -159,7 +177,6 @@ methods
 		obj.F1amp(obj.epochNum) = f1amp;
 		obj.F1phase(obj.epochNum) = f1phase;
 
-
 		% plot the most recent trace
   		if isempty(obj.newF1amp)
     		obj.newF1amp = line(obj.xaxis, obj.F1amp, 'parent', obj.axesHandle(1));
@@ -178,18 +195,20 @@ methods
 
   		%% TODO: could be less redundant but at least it works
   		[storedData, colorIndex] = obj.storedAverages();
-  		if ~isempty(colorIndex)
+        if isempty(colorIndex)
+            colorIndex = [0 0 0 0];
+        else
   			colorIndex % print to cmd line
   			if isempty(storedData)
   				error('stored data is empty');
   			end
   			if colorIndex(1) > 0
-  				if ~isempty(obj.storedSweep.achrom.F1amp)
+  				if ~isempty(storedData.achrom.F1amp)
   					if obj.storedSweep.achrom.F1amp.line.isvalid
 
   					else
   						obj.storedSweep.achrom.F1amp.line = line(obj.xaxis, storedData.achrom.F1amp,...
-  							'Parent', obj.axesHandle(1), 'Marker','o'... 
+  							'Parent', obj.axesHandle(1), 'Marker','o',... 
   							'Color', [0.5 0.5 0.5], 'LineWidth', 0.75);
   						obj.storedSweep.achrom.F1phase.line = line(obj.xaxis, storedData.achrom.F1phase,...
   							'Parent', obj.axesHandle(2), 'Marker','o',... 
@@ -198,8 +217,9 @@ methods
   				end
   			end
   			if colorIndex(2) > 0
-  				if ~isempty(obj.storedSweep.liso.F1amp)
+  				if ~isempty(storedData.liso.F1amp)
   					if obj.storedSweep.liso.F1amp.line.isvalid
+
   					else
   						obj.storedSweep.liso.F1amp.line = line(obj.xaxis, storedData.liso.F1amp,...
   							'Parent', obj.axesHandle(1), 'Marker', 'o',...
@@ -211,8 +231,9 @@ methods
   				end
   			end
   			if colorIndex(3) > 0
-  				if ~isempty(obj.storedSweep.miso.F1amp)
+  				if ~isempty(storedData.miso.F1amp)
   					if obj.storedSweep.miso.F1amp.line.isvalid
+
   					else
   						obj.storedSweep.miso.F1amp.line = line(obj.xaxis, storedData.miso.F1amp,...
   							'Parent', obj.axesHandle(1), 'Marker', 'o',...
@@ -224,7 +245,7 @@ methods
   				end
   			end
   			if colorIndex(4) > 0
-  				if ~isempty(obj.storedSweep.siso.F1amp)
+  				if ~isempty(storedData.siso.F1amp)
   					if obj.storedSweep.siso.F1amp.line.isvalid
   					else
   						obj.storedSweep.siso.F1amp.line = line(obj.xaxis, storedData.siso.F1amp,...
@@ -307,7 +328,7 @@ methods (Access = private)
 end
 
 methods (Static)
-  	function [averages, cIndex] = storedAverages(averages, cIndex)
+  	function [averages, colorIndex] = storedAverages(averages, colorIndex)
   		persistent stored;
   		persistent cIndex; 
   		if (nargin == 0) % retrieve stored data
@@ -316,13 +337,13 @@ methods (Static)
   		else % set or clear stored data
   			if strcmp(averages, 'Clear')
   				stored = [];
-  				cIndex = [];
+  				cIndex = [0 0 0 0];
   			else
   				stored = averages;
   				averages = stored;
 
-  				colorIndex = cIndex;
   				cIndex = colorIndex;
+                colorIndex = cIndex;
   			end
   		end
   	end

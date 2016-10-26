@@ -20,8 +20,6 @@ properties
   F1amp
   F1phase
   repsPerX
-  meanf1amp
-  meanf1phase
   epochNum
   fa
   pa
@@ -56,8 +54,6 @@ function obj = F1Figure(device, xvals, onlineAnalysis, preTime, stimTime, vararg
   obj.F1amp = zeros(size(obj.xvals));
   obj.F1phase = zeros(size(obj.xvals));
 
-  obj.meanf1amp = zeros(size(obj.xaxis));
-  obj.meanf1phase = zeros(size(obj.xaxis));
   obj.repsPerX = zeros(size(obj.xaxis));
 
   % epoch counter
@@ -68,7 +64,6 @@ end
 
 function createUi(obj)
   import appbox.*;
-
   toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
  storeSweepButton = uipushtool( ...
         'Parent', toolbar, ...
@@ -134,25 +129,22 @@ function handleEpoch(obj, epoch)
   binRate = 60;
   binWidth = sampleRate / binRate; % Bin at 60 Hz.
   numBins = floor(obj.stimTime/1000 * binRate);
-  fprintf('numBins set to %u based on stimTime(%u) and binRate (%u)\n', numBins, obj.stimTime, binRate);
   binData = zeros(1, numBins);
   for k = 1 : numBins
       index = round((k-1)*binWidth+1 : k*binWidth);
       binData(k) = mean(responseTrace(index));
   end
   binsPerCycle = binRate / tempFreq;
-  fprintf('binsPerCycle is %u\n', binsPerCycle);
   numCycles = floor(length(binData)/binsPerCycle);
+  % catch error with temporal tuning curve protocol
   if numCycles == 0
     error('Make sure stimTime is long enough for at least 1 complete cycle');
   end
-  fprintf('numCycles is %u based on length of binData (%u) and binsPerCycle\n', numCycles, length(binData))
   cycleData = zeros(1, floor(binsPerCycle));
   for k = 1 : numCycles
       index = round((k-1)*binsPerCycle) + (1 : floor(binsPerCycle));
       cycleData = cycleData + binData(index);
   end
-  fprintf('size of cycleData is %u, %u and k is %u, %u\n', size(cycleData,1), size(cycleData,2), size(k,1), size(k,2));
   cycleData = cycleData / k;
 
   ft = fft(cycleData);
@@ -182,14 +174,11 @@ end
 
 methods (Access = private)
 function onSelectedStoreSweep(obj,~,~)
-  obj.F1 % print to cmd line
-  obj.P1
-  obj.chromaticClass
-
   outputStruct.F1 = obj.f1amp;
   outputStruct.P1 = obj.f1phase;
   outputStruct.chromaticClass = obj.chromaticClass;
 
   assignin(base, 'outputStruct', 'outputStruct');
+end
 end
 end

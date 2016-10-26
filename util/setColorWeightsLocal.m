@@ -70,6 +70,10 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
       w = w / max(abs(w));
       p = [0, 0.52941, 0.21569];
       c = 'green M-(S+L)';
+    elseif strcmp(colorcall, 'custom')
+      w = [0 0 0];
+      p = [0 0 1];
+      c = 'custom s-iso';
     else
       w = [1 1 1];
       p = [0 0 0];
