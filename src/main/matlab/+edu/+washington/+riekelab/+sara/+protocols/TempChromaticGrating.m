@@ -19,8 +19,9 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         spatialClass = 'sinewave'       % Spatial type (sinewave or squarewave)
         temporalClass = 'drifting'      % Temporal type (drifting or reversing)
         chromaticClass = 'achromatic'   % Chromatic type
-        onlineAnalysis = 'none'         % Type of online analysis
+        onlineAnalysis = 'extracellular' % Type of online analysis
         randomOrder = false             % Run the sequence in random order?
+        checkSpikes = false             % Show SpikeDetectionFigure
         numberOfAverages = uint16(18)   % Number of epochs
     end
 
@@ -74,10 +75,10 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             end
             obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
-
             [obj.colorWeights, obj.stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.stimColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp),... 
+                obj.stimTrace, 'stimColor', obj.stimColor);
 
             % Calculate the spatial phase in radians.
             obj.spatialPhaseRad = obj.spatialPhase / 180 * pi;
@@ -88,56 +89,19 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
-
-            obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor);
-        end
-
-        function MTFanalysis(obj, ~, epoch)
-            response = epoch.getResponse(obj.rig.getDevice(obj.amp));
-            responseTrace = response.getData();
-            sampleRate = response.sampleRate.quantityInBaseUnits;
-
-            %--------------------------------------------------------------
-            % Get the F1 amplitude and phase.
-            responseTrace = responseTrace(obj.preTime/1000*sampleRate+1 : end);
-            binRate = 60;
-            binWidth = sampleRate / binRate; % Bin at 60 Hz.
-            numBins = floor(obj.stimTime/1000 * binRate);
-            binData = zeros(1, numBins);
-            for k = 1 : numBins
-                index = round((k-1)*binWidth+1 : k*binWidth);
-                binData(k) = mean(responseTrace(index));
+            
+            if ~strcmp(obj.onlineAnalysis,'none')
+                obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),... 
+                    obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,... 
+                    'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor);
+                obj.showFigure('edu.washington.riekelab.sara.figures.MeanGratingFigure', obj.rig.getDevice(obj.amp),... 
+                    obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
+                    'temporalFrequency', obj.temporalFrequency, 'chromaticClass', obj.chromaticClass);
             end
-            binsPerCycle = binRate / obj.temporalFrequency;
-            numCycles = floor(length(binData)/binsPerCycle);
-            cycleData = zeros(1, floor(binsPerCycle));
-            for k = 1 : numCycles
-                index = round((k-1)*binsPerCycle) + (1 : floor(binsPerCycle));
-                cycleData = cycleData + binData(index);
+
+            if obj.checkSpikes
+                obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
             end
-            cycleData = cycleData / k;
-
-            ft = fft(cycleData);
-
-            index = find(obj.xaxis == obj.spatialFreq, 1);
-            obj.F1Amp(index) = abs(ft(2))/length(ft)*2;
-            obj.F1Phase(index) = angle(ft(2)) * 180 / pi;
-            %--------------------------------------------------------------
-
-            axesHandle = obj.analysisFigure.userData.axesHandle;
-            cla(axesHandle);
-
-%             h1 = subplot(3,1,1:2, axesHandle);
-            h1 = axesHandle;
-            plot(obj.xaxis, obj.F1Amp, 'ko-', 'Parent', h1);
-            set(h1, 'TickDir', 'out');
-            ylabel(h1, 'F1 amp');
-            title(['Epoch ', num2str(obj.numEpochsCompleted), ' of ', num2str(obj.numberOfAverages)], 'Parent', h1);
-
-%             h2 = subplot(3,1,3, axesHandle);
-%             plot(obj.xaxis, obj.F1Phase, 'ko-', 'Parent', h2);
-%             set(h2, 'TickDir', 'out');
-%             xlabel(h2, 'radius (pix)'); ylabel(h2, 'F1 phase');
         end
 
         function p = createPresentation(obj)
@@ -232,11 +196,6 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
                 linspace(-sz/2, sz/2, sz/downsamp), ...
                 linspace(-sz/2, sz/2, sz/downsamp));
 
-
-%             [x,y] = meshgrid(...
-%                 linspace(-obj.canvasSize(1)/2, obj.canvasSize(1)/2, obj.canvasSize(1)/downsamp), ...
-%                 linspace(-obj.canvasSize(2)/2, obj.canvasSize(2)/2, obj.canvasSize(2)/downsamp));
-
             % Center the stimulus.
             x = x + obj.centerOffset(1);
             y = y + obj.centerOffset(2);
@@ -291,12 +250,6 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
-
-%             device = obj.rig.getDevice(obj.amp);
-%             duration = (obj.preTime + obj.stimTime + obj.tailTime) / 1e3;
-%             epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-%             epoch.addResponse(device);
-
 
             % Set the current spatial frequency.
             obj.spatialFreq = obj.spatialFrequencies( obj.numEpochsCompleted+1 );

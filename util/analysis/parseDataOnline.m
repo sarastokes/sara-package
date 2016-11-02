@@ -1,7 +1,10 @@
-function r = parseDataOnline(symphonyInput)
+function r = parseDataOnline(symphonyInput, ampNum)
   % also for quick offline data
   % will soon switch over to better object system
-  % TODO: in meantime add support for paired recordings
+
+  if nargin < 2
+    ampNum = 1;
+  end 
 
   % only ChromaticSpot epochGroups for now
   if strcmp(class(symphonyInput), 'symphonyui.core.persistent.EpochGroup')
@@ -57,20 +60,27 @@ function r = parseDataOnline(symphonyInput)
     r.data(eb).params.uuid.epochGroup = epochBlock.epochGroup.uuid;
     r.data(eb).params.uuid.epochBlock = epochBlock.uuid;
     r.data(eb).params.protocol = epochBlock.protocolId;
+    r.data(eb).params.ampNum = ampNum;
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.data(eb).params.uuid.epochs{ep} = epoch.uuid;
-      resp = epoch.getResponses{1}.getData; % get response
-      if ep == 1
-        r.data(eb).resp = zeros(r.numEpochs, length(resp));
-        spikes = zeros(size(r.data(eb).resp));
-      end
+      resp = epoch.getResponses{ampNum}.getData; % get response
       r.data(eb).resp(ep,:) = resp;
-      [spikes(ep,:), spikeData.times{ep}, spikeData.amps{ep}] = getSpikes(resp);
-      spikeData.resp(ep, spikeData.times{ep}) = spikeData.amps{ep};
+      if ~isempty(strfind('WC ', r.data(eb).params)) || strcmp(r.data(eb).params.onlineAnalysis, 'analog')
+        if ep == 1
+          r.data(eb).resp = zeros(r.numEpochs, length(resp));
+          analog = zeros(size(r.data(eb).resp));
+        end
+        analog(ep,:) = getAnalog(resp);
+      else % extracellular
+        if ep == 1
+          r.data(eb).resp = zeros(r.numEpochs, length(resp));
+          spikes = zeros(size(r.data(eb).resp));
+        end
+        [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp);
+        r.data(eb).spikeData.resp(ep, r.data(eb).spikeData.times{ep}) = r.data(eb).spikeData.amps{ep};
+      end
     end
-    r.data(eb).spikes = spikes;
-    r.data(eb).spikeData = spikeData;
   end
 
   function r = parseEpochBlock(epochBlock)
@@ -91,11 +101,15 @@ function r = parseDataOnline(symphonyInput)
   % data from all protocols and epoch parameters
   for ep = 1:r.numEpochs
     epoch = epochBlock.getEpochs{ep}; % get epoch
-    resp = epoch.getResponses{1}.getData; % get response
+    resp = epoch.getResponses{ampNum}.getData; % get response
     if ep == 1
       r.resp = zeros(r.numEpochs, length(resp));
-      r.spikes = zeros(size(r.resp));
-      r.spikeData.resp = zeros(size(resp));
+      if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
+        r.analog = zeros(size(r.resp));
+      else
+        r.spikes = zeros(size(r.resp));
+        r.spikeData.resp = zeros(size(resp));
+      end
       r.params.ndf = epoch.protocolParameters('ndf');
       r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
       r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
@@ -103,8 +117,12 @@ function r = parseDataOnline(symphonyInput)
     end
     r.uuidEpoch{ep} = epoch.uuid;
     r.resp(ep,:) = resp;
-    [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp);
-    r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
+    if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
+      r.analog(ep,:) = getAnalog(resp);      
+    else
+      [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp);
+      r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
+    end
     r.startTimes{ep} = datestr(epoch.startTime);
   end
 
@@ -224,6 +242,17 @@ function r = parseDataOnline(symphonyInput)
     r.params.intensity = epochBlock.protocolParameters('intensity');
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.positions = epochBlock.protocolParameters('positions');
+    r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
+
+  case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
+    r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
+    r.params.temporalClass = epochBlock.temporalClass('temporalClass');
+    r.params.radius = epochBlock.protocolParameters('radius');
+    r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
+    r.params.maxStepBits = epochBlock.protocolParameters('maxStepBits');
+    r.params.minStepBits = epochBlock.protocolParameters('minStepBits');
+    r.params.minStep = 2^r.params.minStepBits / 256 * 2;
+    r.params.maxStep = 2^r.params.maxStepBits / 256 * 2;
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
 
   case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
@@ -355,4 +384,16 @@ end
       spikeAmps = S.spikeAmps;
       spikeTimes = S.sp;
   end
+
+  function analog = getAnalog(response, preTime, sampleRate)
+      % Deal with band-pass filtering analog data here.
+      analog = bandPassFilter(response, 0.2, 500, 1/sampleRate);
+      % Subtract the median.
+      if preTime > 0
+        analog = analog - median(analog(1:round(sampleRate*preTime/1000)));
+      else
+        analog = analog - median(analog);
+      end
+  end
+
 end % overall function

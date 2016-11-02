@@ -198,6 +198,8 @@ function r = analyzeDataOnline(r, neuron)
     for ii = 1:r.numEpochs
       r.epochCount = r.epochCount + 1;
       if strcmp(r.params.chromaticClass, 'RGB')
+        r.analysis.strf = zeros(3,r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
+        r.analysis.spatialRF = zeros(3,r.params.numYChecks, r.params.numXChecks);
         r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
       else
         % updated with mike's new online analysis stuff but now throws errors for RGB noise, will fix at some pt
@@ -212,14 +214,16 @@ function r = analyzeDataOnline(r, neuron)
     r.analysis.strf = r.analysis.strf/r.numEpochs;
     r.analysis.spatialRF = squeeze(mean(r.analysis.strf, 3));
 
-
     % run additional analyses on temporal RF
     r = spatialReverseCorr(r);
 
     % NOTE: just testing this out for now, not sure how good it is
-    r.analysis.peaks.on = FastPeakFind(r.analysis.spatialRF);
-    r.analysis.peaks.off = FastPeakFind(-1 * r.analysis.spatialRF);
-
+    if ~strcmp(r.params.chromaticClass, 'RGB')
+      r.analysis.peaks.on = FastPeakFind(r.analysis.spatialRF);
+      r.analysis.peaks.off = FastPeakFind(-1 * r.analysis.spatialRF);
+    else
+      r.analysis.spatialRF = shiftdim(r.analysis.spatialRF, 1);
+    end
 
   case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     for ep = 1:r.numEpochs

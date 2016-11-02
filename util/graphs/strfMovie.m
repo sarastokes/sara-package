@@ -20,7 +20,7 @@ function strfMovie(r, numBins, pauseLength)
     if strcmp(r.params.chromaticClass, 'RGB')
       imagesc(squeeze(strf(:,:,bin,:)), [0 1]);
     elseif strcmp(r.params.chromaticClass,'achromatic')
-      imagesc(squeeze(strf(:,:, bin)), [-0.5 0.5]);
+      imagesc(squeeze(strf(:,:, bin)));
       colormap(bone);
     else
       imagesc(squeeze(strf(:,:,bin)));

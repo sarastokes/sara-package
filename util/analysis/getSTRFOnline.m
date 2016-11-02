@@ -34,16 +34,6 @@ function r = getSTRFOnline(r, spikes, seed)
   filterFrames = floor(r.params.frameRate * 0.5);
   lobePts = round(0.05 * r.params.frameRate) : round(0.15 * r.params.frameRate);
 
-  %% bin the data (old)
-  % responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate + 1 : end);
-  % binWidth = r.params.sampleRate/r.params.frameRate * r.params.frameDwell;
-  % numBins = floor(r.params.stimTime/1000 * r.params.frameRate / r.params.frameDwell);
-  % binData = zeros(1, numBins);
-  % for k = 1:numBins
-  %   index = round((k-1) * binWidth+1 : k*binWidth);
-  %   binData(k) = mean(responseTrace(index));
-  % end
-
   % Regenerate the stimulus based on the type.
   stimulus = 2*(double(frameValues)/255)-1;
 
@@ -53,18 +43,19 @@ function r = getSTRFOnline(r, spikes, seed)
   % Do the reverse correlation.
 %  if isempty(strfind(r.protocol, 'Chromatic'))
     if ~isempty(strfind(r.params.chromaticClass, 'RGB'))
+      filterTmpC = zeros(3, r.params.numYChecks, r.params.numXChecks, filterFrames);
       for l = 1 : 3
         filterTmp = zeros(r.params.numYChecks,r.params.numXChecks,filterFrames);
         for m = 1 : r.params.numYChecks
           for n = 1 : r.params.numXChecks
-            tmp = ifft(fft(responseTrace') .* conj(fft(squeeze(stimulus(:,m,n,l)))));
+            tmp = ifft(fft([responseTrace; zeros(60,1)]) .* conj(fft([squeeze(stimulus(:,m,n,l)); zeros(60,1);])));
             filterTmp(m,n,:) = tmp(1 : filterFrames);
+            filterTmpC(l,m,n,:) = tmp(1:filterFrames);
           end
         end
-        r.analysis.strf(l,:,:,:) = squeeze(r.analysis.strf(l,:,:,:)) + filterTmp;
-        r.analysis.spatialRF(:,:,l) = squeeze(mean(r.analysis.strf(l,:,:,lobePts),4));
-        r.analysis.epochSTRF(r.epochCount, l,:,:,:) = filterTmp;
       end
+      r.analysis.strf = r.analysis.strf + filterTmpC;
+      r.analysis.spatialRF = squeeze(mean(r.analysis.strf(l,:,:,lobePts),4));
     else
       filterTmp = zeros(r.params.numYChecks,r.params.numXChecks,filterFrames);
       for m = 1 : r.params.numYChecks
@@ -76,6 +67,5 @@ function r = getSTRFOnline(r, spikes, seed)
       end
       r.analysis.strf = r.analysis.strf + filterTmp;
       r.analysis.spatialRF = squeeze(mean(r.analysis.strf(:,:,lobePts),3));
-%       r.epochCount = r.epochCount +1; NOTE: make sure this was okay
     end
 end

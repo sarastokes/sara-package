@@ -76,8 +76,13 @@ methods
 
     obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
 
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
 
+    if numel(obj.rig.getDeviceNames('Amp')) < 2
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+    else
+      obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
+    end
+    
     if obj.checkSpikes
       obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
     end
