@@ -1,9 +1,10 @@
 function r = graphDataOnline(r, neuron)
   % optional 2nd input, can be anything - will run off 2nd neuron
+  % for chromatic spot, input r.data
 
   if nargin < 2
     neuron = 1;
-    if isfield(r, 'protocol');
+    if isfield(r, 'protocol')
       analysis = r.analysis;
     end
   else
@@ -131,7 +132,7 @@ else
         analysis.stimTrace = getStimTrace(r.params, 'modulation', 'offline');
         plot(analysis.stimTrace, 'k', 'linewidth', 1);
         set(gca, 'box', 'off', 'XColor', 'w', 'XTick', []);
-        ylabel('contrast'); ylim([0 1]);
+        ylabel('contrast'); axis tight; ylim([0 1]);
       end
 
       % graph PTSH
@@ -165,7 +166,25 @@ else
       subplot(818); hold on;
       plot(analysis.stimTrace, 'k', 'linewidth', 1);
       set(gca, 'box', 'off', 'XColor', 'w', 'XTick', []);
-      ylabel('contrast'); ylim([0 1]);
+      ylabel('contrast'); axis tight; ylim([0 1]);
+
+    case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
+      figure();
+      subplot(1,2,1); hold on;
+      r.params.plotColor(1,:) = getPlotColor('l'); r.params.plotColor(2,:) = getPlotColor('m');
+      plot(r.params.searchValues, r.analysis.redF1, '-o', 'Color', r.params.plotColor(1,:), 'LineWidth',1);
+      title(sprintf('red min = %.3f', r.analysis.redMin)); ylabel('f1 amplitude'); xlabel('red contrast');
+      subplot(1,2,2); hold on;
+      plot(r.params.searchValues, r.analysis.greenF1, '-o', 'Color', r.params.plotColor(2,:), 'LineWidth', 1);
+      title(sprintf('green min = %.3f', r.analysis.greenMin)); xlabel('green contrast');
+
+      figure();hold on;
+      plot3(r.params.searchValues, zeros(size(r.params.searchValues)), r.analysis.greenF1, '-o', 'Color', [0.1333 0.5451 0.1333]);
+      plot3(r.analysis.greenMin*ones(size(r.params.searchValues)), r.params.searchValues, r.analysis.redF1, '-o', 'Color', r.params.plotColor(1,:));
+      grid on;
+      xlabel('green contrast'); ylabel('red contrast'); zlabel('spikes/sec');
+      set(gca, 'XTick', -1:0.2:1); set(gca, 'YTick', -1:0.2:1);
+
 
     case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
       indivPlot = true;
@@ -238,16 +257,18 @@ else
         if ~isempty(strfind(r.params.chromaticClass, 'RGB'))
           r.params.plotColor = [0.82, 0, 0; 0, 0.53, 0.22; 0.14, 0.21, 0.84];
           figure; hold on;
-          plot(x, analysis.linearFilter(1,:) / r.numEpochs, 'color', r.params.plotColor(1,:), 'linewidth', 1);
-          plot(x, analysis.linearFilter(2,:) / r.numEpochs, 'color', r.params.plotColor(2,:), 'linewidth', 1);
-          plot(x, analysis.linearFilter(3,:) / r.numEpochs, 'color', r.params.plotColor(3,:), 'linewidth', 1);
+          plot(x, analysis.linearFilter(1,:), 'color', r.params.plotColor(1,:), 'linewidth', 1);
+          plot(x, analysis.linearFilter(2,:), 'color', r.params.plotColor(2,:), 'linewidth', 1);
+          plot(x, analysis.linearFilter(3,:), 'color', r.params.plotColor(3,:), 'linewidth', 1);
           xlabel('msec'); ylabel('filter units'); ax = gca;
           ax.Box = 'off'; ax.TickDir = 'out'; ax.YLim(1) = 0;
           title([r.cellName ' - RGB binary noise ' stimType]);
 
           figure; hold on;
+          % sometimes need to scale the linear filter:
+ %         tmpFilter = (analysis.linearFilter - min(min(min(analysis.linearFilter)))/(max(max(max(analysis.linearFilter)))) - min(min(min(analysis.linearFilter))));
           for ii = 1:length(analysis.linearFilter)
-            rectangle('position', [ii-1, 0, 1, 1], 'facecolor', analysis.linearFilter(:,ii)/r.numEpochs, 'edgecolor', analysis.linearFilter(:,ii)/r.numEpochs);
+            rectangle('position', [ii-1, 0, 1, 1], 'facecolor', analysis.linearFilter(:,ii), 'edgecolor', analysis.linearFilter(:,ii));
           end
           ax=gca; ax.Box = 'off'; xlabel('msec'); ax.YColor = 'w'; ax.YTickLabel = [];
           if r.params.radius > 1000

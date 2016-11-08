@@ -1,5 +1,6 @@
 classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % Chromatic grating but with my response figures and option for mask
+
     properties
         amp                             % Output amplifier
         preTime = 250                   % Grating leading duration (ms)
@@ -22,6 +23,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         onlineAnalysis = 'extracellular' % Type of online analysis
         randomOrder = false             % Run the sequence in random order?
         checkSpikes = false             % Show SpikeDetectionFigure
+        demoMode = false                % use earlier grating data
         numberOfAverages = uint16(18)   % Number of epochs
     end
 
@@ -96,7 +98,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
                     'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor);
                 obj.showFigure('edu.washington.riekelab.sara.figures.MeanGratingFigure', obj.rig.getDevice(obj.amp),... 
                     obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
-                    'temporalFrequency', obj.temporalFrequency, 'chromaticClass', obj.chromaticClass);
+                    'temporalFrequency', obj.temporalFrequency, 'chromaticClass', obj.chromaticClass, 'demoMode', obj.demoMode);
             end
 
             if obj.checkSpikes

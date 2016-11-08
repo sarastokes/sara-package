@@ -1,4 +1,4 @@
-classdef SpatialNoiseFigure < symphonyui.core.FigureHandler
+classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
     properties (SetAccess = private)
         device
         recordingType
@@ -20,12 +20,18 @@ classdef SpatialNoiseFigure < symphonyui.core.FigureHandler
         spaceFilter
         xaxis
         yaxis
+        timeBinSlider
+        timeBin
+        peakFinder
+        peaksFound
         cmap
+        RFsign
+        showOnOff
     end
     
     methods
         
-        function obj = SpatialNoiseFigure(device, varargin)
+        function obj = ReceptiveFieldFigure(device, varargin)
             ip = inputParser();
             ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
             ip.addParameter('stixelSize', [], @(x)isfloat(x));
@@ -55,7 +61,9 @@ classdef SpatialNoiseFigure < symphonyui.core.FigureHandler
             % Set the x/y axes
             obj.xaxis = linspace(-obj.numXChecks/2,obj.numXChecks/2,obj.numXChecks)*obj.stixelSize;
             obj.yaxis = linspace(-obj.numYChecks/2,obj.numYChecks/2,obj.numYChecks)*obj.stixelSize;
+            
             obj.cmap = 'bone';
+            obj.RFsign = 'both';
             
             obj.createUi();
         end
@@ -71,22 +79,66 @@ classdef SpatialNoiseFigure < symphonyui.core.FigureHandler
                 'ClickedCallback', @obj.onSelectedChangeCmap);
             setIconImage(changeCmapButton, symphonyui.app.App.getResource('icons', 'sweep_store.png'));
 
+            mainLayout = uix.VBox('Parent', obj.figureHandle, 'Padding', 10, 'Spacing', 5);
+
+            if strcmp(obj.RFsign, 'both')
+                obj.axesHandle = axes( ...
+                    'Parent', mainLayout, ...
+                    'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'), ...
+                    'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'), ...
+                    'XTickMode', 'auto');
+                obj.setTitle([obj.device.name 'mean receptive field']);
+            else
+                axLayout = uix.HBox('Parent', mainLayout, 'Spacing', 5, 'Padding', 10);
+                obj.axesHandle(1) = axes('Parent', axLayout,...
+                    'FontName', 'Roboto',...
+                    'FontSize', 10,...
+                    'XTickMode', 'auto');
+                obj.axesHandle(2) = axes('Parent', axLayout,...
+                    'FontName','Roboto',...
+                    'FontSize', 10,...
+                    'XTickMode', 'auto');
+                obj.setTitle([obj.device.name 'mean receptive field']);
+            end
+
             
-            obj.axesHandle = axes( ...
-                'Parent', obj.figureHandle, ...
-                'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'), ...
-                'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'), ...
-                'XTickMode', 'auto');
-            
+            uiLayout = uix.HBox('Parent', mainLayout, 'Padding', 5, 'Spacing', 10);
+            obj.timeBinSlider = uicontrol(uiLayout, 'Style', 'slider',...
+                'Min', 0, 'Max', floor(obj.frameRate*0.5), 'Value', 0,...
+                'SliderStep', [(1/floor(obj.frameRate*0.5)) 0.2],...
+                'Callback', @obj.onChangedTimeBin);
+            obj.timeBin = uicontrol(uiLayout, 'Style', 'text',...
+                'String', 'mean',...
+                'FontSize', 10,... 
+                'FontName', 'Roboto');
+            obj.peakFinder = uicontrol(uiLayout, 'Style', 'push',...
+                'String', 'Find peaks',...
+                'FontSize', 10,...
+                'FontName', 'Roboto',...
+                'Callback', @obj.onSelectedFindPeaks);
+            obj.showOnOff = uicontrol(uiLayout, 'Style', 'push',...
+                'String', 'Show On/Off',...
+                'FontSize', 10,...
+                'FontName', 'Roboto',...
+                'Callback', @obj.onSelectedShowOnOff);
+
+
+            set(mainLayout, 'Heights', [-10 -1]);
+            set(uiLayout, 'Widths', [-4 -1 -1 -1]);
+
             obj.strf = zeros(obj.numYChecks, obj.numXChecks, floor(obj.frameRate*0.5));
             obj.spaceFilter = [];
             
-            obj.setTitle([obj.device.name 'receptive field']);
-        end
+        end % createUi
         
         function setTitle(obj, t)
             set(obj.figureHandle, 'Name', t);
-            title(obj.axesHandle, t);
+            if strcmp(obj.RFsign, 'both')
+                title(obj.axesHandle, t);
+            else
+                title(obj.axesHandle(1), t);
+                title(obj.axesHandle(2), t);
+            end
         end
         
         function clear(obj)
@@ -165,16 +217,22 @@ classdef SpatialNoiseFigure < symphonyui.core.FigureHandler
                 end
                 
                 % Display the spatial RF.
-                obj.imgHandle = imagesc('XData',obj.xaxis,'YData',obj.yaxis,...
-                    'CData', obj.spaceFilter, 'Parent', obj.axesHandle);
+                slider_value = get(obj.timeBinSlider, 'Value');
+                if slider_value == 0 % mean RF
+                    obj.imgHandle = imagesc('XData',obj.xaxis,'YData',obj.yaxis,...
+                        'CData', obj.spaceFilter, 'Parent', obj.axesHandle);
+                else
+                    obj.imgHandle = imagesc('XData', obj.xaxis, 'YData', obj.yaxis,...
+                        'CData', squeeze(obj.strf(:,:,slider_value)), 'Parent', obj.axesHandle);
+                end
                 axis(obj.axesHandle, 'image');
-                colormap(obj.axesHandle, 'gray');
+                colormap(obj.axesHandle, obj.cmap);
             end
-        end
-        
-    end
+        end % handleEpoch    
+    end % methods
+    
     methods (Access = private)
-    function onSelectedStoreSweep(obj, ~, ~)
+    function onSelectedChangeCmap(obj, ~, ~)
         if strcmp(obj.cmap, 'parula')
             obj.cmap = 'bone';
         elseif strcmp(obj.cmap, 'bone')
@@ -186,5 +244,40 @@ classdef SpatialNoiseFigure < symphonyui.core.FigureHandler
         end
         colormap(obj.axesHandle, obj.cmap);
     end
-end
-end
+
+    function onSelectedFindPeaks(obj,~,~)
+        fprintf('Debug: the noise class is %s\n', obj.noiseClass);
+
+    end
+
+    function onSelectedShowOnOff(obj,~,~)
+        if strcmp(obj.RFsign, 'both')
+            obj.RFsign = 'onoff';
+        else
+            obj.RFsign = 'both';
+        end
+        % later just on and just off - not too important though
+        % won't update until next epoch comes through
+    end
+
+    function onChangedTimeBin(obj,~,~)
+        slider_value = get(obj.timeBinSlider, 'Value');
+        fprintf('slider_value is %u\n', slider_value);
+
+        if slider_value > size(obj.strf,3)
+            error('slider value exceeds strf time bins');
+        end
+
+        if slider_value == 0 % mean spatial RF
+            set(obj.imgHandle, 'CData', obj.spaceFilter);
+            obj.setTitle([obj.device.name 'mean receptive field']);
+            set(obj.timeBin, 'String', 'mean RF');
+        else
+            tmpSpaceFilter = squeeze(obj.strf(:,:, slider_value));
+            set(obj.imgHandle, 'CData', tmpSpaceFilter);
+            set(obj.timeBin, 'String', sprintf('t = %u', slider_value));
+            obj.setTitle([obj.device.name sprintf('receptive field at t=%u', slider_value)]);
+        end
+    end
+end % methods private
+end % classdef

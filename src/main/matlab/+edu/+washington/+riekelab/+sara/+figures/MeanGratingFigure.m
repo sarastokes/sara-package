@@ -14,8 +14,9 @@ properties
 	stimTime
 	temporalFrequency
 	chromaticClass
-    plotColor
+  plotColor
 	numReps					% for now, let this stay at 1
+  demoMode
 end
 
 properties
@@ -45,16 +46,18 @@ methods
   		ip.addParameter('temporalFrequency', [], @(x)ischar(x) || isvector(x));
   		ip.addParameter('chromaticClass',[] , @(x)ischar(x));
   		ip.addParameter('numReps', 1, @(x)isvector(x));
+      ip.addParameter('demoMode', false, @(x)islogical(x));
   		ip.parse(varargin{:});
 
   		obj.temporalFrequency = ip.Results.temporalFrequency;
-        obj.chromaticClass = ip.Results.chromaticClass;
-		obj.numReps = ip.Results.numReps;
+      obj.chromaticClass = ip.Results.chromaticClass;
+		  obj.numReps = ip.Results.numReps;
+      obj.demoMode = ip.Results.demoMode;
 
-        obj.plotColor = zeros(2,3);
-        if ~isempty(obj.chromaticClass)
-            [obj.plotColor(1,:),~] = getPlotColor(obj.chromaticClass);
-        end
+      obj.plotColor = zeros(2,3);
+      if ~isempty(obj.chromaticClass)
+          [obj.plotColor(1,:),~] = getPlotColor(obj.chromaticClass);
+      end
   		obj.plotColor(2,:) = obj.plotColor(1,:) + (0.5 * (1-obj.plotColor(1,:)));
 
 
@@ -141,9 +144,15 @@ methods
 			tempFreq = obj.temporalFrequency;
 		end
 
-		response = epoch.getResponse(obj.device);
-		responseTrace = response.getData();
-		sampleRate = response.sampleRate.quantityInBaseUnits;
+    if obj.demoMode
+      load demoGrating; % mat file saved in utils
+      responseTrace = response(randi([1 18]),:);
+      sampleRate = 10000;
+    else
+  		response = epoch.getResponse(obj.device);
+  		responseTrace = response.getData();
+  		sampleRate = response.sampleRate.quantityInBaseUnits;
+    end
 
 		responseTrace = getResponseByType(responseTrace, obj.onlineAnalysis);
 

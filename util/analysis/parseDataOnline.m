@@ -1,10 +1,14 @@
-function r = parseDataOnline(symphonyInput, ampNum)
+function r = parseDataOnline(symphonyInput, ampNum, comp)
   % also for quick offline data
   % will soon switch over to better object system
 
   if nargin < 2
     ampNum = 1;
-  end 
+    comp = 'laptop';
+  end
+  if nargin < 3
+    comp = 'laptop';
+  end
 
   % only ChromaticSpot epochGroups for now
   if strcmp(class(symphonyInput), 'symphonyui.core.persistent.EpochGroup')
@@ -66,7 +70,7 @@ function r = parseDataOnline(symphonyInput, ampNum)
       r.data(eb).params.uuid.epochs{ep} = epoch.uuid;
       resp = epoch.getResponses{ampNum}.getData; % get response
       r.data(eb).resp(ep,:) = resp;
-      if ~isempty(strfind('WC ', r.data(eb).params)) || strcmp(r.data(eb).params.onlineAnalysis, 'analog')
+    if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
         if ep == 1
           r.data(eb).resp = zeros(r.numEpochs, length(resp));
           analog = zeros(size(r.data(eb).resp));
@@ -77,7 +81,7 @@ function r = parseDataOnline(symphonyInput, ampNum)
           r.data(eb).resp = zeros(r.numEpochs, length(resp));
           spikes = zeros(size(r.data(eb).resp));
         end
-        [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp);
+        [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, comp);
         r.data(eb).spikeData.resp(ep, r.data(eb).spikeData.times{ep}) = r.data(eb).spikeData.amps{ep};
       end
     end
@@ -120,7 +124,7 @@ function r = parseDataOnline(symphonyInput, ampNum)
     if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
       r.analog(ep,:) = getAnalog(resp);      
     else
-      [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp);
+      [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
       r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
     end
     r.startTimes{ep} = datestr(epoch.startTime);
@@ -246,7 +250,7 @@ function r = parseDataOnline(symphonyInput, ampNum)
 
   case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
-    r.params.temporalClass = epochBlock.temporalClass('temporalClass');
+%    r.params.temporalClass = epochBlock.temporalClass('temporalClass');
     r.params.radius = epochBlock.protocolParameters('radius');
     r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
     r.params.maxStepBits = epochBlock.protocolParameters('maxStepBits');
@@ -254,6 +258,11 @@ function r = parseDataOnline(symphonyInput, ampNum)
     r.params.minStep = 2^r.params.minStepBits / 256 * 2;
     r.params.maxStep = 2^r.params.maxStepBits / 256 * 2;
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
+    r.params.searchValues = [(-1 : r.params.maxStep : 1), (-0.4375 : r.params.minStep : -0.2031), (0 : r.params.minStep : 0.125)];
+    r.params.searchValues = unique(r.params.searchValues);
+    r.params.plotColor = zeros(2,3);
+    r.params.plotColor(1,:) = getPlotColor('l');
+    r.params.plotColor(2,:) = getPlotColor('m');
 
   case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
@@ -376,8 +385,10 @@ end
 
 
 %% ANALYSIS FUNCTIONS------------------------------------------
-  function [spikes, spikeTimes, spikeAmps] = getSpikes(response)
+  function [spikes, spikeTimes, spikeAmps] = getSpikes(response, comp)
+    if ~strcmp(comp, 'slu')
       response = wavefilter(response(:)', 6);
+    end
       S = spikeDetectorOnline(response);
       spikes = zeros(size(response));
       spikes(S.sp) = 1;

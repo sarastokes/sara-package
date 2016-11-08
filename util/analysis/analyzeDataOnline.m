@@ -66,6 +66,7 @@ function r = analyzeDataOnline(r, neuron)
               [r.analysis.lf(ep,:,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
             end
           end
+          r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs;
         case 'ID'
           for ep = 1:r.numEpochs
             [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, spikes(ep,:));
@@ -105,6 +106,40 @@ function r = analyzeDataOnline(r, neuron)
        r.analysis.mean_f2amp(xpt) = mean(r.analysis.f2amp(numReps));
        r.analysis.mean_f2phase(xpt) = mean(r.analysis.f2phase(numReps));
     end
+
+  case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
+    r.analysis.greenF1 = zeros(1, length(r.params.searchValues));
+    r.analysis.greenP1 = zeros(size(r.analysis.greenF1));
+    r.analysis.greenF2 = zeros(size(r.analysis.greenF1));
+    r.analysis.greenP2 = zeros(size(r.analysis.greenF1));
+    r.analysis.redF1 = r.analysis.greenF1; r.analysis.redF2 = r.analysis.greenF1;
+    r.analysis.redP1 = r.analysis.greenF1; r.analysis.redP2 = r.analysis.greenF1;
+    r.params.ledWeights = zeros(2*length(r.params.searchValues), 3);
+
+    for ep = 1:2*length(r.params.searchValues)
+%      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase] = CTRanalysis(r, spikes(ep,:));
+      if ep > length(r.params.searchValues)
+        % search axis = red
+        index = ep - length(r.params.searchValues);
+        % [r.params.searchValues(index) r.analysis.greenMin 1]
+        [r.analysis.redF1(index), r.analysis.redP1(index), r.analysis.redF2(index), r.analysis.redP2(index)] = CTRanalysis(r, spikes(ep,:));
+        % r.params.ledWeights(ep,:) = [(r.params.searchValues(index)) (r.analysis.greenMin) 1];
+      elseif ep == length(r.params.searchValues)
+        % last green axis trial
+        r.params.ledWeights(ep,:) = [0 r.params.searchValues(ep) 1];
+        [r.analysis.greenF1(ep), r.analysis.greenP1(ep), r.analysis.greenF2(ep), r.analysis.greenP2(ep)] = CTRanalysis(r, spikes(ep,:));
+        % now get the green min (TODO: something like gradient descent)
+        r.analysis.greenMin = r.params.searchValues(find(r.analysis.greenF1==min(r.analysis.greenF1), 1));
+        fprintf('greenMin is %.3f\n', r.analysis.greenMin);
+      elseif ep < length(r.params.searchValues)
+        % search axis = green
+        r.params.ledWeights(ep,:) = [0 r.params.searchValues(ep) 1];
+        [r.analysis.greenF1(ep), r.analysis.greenP1(ep), r.analysis.greenF2(ep), r.analysis.greenP2(ep)] = CTRanalysis(r, spikes(ep,:));
+      end
+    end
+    % get the red min too
+    r.analysis.redMin = r.params.searchValues(find(r.analysis.redF1==min(r.analysis.redF1)));
+    fprintf('redMin is %.3f\n', r.analysis.redMin);
 
   case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
     r.analysis.linearFilter = zeros(1, floor(r.params.frameRate));
