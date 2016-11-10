@@ -188,6 +188,8 @@ function r = analyzeDataOnline(r, neuron)
       end
     end
 
+    r.analysis.tempFT = abs(fft(r.analysis.linearFilter));
+
     % get the nonlinearity
     r = nonlinearity(r);
 

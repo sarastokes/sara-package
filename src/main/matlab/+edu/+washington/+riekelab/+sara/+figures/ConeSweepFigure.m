@@ -208,7 +208,8 @@ methods
 
     % plot trace
     if obj.plotStim
-      plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle, 'color', 'k');
+      plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle, 'color', 'k', 'LineWidth', 1);
+      set(obj.traceHandle, 'Box', off);
     end
   end
 end

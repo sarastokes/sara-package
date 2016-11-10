@@ -215,14 +215,14 @@ else
         xlabel('msec'); ylabel('filter units');
       end
 
-      % plot the nonlinearity
-      figure; hold on;
-      plot(analysis.nonlinearity.xBin, analysis.nonlinearity.yBin, '.', 'color', c2);
-      plot(analysis.nonlinearity.xBin, analysis.nonlinearity.fit, 'color', r.params.plotColor, 'linewidth', 1);
-      axis square; %axis tight;
-      set(gca, 'box', 'off', 'tickdir', 'out');
-      xlabel('generator'); ylabel('spikes/sec');
-      title([r.cellName ' - nonlinearity (' r.params.chromaticClass ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
+      % % plot the nonlinearity
+      % figure; hold on;
+      % plot(analysis.nonlinearity.xBin, analysis.nonlinearity.yBin, '.', 'color', c2);
+      % plot(analysis.nonlinearity.xBin, analysis.nonlinearity.fit, 'color', r.params.plotColor, 'linewidth', 1);
+      % axis square; %axis tight;
+      % set(gca, 'box', 'off', 'tickdir', 'out');
+      % xlabel('generator'); ylabel('spikes/sec');
+      % title([r.cellName ' - nonlinearity (' r.params.chromaticClass ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
 
       % plot both - mike format
       figure;
@@ -244,6 +244,11 @@ else
       axis tight; axis square;
       xlabel('generator'); ylabel('spikes/sec');
       set(gca,'tickdir', 'out', 'box', 'off');
+
+      %
+      figure; hold on;
+      plot(analysis.tempFT, 'color', r.params.plotColor, 'linewidth', 1);
+      title([r.cellName ' - ' r.params.chromaticClass ' temporal tuning from gaussian noise (' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
 
   case 'edu.washington.riekelab.sara.protocols.IsoSTC'
     switch r.params.paradigmClass

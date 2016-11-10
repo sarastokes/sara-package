@@ -8,7 +8,7 @@ properties
   tailTime = 200
   contrast = 1
   backgroundIntensity = 0.5
-  radius = 100
+  radius = 1500
   maskRadius = 0
   temporalClass = 'sinewave'
   temporalFrequency = 2
@@ -16,7 +16,7 @@ properties
   equalQuantalCatch = false
   checkSpikes = false                     % pulls up SpikeDetectionFigure
   onlineAnalysis = 'none'
-  numberOfAverages = uint16(12)
+  numberOfAverages = uint16(9)
 end
 
 properties (Hidden)

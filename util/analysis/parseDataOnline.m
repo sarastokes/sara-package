@@ -21,6 +21,11 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
           r.data = struct();
         end
         r = parseSpotStimulus(r, epochBlock, eb);
+        % monitor for flow interruption, serious bath temp issues
+        if ~isempty(find(r.data(eb).params.bathTemp) < 28)
+          fprintf('Block %u low bath temp --> %.2f\n', eb, min(r.data(eb).params.bathTemp));
+          r.data(eb).bathTempFlag = 1;
+        end
     end
   elseif strcmp(class(symphonyInput), 'symphonyui.core.persistent.EpochBlock')
     r = parseEpochBlock(symphonyInput);
@@ -65,20 +70,23 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
     r.data(eb).params.uuid.epochBlock = epochBlock.uuid;
     r.data(eb).params.protocol = epochBlock.protocolId;
     r.data(eb).params.ampNum = ampNum;
+    r.data(eb).params.bathTemp = zeros(1, r.numEpochs);
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.data(eb).params.uuid.epochs{ep} = epoch.uuid;
+      r.data(eb).params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
       resp = epoch.getResponses{ampNum}.getData; % get response
+      if ep == 1
+        r.data(eb).resp = zeros(r.numEpochs, length(resp));
+      end
       r.data(eb).resp(ep,:) = resp;
     if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
         if ep == 1
-          r.data(eb).resp = zeros(r.numEpochs, length(resp));
-          analog = zeros(size(r.data(eb).resp));
+        analog = zeros(size(r.data(eb).resp));
         end
         analog(ep,:) = getAnalog(resp);
       else % extracellular
         if ep == 1
-          r.data(eb).resp = zeros(r.numEpochs, length(resp));
           spikes = zeros(size(r.data(eb).resp));
         end
         [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, comp);
@@ -118,7 +126,9 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
       r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
       r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
       r.params.frameRate = epoch.protocolParameters('frameRate');
+      r.params.bathTemp = zeros(1, r.numEpochs);
     end
+    r.params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
     r.uuidEpoch{ep} = epoch.uuid;
     r.resp(ep,:) = resp;
     if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
@@ -173,7 +183,9 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
-    r.params.reverseOrder = epochBlock.protocolParameters('reverseOrder');
+    if isKey(epochBlock.protocolParameters, 'reverseOrder)')
+      r.params.reverseOrder = epochBlock.protocolParameters('reverseOrder');
+    end
     if isKey(epochBlock.protocolParameters, 'equalQuantalCatch')
       r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
     else
@@ -379,6 +391,12 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
 
   if isfield(r.params, 'chromaticClass')
     r.params.plotColor = getPlotColor(r.params.chromaticClass);
+  end
+
+  % flag for serious bathTemp issues (usually bc out of ames)
+  if ~isempty(find(r.params.bathTemp) < 28)
+    fprintf('Low bath temp --> %.2f\n', min(r.params.bathTemp));
+    r.bathTempFlag = 1;
   end
 
 end
