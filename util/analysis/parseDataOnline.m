@@ -71,24 +71,35 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
     r.data(eb).params.protocol = epochBlock.protocolId;
     r.data(eb).params.ampNum = ampNum;
     r.data(eb).params.bathTemp = zeros(1, r.numEpochs);
+    r.data(eb).params.timingFlag = zeros(1, r.numEpochs);
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.data(eb).params.uuid.epochs{ep} = epoch.uuid;
+      % check on bath temp + flow
       r.data(eb).params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
-      resp = epoch.getResponses{ampNum}.getData; % get response
+      % check on frame timing (work in progress)
+      r.data(eb).timingFlag(1, r.numEpochs) = getFrames(epoch);
+      % get response
+      resp = epoch.getResponses{ampNum}.getData;
       if ep == 1
         r.data(eb).resp = zeros(r.numEpochs, length(resp));
       end
       r.data(eb).resp(ep,:) = resp;
-    if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
+     if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
         if ep == 1
         analog = zeros(size(r.data(eb).resp));
         end
         analog(ep,:) = getAnalog(resp);
+        if mean(r.data(eb).resp) > 0
+          r.data(eb).recType = 'WC_inh';
+        else
+          r.data(eb).recType = 'WC_exc';
+        end
       else % extracellular
         if ep == 1
-          spikes = zeros(size(r.data(eb).resp));
+          r.data(eb).spikes = zeros(size(r.data(eb).resp));
         end
+        r.data(eb).recType = 'extracellular';
         [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, comp);
         r.data(eb).spikeData.resp(ep, r.data(eb).spikeData.times{ep}) = r.data(eb).spikeData.amps{ep};
       end
@@ -110,6 +121,11 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
   r.params.sampleRate = 10000;
   r.params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
 
+  % init new monitoring params
+  r.params.bathTemp = zeros(1, r.numEpochs);
+  r.params.timingFlag = zeros(1, r.numEpochs);
+
+
   % data from all protocols and epoch parameters
   for ep = 1:r.numEpochs
     epoch = epochBlock.getEpochs{ep}; % get epoch
@@ -126,13 +142,16 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
       r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
       r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
       r.params.frameRate = epoch.protocolParameters('frameRate');
-      r.params.bathTemp = zeros(1, r.numEpochs);
     end
+    % check on bath temp + flow
     r.params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
+    % check on frame tracker
+    r.params.timingFlag = checkFrames(epoch);
+
     r.uuidEpoch{ep} = epoch.uuid;
     r.resp(ep,:) = resp;
     if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
-      r.analog(ep,:) = getAnalog(resp);      
+      r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);      
     else
       [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
       r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
@@ -348,6 +367,10 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
     r.params.intensity = epochBlock.protocolParameters('intensity');
     r.params.maskRadius = epochBlock.protocolParameters('maskRadius');
     r.params.maskRadiusMicrons = r.params.maskRadius * r.params.micronsPerPixel;
+    if isKey(epoch.protocolParameters, 'apertureRadius')
+      r.params.apertureRadius = epochBlock.protocolParameters('apertureRadius');
+      r.params.apertureRadiusMicrons = r.params.apertureRadius * r.params.micronsPerPixel;
+    end
     r.params.numXChecks = epoch.protocolParameters('numXChecks');
     r.params.numYChecks = epoch.protocolParameters('numYChecks');
     r.params.useRandomSeed = epochBlock.protocolParameters('useRandomSeed');
@@ -388,7 +411,6 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
     end
   end
 
-
   if isfield(r.params, 'chromaticClass')
     r.params.plotColor = getPlotColor(r.params.chromaticClass);
   end
@@ -423,6 +445,25 @@ end
       else
         analog = analog - median(analog);
       end
+  end
+
+  function timingFlag = checkFrames(epoch)  
+    deviceNum = length(epoch.getResponses);
+    if strcmp(epoch.getResponses{deviceNum}.device.name, 'Frame Monitor')
+      frames = epoch.getResponses{deviceNum}.getData;
+      xpts = length(frames);
+      if isempty(find(frames(1:10000) < 0.25*(max(frames)))) %#ok<EFIND>
+        fprintf('Warning: stimuli triggered late\n');
+        timingFlag = 1;
+      elseif isempty(find(frames(xpts-10000:xpts) > 0.25*(max(frames)))) %#ok<EFIND>
+        fprintf('Warning: stimulus triggered early\n');
+        timingFlag = 2;
+      else
+        timingFlag = 0;
+      end
+    else
+      fprintf('Frame monitor not found\n');
+    end
   end
 
 end % overall function
