@@ -1,5 +1,4 @@
 classdef ConeSweepFigure < symphonyui.core.FigureHandler
-% 1Aug2016 - renamed from Cone
 
 properties
   device
@@ -33,7 +32,6 @@ methods
     obj.stimTrace = ip.Results.stimTrace;
 
     obj.epochCap = length(obj.stimClass);
-    fprintf('epoch cap = %u\n', obj.epochCap);
 
     if isempty(obj.stimTrace)
       obj.plotStim = false;
@@ -170,7 +168,6 @@ methods
     if obj.epochSort > obj.epochCap
       obj.epochSort = 1;
     end
-    fprintf('epochSort = %u\n', obj.epochSort);
 
     if numel(quantities) > 0
       x = (1:numel(quantities)) / sampleRate;

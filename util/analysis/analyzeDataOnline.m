@@ -1,14 +1,23 @@
-function r = analyzeDataOnline(r, neuron)
+function r = analyzeDataOnline(r, varargin)
   % INPUT = r,
   % optional 2nd input to specify secondary neuron
 
   % 5Oct2016 - added 2nd neuron option
+  % 11Nov2016 - using analysisType and recordingType now rather than onlineAnalysis & assuming extracellular (lines 26-33 should keep things compatible)
+
+  ip = inputParser();
+  ip.addParameter('neuron', 1, @(x)isvector(x));
+  ip.addParameter('binsPerFrame', 1, @(x)isvector(x));
+  ip.parse(varargin{:});
+  neuron = ip.Results.neuron;
+  binsPerFrame = ip.Results.binsPerFrame;
 
   if nargin < 2
     neuron = 1;
   end
 
-  if neuron == 1
+  % doubt i'll need paired WC analysis anytime soon...
+  if neuron == 1 && isfield(r, 'spikes')
     spikes = r.spikes;
     %analysis = r.analysis;
   elseif neuron == 2
@@ -22,6 +31,24 @@ function r = analyzeDataOnline(r, neuron)
     end
   end
 
+  % if neuron doesn't have analysisType and recordingType yet, it was most likely extracellular
+  if ~isfield(r.params, 'recordingType')
+    r.params.recordingType = 'extracellular';
+  end
+
+  if ~isfield(r.params, 'analysisType')
+    if isfield(r, 'secondary')
+      if neuron == 1
+        r.params.analysisType = 'dual_c1';
+      else
+        r.params.analysisType = 'dual_c2';
+      end
+    else
+      r.params.analysisType = 'single';
+    end
+    % not sure how to extract paired recordings at this stage
+  end
+
 
   switch r.protocol
     case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',  'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
@@ -32,7 +59,8 @@ function r = analyzeDataOnline(r, neuron)
       r.analysis.f1phase = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
       r.params.plotColors = zeros(length(r.params.stimClass), 3);
 
-      respBlock = zeros(length(r.params.stimClass), (r.numEpochs/length(r.params.stimClass)), length(r.resp));
+      r.respBlock = zeros(length(r.params.stimClass), (r.numEpochs/length(r.params.stimClass)), length(r.resp));
+      r.instFt = zeros(size(r.respBlock));
 
       for ep = 1:r.numEpochs
         stim = rem(ep, length(r.params.stimClass));
@@ -40,14 +68,26 @@ function r = analyzeDataOnline(r, neuron)
           stim = length(r.params.stimClass);
         end
         trial = ceil(ep / length(r.params.stimClass));
-        respBlock(stim, trial, :) = spikes(ep,:);
-
-        [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, spikes(ep,:));
-      end
-      r.ptsh.binSize = 200;
-        for stim = 1:length(r.params.stimClass)
-          r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(respBlock(stim,:,:)), 200);
+        if strcmp(r.params.recordingType, 'extracellular')
+          r.respBlock(stim, trial, :) = spikes(ep,:);
+          [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, spikes(ep,:));
+          r.ptsh.binSize = 200;
+          r.instFt(stim, trial, :) = getInstFiringRate(spikes(ep,:), r.params.sampleRate);
+          if ep == r.numEpochs
+            for stim = 1:length(r.params.stimClass) % TODO: this shouldn't be here right?
+              r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(r.respBlock(stim,:,:)), 200);
+            end
+          end
+        else % voltage_clamp
+          r.respBlock(stim, trial, :) = r.analog(ep,:);
+          [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.analog(ep,:));
+          if ep == r.numEpochs
+            for stim = 1:length(r.params.stimClass)
+              r.avgResp.(r.params.stimClass(stim)) = mean(squeeze(respBlock(stim,:,:)));
+            end
+          end
         end
+      end
 
     case 'edu.washington.riekelab.sara.protocols.IsoSTC'
       switch r.params.paradigmClass
@@ -142,52 +182,30 @@ function r = analyzeDataOnline(r, neuron)
     fprintf('redMin is %.3f\n', r.analysis.redMin);
 
   case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
-    r.analysis.linearFilter = zeros(1, floor(r.params.frameRate));
-    r.analysis.lf = zeros(r.numEpochs, floor(r.params.frameRate));
-    for ep = 1:r.numEpochs
-      %    [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed(1,ep));
-      response = spikes(ep,:); seed = r.params.seed(1,ep);
-      responseTrace = response(r.params.preTime/1000 * r.params.sampleRate+1:end);
+    r.analysis.binsPerFrame = binsPerFrame; % default is 1
+    r.analysis.binRate = 60 * r.analysis.binsPerFrame;
+    r.analysis.linearFilter = zeros(1, r.analysis.binRate);
+    r.analysis.lf = zeros(r.numEpochs, r.analysis.binRate);
 
-      % bin data at 60 hz
-      binWidth = r.params.sampleRate / r.params.frameRate;
-      numBins = floor(r.params.stimTime/1000 * r.params.frameRate);
-      for k = 1:numBins
-        index = round((k-1) * binWidth + 1 : k*binWidth);
-        binData(k) = mean(responseTrace(index));
+    switch r.params.recordingType
+    case 'extracellular'
+      for ep = 1:r.numEpochs
+        [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed(1,ep));
       end
-
-      % seed random number generator
-      noiseStream = RandStream('mt19937ar', 'Seed', seed);
-
-      % get the frame values
-      if strcmp(r.params.chromaticClass, 'RGB-gaussian')
-        frameValues = r.params.stdev * noiseStream.randn(3, numBins);
-      elseif strcmp(r.params.chromaticClass, 'RGB-binary')
-        frameValues = noiseStream.randn(3, numBins) > 0.5;
-      else
-        frameValues = r.params.stdev * noiseStream.randn(1, numBins);
-      end
-
-      % get rid of the first 0.5 sec
-      frameValues(:, 1:30) = 0;
-      binData(:, 1:30) = 0;
-
-      % run reverse correlation
-      if isempty(strfind(r.params.chromaticClass, 'RGB'))
-        lf = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([frameValues, zeros(1,60)]))));
-        r.analysis.linearFilter = r.analysis.linearFilter + lf(1:floor(r.params.frameRate));
-      else
-        lf = zeros(size(r.analysis.linearFilter));
-        for ii = 1:3
-          tmp = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([squeeze(frameValues(ii,:)), zeros(1,60)]))));
-          lf(ii,:) = tmp(1:floor(r.params.frameRate));
+      r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs; 
+    case 'voltage_clamp'
+      for ep = 1:r.numEpochs
+        [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.analog(ep,:), r.params.seed(1,ep));
+        r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs;
+        if r.analysis.binsPerFrame == 6
+          r.analysis.linearFilter = r.analysis.linearFilter - r.analysis.linearFilter(3);
+          r.analysis.linearFilter(1:3) = 0;
         end
-        r.analysis.linearFilter = r.analysis.linearFilter + lf;
-        r.analysis.lf(ep,:) = lf;
       end
     end
+    r.analysis.linearFilter = r.analysis.linearFilter/std(r.analysis.linearFilter);
 
+    % take the mean
     r.analysis.tempFT = abs(fft(r.analysis.linearFilter));
 
     % get the nonlinearity
@@ -269,8 +287,29 @@ function r = analyzeDataOnline(r, neuron)
   end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  function [f1amp, f1phase, f2amp, f2phase] = CTRanalysis(r, spikes)
-    responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate+1 : end);
+  function instFt = getInstFiringRate(spikes, sampleRate)
+    % instantaneous firing rate
+    n = size(spikes,1);
+
+    filterSigma = (20/1000)*sampleRate;
+    newFilt = normpdf(1:10*filterSigma, 10*filterSigma/2, filterSigma);
+
+    instFt = zeros(size(spikes));
+    for ii = 1:n
+      instFt(ii,:) = sampleRate*conv(spikes(ii,:), newFilt, 'same');
+    end
+  end
+
+  function [f1amp, f1phase, f2amp, f2phase] = CTRanalysis(r, data)
+    switch r.params.recordingType
+    case 'extracellular'
+      responseTrace = data(r.params.preTime/1000 * r.params.sampleRate+1 : end);
+    case 'analog'
+          % Subtract the leak and clip out the pre-time.
+      if r.params.preTime > 0
+          data(1 : round(sampleRate*(preTime-16.7)*1e-3)) = [];
+      end
+    end
     binRate = 60;
     binWidth = r.params.sampleRate/binRate;
     numBins = floor(r.params.stimTime/1000 * binRate);
@@ -278,6 +317,14 @@ function r = analyzeDataOnline(r, neuron)
     for k = 1:numBins
       index = round((k-1) * binWidth+1 : k*binWidth);
       binnedData(k) = mean(responseTrace(index));
+    end
+    % convert to conductance (nS)
+    if strcmp(r.params.recordingType, 'analog')
+      if strcmp(analysisType, 'excitation')
+        binnedData = binnedData/-70/1000;
+      else
+        binnedData = binnedData/70/1000;
+      end
     end
     binsPerCycle = binRate / r.params.temporalFrequency;
     numCycles = floor(length(binnedData) / binsPerCycle);
@@ -326,15 +373,35 @@ function r = analyzeDataOnline(r, neuron)
     result.P2 = result.ph2 * 180/pi;
   end
 
-  function [localFilter, linearFilter] = MTFanalysis(r, spikes, seed)
-    responseTrace = spikes(r.params.preTime/1000 * r.params.sampleRate+1:end);
+  function [localFilter, linearFilter] = MTFanalysis(r, data, seed)
+    
+    numBins = floor(r.params.stimTime/1000 * r.analysis.binRate);
+    binSize = r.params.sampleRate / r.analysis.binRate;
+    binData = zeros(1, numBins);
+    
+    switch r.params.recordingType
+    case 'extracellular'
+      data = data(r.params.preTime/1000 * r.params.sampleRate+1:end);
+      % bin the data
+      for m = 1:numBins
+        index = round((k-1) * binSize + 1 : k*binSize);
+        binData(k) = sum(data(index)) * r.analysis.binRate;
+      end
+    case 'voltage_clamp'
+      if r.params.preTime > 0
+        data(1 : round(r.params.sampleRate * (r.params.preTime - 16.7) * 1e-3)) = [];
+      end
 
-    % bin data at 60 hz
-    binWidth = r.params.sampleRate / r.params.frameRate;
-    numBins = floor(r.params.stimTime/1000 * r.params.frameRate);
-    for k = 1:numBins
-      index = round((k-1) * binWidth + 1 : k*binWidth);
-      binData(k) = mean(responseTrace(index));
+      for m = 1:numBins
+        index = round((m-1) * binSize)+1 : round(m*binSize);
+        binData(m) = mean(data(index));
+      end
+
+      if strcmp(r.params.analysisType, 'excitation')
+        binData = binData/-70/1000;
+      else
+        binData = binData/70/1000;
+      end
     end
 
     % seed random number generator
@@ -346,25 +413,32 @@ function r = analyzeDataOnline(r, neuron)
     elseif strcmp(r.params.chromaticClass, 'RGB-binary')
       frameValues = noiseStream.randn(3, numBins) > 0.5;
     else
-      frameValues = r.params.stdev * noiseStream.randn(1, numBins);
+      frameValues = r.params.stdev * noiseStream.randn(1, numBins/r.analysis.binsPerFrame);
+    end
+
+    % Upsample if necessary.
+    if r.analysis.binsPerFrame > 1
+        frameValues = ones(r.analysis.binsPerFrame,1) * frameValues;
+        frameValues = frameValues(:)';
     end
 
     % get rid of the first 0.5 sec
-    frameValues(:, 1:30) = 0;
-    binData(:, 1:30) = 0;
+    frameValues(1:round(r.analysis.binRate/2)) = 0;
+    binData(1:round(r.analysis.binRate/2)) = 0;
 
     % run reverse correlation
     if isempty(strfind(r.params.chromaticClass, 'RGB'))
       lf = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([frameValues, zeros(1,60)]))));
-      r.analysis.linearFilter = r.analysis.linearFilter + lf(1:floor(r.params.frameRate));
+      linearFilter = r.analysis.linearFilter + lf(1 : r.analysis.binRate);
+      localFilter = lf(1:r.analysis.binRate);
     else
       lf = zeros(size(r.analysis.linearFilter));
       for ii = 1:3
         tmp = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([squeeze(frameValues(ii,:)), zeros(1,60)]))));
         lf(ii,:) = tmp(1:floor(r.params.frameRate));
       end
-      linearFilter = r.analysis.linearFilter + lf;
-      localFilter = lf;
+      linearFilter = r.analysis.linearFilter + lf(1:r.analysis.binRate);
+      localFilter = lf(1:r.analysis.binRate);
     end
   end
 

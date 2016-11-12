@@ -1,7 +1,6 @@
 function r = getNonlinearity(r)
   % for now, run thru spike detection protocols before function
 
-  recordingMode = 'extracellular'; % 'inhibition', 'excitation'
   nonlinearityBins = 250;
 
   binsPerFrame = 6;
@@ -20,20 +19,24 @@ function r = getNonlinearity(r)
   linearFilter = zeros(r.numEpochs, binRate);
 
   for ii = 1:r.numEpochs
-    data = r.spikes(ii,:);
 
-    % subtract the leak and clip the preTime
-    if r.params.preTime > 0
-      data(1:round(sampleRate * (preTime - 16.7) * 1e-3)) = [];
-    end
-
-    if strcmp(recordingMode, 'extracellular')
+    if strcmp(r.params.recordingType, 'extracellular')
+      data = r.spikes(ii,:);
+      % subtract the leak and clip the preTime
+      if r.params.preTime > 0
+        data(1:round(sampleRate * (preTime - 16.7) * 1e-3)) = [];
+      end
       binData = zeros(1, numBins);
       for m = 1:numBins
         index = round((m-1)*binSize+1 : round(m*binSize));
         binData(m) = sum(data(index)) * binRate;
       end
     else
+      data = r.analog(ii,:);
+      % subtract the leak and clip the preTime
+      if r.params.preTime > 0
+        data(1:round(sampleRate * (preTime - 16.7) * 1e-3)) = [];
+      end
       data = data - median(data);
       for m = 1:numBins
         index = round((m-1)*binSize+1 : round(m*binSize));
@@ -41,7 +44,7 @@ function r = getNonlinearity(r)
       end
 
       % convert to conductance
-      if strcmp(recordingMode, 'excitation')
+      if strcmp(r.params.analysisType, 'excitation')
         binData = binData/-70/1000; % in nS
       else
         binData = binData / 70 / 1000;
@@ -73,7 +76,7 @@ function r = getNonlinearity(r)
 
   % take the mean of the linear filters
   f = mean(linearFilter, 1);
-  if ~strcmp(recordingMode, 'extracellular')
+  if ~strcmp(r.params.recordingType, 'extracellular')
     f = f - f(3);
     f(1:3) = 0;
   end
@@ -107,7 +110,7 @@ function r = getNonlinearity(r)
   % yBin(xBin<0) = -abs(yBin(xBin < 0));
 
   % fit the output nonlinearity
-  if strcmp(recordingMode, 'extracellular')
+  if strcmp(r.params.recordingType, 'extracellular')
     % don't need a(4) for spikes because you can't have a negative spike count
     modelfun = @(a,x) (a(1) * normcdf(x, a(2), a(3)));
     p = nlinfit(xBin, yBin, modelfun, [173 21 8]);

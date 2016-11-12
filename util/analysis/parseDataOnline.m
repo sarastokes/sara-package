@@ -1,14 +1,32 @@
-function r = parseDataOnline(symphonyInput, ampNum, comp)
+function r = parseDataOnline(symphonyInput, varargin)
+  % INPUTS:
+  %     symphonyInput: epochBlock (or epochGroup for ChromaticSpot)
+  %     ampNum: which amplifier to analyze. for paired recordings
+  %     comp: input 'slu' if don't have wavelet toolbox
+  %     recordingType: in case it isn't defined thru onlineAnalysis or epochGroup name. 
+  %                   options are 'extracellular', 'voltage_clamp', 'current_clamp'
+  %     analysisType: program should pick up on this unless it's a dual recording
+  %         options for extracellular are 'single', 'paired' and 'dual'
+  %         for voltage_clamp: 'excitation', 'inhibition'
+  %         for current_clamp: 'spikes&subthresh' (in future: 'spikes', 'subthresh')
+  %         TODO: paired w/ one dual amp, make sure inh, exc detection is legit
+  %
+  %
+  %
   % also for quick offline data
   % will soon switch over to better object system
 
-  if nargin < 2
-    ampNum = 1;
-    comp = 'laptop';
-  end
-  if nargin < 3
-    comp = 'laptop';
-  end
+  ip = inputParser();
+  ip.addParameter('ampNum', 1, @(x)isvector(x));
+  ip.addParameter('comp', 'laptop', @(x)ischar(x));
+  ip.addParameter('recordingType', [], @(x)ischar(x));
+  ip.addParameter('analysisType', [], @(x)ischar(x));
+  ip.parse(varargin{:});
+  ampNum = ip.Results.ampNum;
+  comp = ip.Results.comp;
+  recordingType = ip.Results.recordingType;
+  analysisType = ip.Results.analysisType;
+
 
   % only ChromaticSpot epochGroups for now
   if strcmp(class(symphonyInput), 'symphonyui.core.persistent.EpochGroup')
@@ -78,37 +96,66 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
       % check on bath temp + flow
       r.data(eb).params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
       % check on frame timing (work in progress)
-      r.data(eb).timingFlag(1, r.numEpochs) = getFrames(epoch);
+      r.data(eb).timingFlag(1, r.numEpochs) = checkFrames(epoch);
       % get response
       resp = epoch.getResponses{ampNum}.getData;
       if ep == 1
         r.data(eb).resp = zeros(r.numEpochs, length(resp));
       end
       r.data(eb).resp(ep,:) = resp;
-     if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
-        if ep == 1
-        analog = zeros(size(r.data(eb).resp));
-        end
-        analog(ep,:) = getAnalog(resp);
-        if mean(r.data(eb).resp) > 0
-          r.data(eb).recType = 'WC_inh';
+      % get recording type --> TODO: clean up once i figure out how to access EpochGroup properties
+      if ep == 1
+        if ~isempty(recordingType)
+          r.data(eb).recordingType = recordingType;          
         else
-          r.data(eb).recType = 'WC_exc';
+          if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
+              r.data(eb).recordingType = 'voltage_clamp';
+          else % extracellular
+              r.data(eb).recordingType = 'extracellular';
+          end
         end
-      else % extracellular
+        % set analysisType
+        if ~isempty(analysisType)
+          r.data(eb).analysisType = analysisType;
+        else
+          switch r.data(eb).recordingType 
+          case 'extracellular'
+            if length(epoch.getResponses) == 3
+              r.data(eb).analysisType = sprintf('paired_amp%u', ampNum);
+            else
+              r.data(eb).analysisType = 'single';
+            end
+          case 'voltage_clamp'
+            if mean(r.data(eb).resp) > 0
+              r.data(eb).analysisType = 'inhibition';
+            else
+              r.data(eb).analysisType = 'excitation';
+            end
+          case 'current_clamp'
+            r.data(eb).analysisType = 'spikes&subthresh';
+          end
+        end
+      end
+      % initial analysis
+      switch r.data(eb).recordingType
+      case 'extracellular'
         if ep == 1
           r.data(eb).spikes = zeros(size(r.data(eb).resp));
         end
-        r.data(eb).recType = 'extracellular';
         [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, comp);
         r.data(eb).spikeData.resp(ep, r.data(eb).spikeData.times{ep}) = r.data(eb).spikeData.amps{ep};
+      case 'voltage_clamp'        
+        if ep == 1
+          r.data(eb).analog = zeros(size(r.data(eb).resp));
+        end
+        r.data(eb).analog(ep,:) = getAnalog(resp, r.data(eb).params.preTime, r.data(eb).params.sampleRate);
       end
+
     end
   end
 
   function r = parseEpochBlock(epochBlock)
   r.numEpochs = length(epochBlock.getEpochs);
-
   r.cellName = epochBlock.epochGroup.source.label;
   r.protocol = epochBlock.protocolId; % get protocol name
   r.groupName = epochBlock.epochGroup.label;
@@ -125,23 +172,54 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
   r.params.bathTemp = zeros(1, r.numEpochs);
   r.params.timingFlag = zeros(1, r.numEpochs);
 
-
   % data from all protocols and epoch parameters
   for ep = 1:r.numEpochs
     epoch = epochBlock.getEpochs{ep}; % get epoch
     resp = epoch.getResponses{ampNum}.getData; % get response
     if ep == 1
       r.resp = zeros(r.numEpochs, length(resp));
-      if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
-        r.analog = zeros(size(r.resp));
+      % set the recording type
+      if ~isempty(recordingType)
+        r.params.recordingType = recordingType;
       else
-        r.spikes = zeros(size(r.resp));
-        r.spikeData.resp = zeros(size(resp));
+        if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
+          r.analog = zeros(size(r.resp));
+          r.params.recordingType = 'voltage_clamp';
+        else
+          r.spikes = zeros(size(r.resp));
+          r.spikeData.resp = zeros(size(resp));
+          r.params.recordingType = 'extracellular';
+        end
+      end
+      % set the analysis type & do initial analysis
+      if ~isempty(analysisType)
+        r.params.analysisType = analysisType;
+      else
+        switch r.params.recordingType
+        case 'extracellular'
+          if length(epoch.getResponses) == 3
+            r.params.analysisType = 'paired';
+          else
+            r.params.analysisType = 'single';
+          end
+          [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
+          r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
+        case 'voltage_clamp'
+          if mean(resp) > 0
+            r.params.analysisType = 'inhibition';
+          else
+            r.params.analysisType = 'excitation';
+          end
+          r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);   
+        case 'current_clamp'
+          r.params.analysisType = 'spikes&subthresh';
+        end 
       end
       r.params.ndf = epoch.protocolParameters('ndf');
       r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
       r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
       r.params.frameRate = epoch.protocolParameters('frameRate');
+      r.ampNum = ampNum;
     end
     % check on bath temp + flow
     r.params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
@@ -150,12 +228,6 @@ function r = parseDataOnline(symphonyInput, ampNum, comp)
 
     r.uuidEpoch{ep} = epoch.uuid;
     r.resp(ep,:) = resp;
-    if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
-      r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);      
-    else
-      [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
-      r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
-    end
     r.startTimes{ep} = datestr(epoch.startTime);
   end
 
@@ -437,14 +509,40 @@ end
   end
 
   function analog = getAnalog(response, preTime, sampleRate)
-      % Deal with band-pass filtering analog data here.
-      analog = bandPassFilter(response, 0.2, 500, 1/sampleRate);
-      % Subtract the median.
-      if preTime > 0
-        analog = analog - median(analog(1:round(sampleRate*preTime/1000)));
-      else
-        analog = analog - median(analog);
-      end
+    % Deal with band-pass filtering analog data here.
+    analog = bandPassFilter(response, 0.2, 500, 1/sampleRate);
+    % Subtract the median.
+    if preTime > 0
+      analog = analog - median(analog(1:round(sampleRate*preTime/1000)));
+    else
+      analog = analog - median(analog);
+    end
+  end
+
+  function [spikes, spikeTimes] = getSubthreshSpikes(response, preTime, sampleRate)
+    spikeTimes = getThresCross([0 diff(response(:)')], 1.5, 1);
+    spikes = zeros(size(response));
+    spikes(spikeTimes) = 1;
+    spikes = spikesBinary;
+    % Get the subthreshold potential.
+    if ~isempty(spikeTimes)
+      subthresh = getSubthreshold(response(:)', spikeTimes);
+    else
+      subthresh = response(:)';
+    end
+    % Subtract the median.
+    if obj.preTime > 0
+      subthresh = subthresh - median(subthresh(1:round(sampleRate*preTime/1000)));
+    else
+      subthresh = subthresh - median(subthresh);
+    end
+  end
+
+  function instFt = getInstFiringRate(response, sampleRate)
+    % instantaneous firing rate
+    filterSigma = (20/1000)*sampleRate;
+    newFilt = normpdf(1:10*filterSigma, 10*filterSigma/2, filterSigma);
+    instFt = sampleRate*conv(spikes, newFilt, 'same');
   end
 
   function timingFlag = checkFrames(epoch)  
