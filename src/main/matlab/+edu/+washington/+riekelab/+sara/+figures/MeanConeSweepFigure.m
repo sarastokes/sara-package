@@ -12,6 +12,8 @@ properties (Access = private)
   plotStim
   epochSort
   epochCap
+  epochInd
+
   epochColors
   epochNames
   sweepOne
@@ -44,9 +46,12 @@ function obj = MeanConeSweepFigure(device, stimClass, varargin)
 	end
 
 	obj.epochColors = zeros(length(obj.stimClass), 3);
-	for ii = 1:length(obj.stimClass(ii))
-		[obj.epochColors(ii,:), obj.epochNames{ii}, ~] = getPlotColor(colorCall);
+	for ii = 1:length(obj.stimClass)
+    colorCall = obj.stimClass(ii);
+		[obj.epochColors(ii,:), obj.epochNames{ii}] = getPlotColor(colorCall);
 	end
+
+  obj.epochInd = 1;
 
 	obj.createUi();
 end
@@ -121,24 +126,26 @@ function handleEpoch(obj, epoch)
     obj.epochSort = obj.epochSort + 1;
     if obj.epochSort > obj.epochCap
       obj.epochSort = 1;
+      obj.epochInd = obj.epochInd + 1;
     end
 
     if numel(quantities) > 0
       x = (1:numel(quantities)) / sampleRate;
-      y = quantities;
+      % get the instantaneous firing rate
+      y = getInstFt(quantities, sampleRate);
     else
       x = []; y = [];
     end
 
+
     % plot sweep
     if obj.epochSort == 1
-      if isempty(obj.sweepOne)
-        obj.sweepOne = line(x, y, 'Parent', obj.axesHandle(1),...
+      if isempty(obj.sweepOne(1))
+        obj.sweepOne(1) = line(x, y, 'Parent', obj.axesHandle(1),...
         	'Color', obj.epochColors(1,:) + (0.6 * (1-obj.epochColors(1,:))), 'LineWidth', 1);
       else
-      	oldTrace = get(obj.sweepOne, 'YData');
-      	newTrace = [oldTrace; y];
-        set(obj.sweepOne, 'YData', newTrace);
+        obj.sweepOne(obj.epochInd) = line(x, y, 'Parent', obj.axesHandle(1),...
+          'Color', obj.epochColors(1,:) + (0.6 * (1-obj.epochColors(1,:))), 'LineWidth', 1);
         if isempty(obj.sweepOneMean)
         	obj.sweepOneMean = line(x, mean(newTrace), 'Parent', obj.axesHandle(1),... 
         		'Color', obj.epochColors(1,:), 'LineWidth', 1.5);
@@ -151,9 +158,8 @@ function handleEpoch(obj, epoch)
         obj.sweepTwo = line(x, y, 'Parent', obj.axesHandle(2),... 
         	'LineWidth',1, 'Color', (obj.epochColors(2,:) + (0.6 * (1-obj.epochColors(2,:)))));
       else
-      	oldTrace = get(obj.sweepTwo, 'YData');
-      	newTrace = [oldTrace; y];
-        set(obj.sweepTwo, 'YData', newTrace);
+        obj.sweepTwo(obj.epochInd) = line(x, y, 'Parent', obj.axesHandle(2),...
+          'LineWidth', 1, 'Color', (obj.epochColors))
         if isempty(obj.sweepTwoMean)
         	obj.sweepTwoMean = line(x, mean(newTrace), 'Parent', obj.axesHandle(2),...
         		'LineWidth', 1.5, 'Color', obj.epochColors(2,:));
@@ -163,12 +169,11 @@ function handleEpoch(obj, epoch)
       end
     elseif obj.epochSort == 3
       if isempty(obj.sweepThree)
-        obj.sweepThree = line(x, y, 'Parent', obj.axesHandle(3),...
+        obj.sweepThree(1) = line(x, y, 'Parent', obj.axesHandle(3),...
         	'LineWidth', 1, 'Color', (obj.epochColors(3,:) + (0.6 * (1-obj.epochColors(3,:)))));
       else
-      	oldTrace = get(obj.sweepThree, 'YData');
-      	newTrace = [oldTrace; y];
-        set(obj.sweepThree, 'YData', newTrace);
+        obj.sweepThree(obj.epochInd) = line(x, y, 'Parent', obj.axesHandle(3),...
+          'LineWidth', 1, 'Color', (obj.epochColors(3,:) + (0.6 * (1-obj.epochColors(3,:)))));
         if isempty(obj.sweepThreeMean)
         	obj.sweepThreeMean = line(x, mean(newTrace), 'Parent', obj.axesHandle(3),...
         		'Color', obj.epochColors(3,:), 'LineWidth', 1.5);
@@ -198,7 +203,7 @@ function handleEpoch(obj, epoch)
     	if isempty(obj.traceHandle)
       		plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle,... 
       			'Color', 'k', 'LineWidth', 1);
-      		set(obj.traceHandle, 'Box', off);
+      		set(obj.traceHandle, 'Box', 'off');
       	end
     end
 end

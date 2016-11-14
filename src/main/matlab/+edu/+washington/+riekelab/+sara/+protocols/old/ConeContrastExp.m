@@ -80,6 +80,7 @@ classdef ConeContrastExp < edu.washington.riekelab.manookin.protocols.ManookinLa
 
             if numel(obj.rig.getDeviceNames('Amp')) < 2
                 obj.showFigure('edu.washington.riekelab.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp2));
+            else
                 obj.showFigure('edu.washington.riekelab.sara.figures.DualContrastFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp2),...
                     obj.contrasts, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency);
             end

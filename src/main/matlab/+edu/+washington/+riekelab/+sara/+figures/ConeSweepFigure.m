@@ -39,61 +39,11 @@ methods
       obj.plotStim = true;
     end
 
-    obj.epochColors = zeros(length(obj.stimClass),3);
-    for ii = 1:length(obj.stimClass)
-      colorCall = obj.stimClass(ii);
-      switch colorCall
-      case 'l'
-        obj.epochNames{ii} = 'L-iso';
-        obj.epochColors(ii, :) = [0.82353, 0, 0];
-      case 'm'
-        obj.epochNames{ii} = 'M-iso';
-        obj.epochColors(ii, :) = [0, 0.52941, 0.21569];
-      case 's'
-        obj.epochNames{ii} = 'S-iso';
-        obj.epochColors(ii,:) = [0.14118, 0.20784, 0.84314];
-      case 'y'
-        if strcmp(obj.stimClass(1), 'r') % this is needlessly complex, fix later
-          obj.epochNames{ii} = 'yellow'; % LEDs = [1 1 0]
-        elseif strcmp(obj.stimClass, 'rgby')
-          obj.epochNames{ii} = 'L-(S+M)';
-        else
-          obj.epochNames{ii} = 'LM-iso';
-        end
-        obj.epochColors(ii,:) = [0.90588, 0.43529, 0.31765];
-      case 'c'
-        if strcmp(obj.stimClass(1), 'g')
-          obj.epochNames{ii} = 'cyan'; % LEDs = [0 1 1]
-        else
-          obj.epochNames{ii} = 'MS-iso';
-        end
-        obj.epochColors(ii,:) = [0, 0.74902, 0.68627];
-      case 'p'
-        if strcmp(obj.stimClass(1), 'r')
-          obj.epochNames{ii} = 'purple';
-        else
-          obj.epochNames{ii} = 'LS-iso';
-        end
-        obj.epochColors(ii,:) = [0.64314, 0.011765, 0.43529];
-      case 'r'
-        if strcmp(obj.stimClass,'rgby')
-          obj.epochNames{ii} = '(S+L)-M';
-        else
-          obj.epochNames{ii} = 'red'; % red LED
-        end
-        obj.epochColors(ii, :) = [0.82353, 0, 0];
-      case 'g'
-        obj.epochNames{ii} = 'green'; % green LED
-        obj.epochColors(ii, :) = [0, 0.52941, 0.21569];
-      case 'b'
-        obj.epochNames{ii} = 'blue'; % blue LED
-        obj.epochColors(ii,:) = [0.14118, 0.20784, 0.84314];
-      otherwise
-        obj.epochColors(ii,:) = [0 0 0];
-        obj.epochNames{ii} = 'Achromatic';
-      end
-    end
-
+  obj.epochColors = zeros(length(obj.stimClass), 3);
+  for ii = 1:length(obj.stimClass)
+    colorCall = obj.stimClass(ii);
+    [obj.epochColors(ii,:), obj.epochNames{ii}] = getPlotColor(colorCall);
+  end
     obj.createUi();
   end
 
@@ -206,7 +156,7 @@ methods
     % plot trace
     if obj.plotStim
       plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle, 'color', 'k', 'LineWidth', 1);
-      set(obj.traceHandle, 'Box', off);
+      set(obj.traceHandle, 'Box', 'off');
     end
   end
 end

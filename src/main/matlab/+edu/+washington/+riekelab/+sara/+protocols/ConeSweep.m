@@ -15,7 +15,7 @@ properties
   centerOffset = [0,0]
   equalQuantalCatch = false
   checkSpikes = false                     % pulls up SpikeDetectionFigure
-  onlineAnalysis = 'none'
+  onlineAnalysis = 'extracellular'
   numberOfAverages = uint16(9)
 end
 
@@ -95,6 +95,7 @@ function prepareRun(obj)
 
   if ~strcmp(obj.onlineAnalysis, 'none')
     obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+    obj.showFigure('edu.washington.riekelab.sara.figures.MeanConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
   end
   if strcmp(obj.onlineAnalysis, 'extracellular') && obj.checkSpikes
     obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
