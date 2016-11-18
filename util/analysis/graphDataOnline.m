@@ -1,10 +1,14 @@
-function r = graphDataOnline(r, neuron)
+function r = graphDataOnline(r, neuron, graphType)
   % optional 2nd input, can be anything - will run off 2nd neuron
   % for chromatic spot, input r.data
+  % INPUTS: graphType = 'minimal' for onoffline so a bunch of figures don't popup, 'full' for offline
 
-  if nargin < 2
+  if nargin == 2
+    graphType = 'full';
+  elseif nargin == 1
+    graphType = 'full';
     neuron = 1;
-    if isfield(r, 'protocol')
+    if ~isfield(r, 'protocol') || isempty(strfind(r.protocol, 'Pulse'))
       analysis = r.analysis;
     end
   else
@@ -236,6 +240,26 @@ if ~isfield(r, 'protocol')
       xlabel('green contrast'); ylabel('red contrast'); zlabel('spikes/sec');
       set(gca, 'XTick', -1:0.2:1); set(gca, 'YTick', -1:0.2:1);
 
+    case 'edu.washington.riekelab.protocols.PulseFamily'
+      co = rgbmap('red', 'grey','green', length(r.params.xvals));
+      figure();
+      subplot(3,1,1:2); hold on;
+      xpts = (1:length(r.resp)) / r.params.sampleRate;
+      for ii = 1:r.params.pulsesInFamily
+        plot(xpts, (squeeze(mean(r.respBlock(ii,:,:),2))), 'color', co(ii,:));
+      end
+      set(gca, 'Box', 'off', 'TickDir', 'out', 'XTickLabel', {}, 'XColor', 'w');
+      ylabel('mean response (mV)'); axis tight;
+      title([r.cellName ' - ' num2str(r.params.stimTime) 'ms pulse family']);
+
+      subplot(3,1,3); hold on;
+      for ii = 1:r.params.pulsesInFamily
+        plot(xpts, r.stim(ii,:), 'color', co(ii,:));
+      end
+      set(gca, 'Box', 'off', 'TickDir', 'out');
+      ylabel('pulse (pA)'); xlabel('Time (s)');
+
+
 
     case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
       indivPlot = false;
@@ -438,9 +462,6 @@ if ~isfield(r, 'protocol')
     plot(posMicron, analysis.f1phase, '-o', 'linewidth', 1, 'color', r.params.plotColor);
     axis tight; ylim([-180 180]); ylabel('f1 phase');
     set(gca,'box', 'off','YTick', -180:90:180, 'tickdir', 'out', 'xcolor', 'w');
-
-  case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
-    fprintf('Still need to work on ConeIsoSearch analysis\n');
 
   case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
     c2 = r.params.plotColor + (0.6 * (1-r.params.plotColor));

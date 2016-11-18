@@ -163,10 +163,12 @@ function r = parseDataOnline(symphonyInput, varargin)
   r.params.preTime = epochBlock.protocolParameters('preTime');
   r.params.stimTime = epochBlock.protocolParameters('stimTime');
   r.params.tailTime = epochBlock.protocolParameters('tailTime');
-  r.params.backgroundIntensity = epochBlock.protocolParameters('backgroundIntensity');
-  r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
+  if isKey(epochBlock.protocolParameters, 'backgroundIntensity')
+    r.params.backgroundIntensity = epochBlock.protocolParameters('backgroundIntensity');
+    r.params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
+  end
+    r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
   r.params.sampleRate = 10000;
-  r.params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
 
   % init new monitoring params
   r.params.bathTemp = zeros(1, r.numEpochs);
@@ -185,7 +187,10 @@ function r = parseDataOnline(symphonyInput, varargin)
         if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
           r.analog = zeros(size(r.resp));
           r.params.recordingType = 'voltage_clamp';
-        else
+        elseif ~isempty(strfind('IC ', r.groupName)) && ~isempty(strfind('PulseFamily', r.protocol))
+          r.subthresh = zeros(size(r.resp));
+          r.ICspikes = zeros(size(r.resp));
+        else 
           r.spikes = zeros(size(r.resp));
           r.spikeData.resp = zeros(size(resp));
           r.params.recordingType = 'extracellular';
@@ -213,18 +218,21 @@ function r = parseDataOnline(symphonyInput, varargin)
           r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);   
         case 'current_clamp'
           r.params.analysisType = 'spikes&subthresh';
+          [r.ICspikes, r.ICstikeTimes, r.subthresh] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
         end 
       end
-      r.params.ndf = epoch.protocolParameters('ndf');
-      r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
-      r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
-      r.params.frameRate = epoch.protocolParameters('frameRate');
+      if isempty(strfind(r.protocol, 'Pulse'))
+        r.params.ndf = epoch.protocolParameters('ndf');
+        r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
+        r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
+        r.params.frameRate = epoch.protocolParameters('frameRate');
+        % check on frame tracker
+        r.params.timingFlag = checkFrames(epoch);
+      end
       r.ampNum = ampNum;
     end
     % check on bath temp + flow
     r.params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
-    % check on frame tracker
-    r.params.timingFlag = checkFrames(epoch);
 
     r.uuidEpoch{ep} = epoch.uuid;
     r.resp(ep,:) = resp;
@@ -289,6 +297,27 @@ function r = parseDataOnline(symphonyInput, varargin)
       end
       r.trials(ep).chromaticClass = epoch.protocolParameters('chromaticClass');
     end
+
+  case 'edu.washington.riekelab.protocols.PulseFamily'
+    r.params.firstPulseSignal = epochBlock.protocolParameters('firstPulseSignal');
+    r.params.incrementPerPulse = epochBlock.protocolParameters('incrementPerPulse');
+    r.params.pulsesInFamily = epochBlock.protocolParameters('pulsesInFamily');
+    r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
+
+    % init sorting variables
+    r.params.xvals = zeros(1, r.params.pulsesInFamily);
+    r.stim = zeros(r.params.pulsesInFamily, size(r.resp, 2));
+    r.respBlock = zeros(r.params.pulsesInFamily, ceil(r.numEpochs/r.params.pulsesInFamily), size(r.resp,2));
+    for ep = 1:r.numEpochs
+      [ind1,ind2] = ind2sub([r.params.pulsesInFamily, size(r.respBlock,2)], ep);
+      r.respBlock(ind1, ind2, :) = r.resp(ep, :);
+      if ep <= r.params.pulsesInFamily
+        r.stim(ep,:) = epochBlock.getEpochs{ep}.getStimuli{1}.getData; % get the stim
+        r.params.xvals(1,ep) = r.params.incrementPerPulse * (double(ep) - 1) + r.params.firstPulseSignal;
+      end
+    end
+
+  case 'edu.washington.riekelab.protocols.Pulse'
 
   case 'edu.washington.riekelab.sara.protocols.IsoSTC'
     r.params.paradigmClass = epochBlock.protocolParameters('paradigmClass');
@@ -488,7 +517,7 @@ function r = parseDataOnline(symphonyInput, varargin)
   end
 
   % flag for serious bathTemp issues (usually bc out of ames)
-  if ~isempty(find(r.params.bathTemp) < 28)
+  if ~isempty(find(r.params.bathTemp < 28))
     fprintf('Low bath temp --> %.2f\n', min(r.params.bathTemp));
     r.bathTempFlag = 1;
   end
@@ -519,11 +548,10 @@ end
     end
   end
 
-  function [spikes, spikeTimes] = getSubthreshSpikes(response, preTime, sampleRate)
+  function [spikes, spikeTimes, subthresh] = getSubthreshSpikes(response, preTime, sampleRate)
     spikeTimes = getThresCross([0 diff(response(:)')], 1.5, 1);
     spikes = zeros(size(response));
     spikes(spikeTimes) = 1;
-    spikes = spikesBinary;
     % Get the subthreshold potential.
     if ~isempty(spikeTimes)
       subthresh = getSubthreshold(response(:)', spikeTimes);
@@ -531,7 +559,7 @@ end
       subthresh = response(:)';
     end
     % Subtract the median.
-    if obj.preTime > 0
+    if preTime > 0
       subthresh = subthresh - median(subthresh(1:round(sampleRate*preTime/1000)));
     else
       subthresh = subthresh - median(subthresh);

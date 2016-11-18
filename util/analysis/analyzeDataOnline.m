@@ -72,7 +72,7 @@ function r = analyzeDataOnline(r, varargin)
           r.respBlock(stim, trial, :) = spikes(ep,:);
           [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, spikes(ep,:));
           r.ptsh.binSize = 200;
-          r.instFt(stim, trial, :) = getInstFiringRate(spikes(ep,:), r.params.sampleRate);
+            r.instFt(stim, trial, :) = getInstFiringRate(spikes(ep,:), r.params.sampleRate);
           if ep == r.numEpochs
             for stim = 1:length(r.params.stimClass) % TODO: this shouldn't be here right?
               r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(r.respBlock(stim,:,:)), 200);
@@ -108,8 +108,18 @@ function r = analyzeDataOnline(r, varargin)
           end
           r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs;
         case 'ID'
-          for ep = 1:r.numEpochs
-            [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, spikes(ep,:));
+          switch r.params.recordingType
+          case 'extracellular'
+            for ep = 1:r.numEpochs
+              [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, spikes(ep,:));
+            end
+            r.analysis.ptshBin = 200;
+            r.analysis.ptsh = getPTSH(r, spikes, 200);
+          case 'voltage_clamp'
+            for ep = 1:r.numEpochs
+              [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.analog(ep,:));
+            end
+            r.analysis.avgResp = mean(r.analog);           
           end
           if r.numEpochs > 1
             r.analysis.meanAmp = mean(r.analysis.f1amp(ep));
@@ -118,8 +128,6 @@ function r = analyzeDataOnline(r, varargin)
             r.analysis.meanAmp = r.analysis.f1amp;
             r.analysis.meanPhase = r.analysis.f1phase;
           end
-          r.analysis.ptshBin = 200;
-          r.analysis.ptsh = getPTSH(r, spikes, 200);
         end
 
   case 'edu.washington.riekelab.manookin.protocols.BarCentering'
@@ -307,7 +315,7 @@ function r = analyzeDataOnline(r, varargin)
     case 'analog'
           % Subtract the leak and clip out the pre-time.
       if r.params.preTime > 0
-          data(1 : round(sampleRate*(preTime-16.7)*1e-3)) = [];
+          data(1 : round(r.params.sampleRate*(r.params.preTime-16.7)*1e-3)) = [];
       end
     end
     binRate = 60;
@@ -320,7 +328,7 @@ function r = analyzeDataOnline(r, varargin)
     end
     % convert to conductance (nS)
     if strcmp(r.params.recordingType, 'analog')
-      if strcmp(analysisType, 'excitation')
+      if strcmp(r.params.analysisType, 'excitation')
         binnedData = binnedData/-70/1000;
       else
         binnedData = binnedData/70/1000;
