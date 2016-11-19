@@ -1,4 +1,4 @@
-function r = parseDataOnline(symphonyInput, varargin)
+function r = parseDataOnline(symphonyInput, recordingType, varargin)
   % INPUTS:
   %     symphonyInput: epochBlock (or epochGroup for ChromaticSpot)
   %     ampNum: which amplifier to analyze. for paired recordings
@@ -19,12 +19,10 @@ function r = parseDataOnline(symphonyInput, varargin)
   ip = inputParser();
   ip.addParameter('ampNum', 1, @(x)isvector(x));
   ip.addParameter('comp', 'laptop', @(x)ischar(x));
-  ip.addParameter('recordingType', [], @(x)ischar(x));
   ip.addParameter('analysisType', [], @(x)ischar(x));
   ip.parse(varargin{:});
   ampNum = ip.Results.ampNum;
   comp = ip.Results.comp;
-  recordingType = ip.Results.recordingType;
   analysisType = ip.Results.analysisType;
 
 
@@ -187,7 +185,7 @@ function r = parseDataOnline(symphonyInput, varargin)
         if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
           r.analog = zeros(size(r.resp));
           r.params.recordingType = 'voltage_clamp';
-        elseif ~isempty(strfind('IC ', r.groupName)) && ~isempty(strfind('PulseFamily', r.protocol))
+        elseif ~isempty(strfind('IC ', r.groupName(1:2)))
           r.subthresh = zeros(size(r.resp));
           r.ICspikes = zeros(size(r.resp));
         else 
@@ -305,7 +303,7 @@ function r = parseDataOnline(symphonyInput, varargin)
     r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
 
     % init sorting variables
-    r.params.xvals = zeros(1, r.params.pulsesInFamily);
+    r.params.pulses = zeros(1, r.params.pulsesInFamily);
     r.stim = zeros(r.params.pulsesInFamily, size(r.resp, 2));
     r.respBlock = zeros(r.params.pulsesInFamily, ceil(r.numEpochs/r.params.pulsesInFamily), size(r.resp,2));
     for ep = 1:r.numEpochs
@@ -313,11 +311,27 @@ function r = parseDataOnline(symphonyInput, varargin)
       r.respBlock(ind1, ind2, :) = r.resp(ep, :);
       if ep <= r.params.pulsesInFamily
         r.stim(ep,:) = epochBlock.getEpochs{ep}.getStimuli{1}.getData; % get the stim
-        r.params.xvals(1,ep) = r.params.incrementPerPulse * (double(ep) - 1) + r.params.firstPulseSignal;
+        r.params.pulses(1,ep) = r.params.incrementPerPulse * (double(ep) - 1) + r.params.firstPulseSignal;
       end
     end
 
-  case 'edu.washington.riekelab.protocols.Pulse'
+  case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
+    r.params.pulseAmplitude = epochBlock.protocolParameters('pulseAmplitude');
+    r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
+    r.params.interpulseInterval = epochBlock.protocolParameters('interpulseInterval');
+    r.params.amp2PulseAmplitude = epochBlock.protocolParameters('amp2PulseAmplitude');
+    if ~isempty(strfind(r.protocol, 'Resistance'))
+      % get the online analysis properties attached to the last epoch
+      lastEpoch = epochBlock.getEpochs{r.numEpochs};
+      r.oa.rInput = epochBlock.protocolParameters('rInput');
+      r.oa.rSeries = epochBlock.protocolParameters('rSeries');
+      r.oa.rMembrane = epochBlock.protocolParameters('rMembrane');
+      r.oa.rTau = epochBlock.protocolParameters('rTau');
+      r.oa.capacitance = epochBlock.protocolParamters('capacitance');
+      r.oa.tau_msec = epochBlock.protocolParameters('tau_msec');
+    end
+
+
 
   case 'edu.washington.riekelab.sara.protocols.IsoSTC'
     r.params.paradigmClass = epochBlock.protocolParameters('paradigmClass');
@@ -325,10 +339,11 @@ function r = parseDataOnline(symphonyInput, varargin)
     r.params.contrast = epochBlock.protocolParameters('contrast');
     r.params.radius = epochBlock.protocolParameters('radius');
     r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
-    if strcmp(r.params.paradigmClass,'ID')
+    switch r.params.paradigmClass
+    case 'ID'
       r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
       r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
-    elseif strcmp(r.params.paradigmClass, 'STA')
+    case 'STA'
       r.params.randomSeed = epochBlock.protocolParameters('randomSeed');
       r.params.stdev = epochBlock.protocolParameters('stdev');
     end
@@ -570,7 +585,7 @@ end
     % instantaneous firing rate
     filterSigma = (20/1000)*sampleRate;
     newFilt = normpdf(1:10*filterSigma, 10*filterSigma/2, filterSigma);
-    instFt = sampleRate*conv(spikes, newFilt, 'same');
+    instFt = sampleRate*conv(response, newFilt, 'same');
   end
 
   function timingFlag = checkFrames(epoch)  

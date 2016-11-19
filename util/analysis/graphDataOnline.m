@@ -241,9 +241,9 @@ if ~isfield(r, 'protocol')
       set(gca, 'XTick', -1:0.2:1); set(gca, 'YTick', -1:0.2:1);
 
     case 'edu.washington.riekelab.protocols.PulseFamily'
-      co = rgbmap('red', 'grey','green', length(r.params.xvals));
-      figure();
-      subplot(3,1,1:2); hold on;
+      co = rgbmap('red', 'grey','green', r.params.pulsesInFamily);
+%      co = pmkmp(length(r.params.pulses), 'cubicL');
+      figure(); subplot(3,1,1:2); hold on;
       xpts = (1:length(r.resp)) / r.params.sampleRate;
       for ii = 1:r.params.pulsesInFamily
         plot(xpts, (squeeze(mean(r.respBlock(ii,:,:),2))), 'color', co(ii,:));
@@ -258,7 +258,34 @@ if ~isfield(r, 'protocol')
       end
       set(gca, 'Box', 'off', 'TickDir', 'out');
       ylabel('pulse (pA)'); xlabel('Time (s)');
+      ylim([(r.params.pulses(1) - r.params.incrementPerPulse) (r.params.pulses(end) + r.params.incrementPerPulse)]);
 
+      % make a stacked graph
+      co = rgbmap('dark red', 'grey','dark green', r.params.pulsesInFamily);
+      figure; subplot(5,1,1:4); hold on;
+      inc = -1 * min(squeeze(mean(r.respBlock(1,:,:), 2)));
+      spacer =0.1 * (max(squeeze(mean(r.respBlock(ii-1,:,:), 2))) - min(squeeze(mean(r.respBlock(ii-1,:,:), 2))));
+      plot(xpts, inc + squeeze(mean(r.respBlock(1,:,:),2)), 'Color', co(1,:));
+      for ii = 2:r.params.pulsesInFamily
+        yrange = max(squeeze(mean(r.respBlock(ii-1,:,:), 2))) - min(squeeze(mean(r.respBlock(ii-1,:,:), 2)));
+        if r.params.pulses(ii-1) == 0
+          inc = inc + yrange + 2 * spacer;
+        else
+          inc = inc + yrange + spacer;
+        end
+        plot(xpts, inc + squeeze(mean(r.respBlock(ii,:,:), 2)), 'color', co(ii,:));
+      end
+      set(gca, 'Box', 'off', 'TickDir', 'out', 'XTickLabel', {}, 'XColor', 'w');
+      ylabel('mean response (mV)'); axis tight; ax=gca; ax.YLim(1) = 0;
+      title([r.cellName ' - ' num2str(r.params.stimTime) 'ms pulse family']);
+
+      subplot(5,1,5); hold on;
+      for ii = 1:r.params.pulsesInFamily
+        plot(xpts, r.stim(ii,:), 'color', co(ii,:));
+      end
+      set(gca, 'Box', 'off', 'TickDir', 'out');
+      ylabel('pulse (pA)'); xlabel('Time (s)');
+      ylim([(r.params.pulses(1) - r.params.incrementPerPulse) (r.params.pulses(end) + r.params.incrementPerPulse)]);
 
 
     case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
