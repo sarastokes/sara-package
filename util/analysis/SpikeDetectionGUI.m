@@ -1,5 +1,8 @@
-function SpikeDetectionGUI(r, epochNum)
-	% r = data structure
+function SpikeDetectionGUI(r, varargin)
+	% INPUTS:r = data structure from parseDataOnline, parseDataOffline
+	% OPTIONAL:		epochNum = which epoch to start on, default 1
+	%				expStatus = online, offline, onoffline (used by other fcns)
+	% 
 	% TODO: figure out why output never worked
 	%  		currently set at no output and using assignin to guioutput variable
 	%		not a great idea in the long run
@@ -8,9 +11,12 @@ function SpikeDetectionGUI(r, epochNum)
 	set(gcf, 'DefaultAxesFontSize', 7);
 	set(gcf, 'DefaultAxesFontName', 'Roboto');
 
-	if nargin < 2
-		epochNum = 1;
-	end
+	ip = inputParser();
+	ip.addParameter('epochNum', 1, @(x)isvector(x));
+	ip.addParameter('status', 'offline', @(x)ischar(x));
+	ip.parse{varargin{:}}
+	status = ip.Results.status;
+	epochNum = ip.Results.epochNum;
 
 	% flag for changes to spike detection
 	S.changedSpikes = 0;
@@ -26,11 +32,7 @@ function SpikeDetectionGUI(r, epochNum)
 
 	% create gui data structure
 	S.r = r;
-	if epochNum == 0
-		S.epochNum = 1; % default = start at 1
-    else
-		S.epochNum = epochNum;
-    end
+	S.epochNum = epochNum;
 
 	% set to userdata
 	setappdata(f.h, 'GUIdata', S);
@@ -489,7 +491,11 @@ function SpikeDetectionGUI(r, epochNum)
 	      		'Yes','No','Yes');
 	   		switch selection,
 	      	case 'Yes',
-	      		assignin('base', 'guioutput', S.r);
+	      		if strcmp(S.status, 'onoffline')
+	      			assignin('caller', 'guioutput', S.r);
+	      		else
+		      		assignin('base', 'guioutput', S.r);
+		      	end
 	         	delete(gcf);
 	      	case 'No'
 	      		delete(gcf);

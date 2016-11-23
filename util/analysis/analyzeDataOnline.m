@@ -52,7 +52,7 @@ function r = analyzeDataOnline(r, varargin)
 
   switch r.protocol
     case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',  'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
-    r.analysis = sMTFanalysis(r);
+      r.analysis = sMTFanalysis(r);
 
     case 'edu.washington.riekelab.sara.protocols.ConeSweep'
       r.analysis.f1amp = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
@@ -119,7 +119,7 @@ function r = analyzeDataOnline(r, varargin)
             for ep = 1:r.numEpochs
               [r.analysis.f1amp(ep), r.analysis.f1phase(ep), ~, ~] = CTRanalysis(r, r.analog(ep,:));
             end
-            r.analysis.avgResp = mean(r.analog);           
+            r.analysis.avgResp = mean(r.analog);
           end
           if r.numEpochs > 1
             r.analysis.meanAmp = mean(r.analysis.f1amp(ep));
@@ -165,7 +165,6 @@ function r = analyzeDataOnline(r, varargin)
     r.params.ledWeights = zeros(2*length(r.params.searchValues), 3);
 
     for ep = 1:2*length(r.params.searchValues)
-%      [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase] = CTRanalysis(r, spikes(ep,:));
       if ep > length(r.params.searchValues)
         % search axis = red
         index = ep - length(r.params.searchValues);
@@ -200,7 +199,7 @@ function r = analyzeDataOnline(r, varargin)
       for ep = 1:r.numEpochs
         [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed(1,ep));
       end
-      r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs; 
+      r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs;
     case 'voltage_clamp'
       for ep = 1:r.numEpochs
         [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, r.analog(ep,:), r.params.seed(1,ep));
@@ -218,6 +217,7 @@ function r = analyzeDataOnline(r, varargin)
 
     % get the nonlinearity
     r = nonlinearity(r);
+
 
   case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
     r.liso.epochCount = 0; r.miso.epochCount = 0; r.siso.epochCount = 0;
@@ -247,6 +247,119 @@ function r = analyzeDataOnline(r, varargin)
     r.miso.analysis.strf = r.miso.analysis.strf/size(r.miso.resp,1);
     r.siso.analysis.strf = r.siso.analysis.strf/size(r.siso.resp,1);
 
+  case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
+    r.analysis = pulseAnalysis(r, r.resp, r.params.pulseAmplitude);
+
+  case {'edu.washington.riekelab.protocols.PulseFamily'}
+    for ii = 1:length(r.params.pulses)
+      ii
+      result = biophys(r, squeeze(r.respBlock(ii,:,:)), r.params.pulses(ii));
+      r.analysis.charge(ii) = result.charge;
+      r.analysis.current0(ii) = result.charge;
+      r.analysis.currentSS(ii) = result.currentSS;
+      r.analysis.rMem(ii) = result.rInput - result.rSeries;
+      r.analysis.rSeries(ii) = result.rSeries;
+      r.analysis.rInput(ii) = result.rInput;
+      r.analysis.capacitance(ii) = result.capacitance;
+      r.analysis.tauCharge(ii) = result.tauCharge;
+      % calcs
+      r.analysis.rTau(ii) = r.analysis.tauCharge(ii)/(r.analysis.capacitance(ii)* 1e-12)/1e9;
+    end
+
+    % clean all this up later.. just trying to see it work for now
+    props = fieldnames(r.analysis)
+    for ii = 1:length(props)
+      outlier = getOutliers(r.analysis.(props{ii}), 5);
+      ind = nonzeros(outlier);
+      if ~isempty(ind) && ~isempty(find(ind == 0)) % all 1s is trouble
+        r.analysis.(props{ii})(ind) = [];
+        fprintf('found %u outliers in %s\n', ind, props{ii});
+      end
+    end
+
+
+    outputStr = {['Rin = ' num2str(mean(r.analysis.rInput)) ' MOhm']; ...
+          ['Rs = ' num2str(mean(r.analysis.rSeries)) ' MOhm']; ...
+          ['Rm = ' num2str(mean(r.analysis.rMem)) ' MOhm']; ...
+          ['Rtau = ' num2str(mean(r.analysis.rTau)) ' MOhm']; ...
+          ['Cm = ' num2str(mean(r.analysis.capacitance)) ' pF']; ...
+          ['tau = ' num2str(mean(r.analysis.tauCharge)) ' ms']};
+    outputStr % to the cmd line
+
+  case 'edu.washington.riekelab.manookin.protocols.InjectNoise'
+    r.analysis.linearFilter = [];
+    r.analysis.xaxis = []; 
+    r.analysis.yaxis = [];
+    r.analysis.nonlinearityBins = 200;
+    for ii = 1:r.numEpochs
+      % starting with just spikes
+      y = r.ICspikes(ii,:);
+
+      binRate = 480; %TODO: check on this
+      r.analysis.binRate = binRate;
+
+      prePts = r.params.preTime*1e-3*r.params.sampleRate;
+      stimPts = r.params.stimTime*1e-3*r.params.sampleRate;
+      if strcmp(r.params.recordingType,'extracellular') || strcmp(r.params.recordingType, 'current_clamp')
+          if r.params.sampleRate > binRate
+              y = BinSpikeRate(y(prePts+1:end), binRate, r.params.sampleRate);
+          else
+              y = y(prePts+1:end)*r.params.sampleRate;
+          end
+      else
+          % High-pass filter to get rid of drift.
+          y = highPassFilter(y, 0.5, 1/r.params.sampleRate);
+          if prePts > 0
+              y = y - median(y(1:prePts));
+          else
+              y = y - median(y);
+          end
+          y = binData(y(prePts+1:end), binRate, r.params.sampleRate);
+      end
+       % Make sure it's a row.
+      y = y(:)';
+
+      frameValues = generateCurrentStim(r, r.params.seed(ii));
+      frameValues = frameValues(prePts+1:stimPts);
+      if r.params.sampleRate > binRate
+          frameValues = decimate(frameValues, round(r.params.sampleRate/binRate));
+      end
+      r.analysis.plotLngth = round(binRate*0.025);
+
+      % Make it the same size as the stim frames.
+      y = y(1 : length(frameValues));
+
+      % Zero out the first half-second while cell is adapting to
+      % stimulus.
+      y(1 : floor(binRate/2)) = 0;
+      frameValues(1 : floor(binRate/2)) = 0;
+
+      % Reverse correlation.
+      lf = real(ifft( fft([y(:)' zeros(1,100)]) .* conj(fft([frameValues(:)' zeros(1,100)])) ));
+
+      if isempty(r.analysis.linearFilter)
+          r.analysis.linearFilter = lf;
+      else
+          r.analysis.linearFilter = (r.analysis.linearFilter*(ii-1) + lf)/ii;
+      end
+      % Re-bin the response for the nonlinearity.
+      resp = binData(y, 60, binRate);
+      if isempty(r.analysis.yaxis)
+        r.analysis.yaxis = resp(:)';
+      else
+        r.analysis.yaxis = [r.analysis.yaxis, resp(:)'];
+      end
+
+      % Convolve stimulus with filter to get generator signal.
+      pred = ifft(fft([frameValues(:)' zeros(1,100)]) .* fft(r.analysis.linearFilter(:)'));
+
+      pred = binData(pred, 60, binRate); pred=pred(:)';
+      r.analysis.xaxis = [r.analysis.xaxis, pred(1 : length(resp))];
+
+      % Get the binned nonlinearity.
+      [r.analysis.xBin, r.analysis.yBin] = getNL(r, r.analysis.xaxis, r.analysis.yaxis);
+    end
+    r.analysis.tempFT = abs(fft(r.analysis.linearFilter));
 
   case {'edu.washington.riekelab.manookin.protocols.SpatialNoise', 'edu.washington.riekelab.manookin.protocols.TernaryNoise'}
     r.epochCount = 0;
@@ -263,7 +376,11 @@ function r = analyzeDataOnline(r, varargin)
       if strcmp(r.params.chromaticClass, 'RGB')
         r.analysis.strf = zeros(3,r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
         r.analysis.spatialRF = zeros(3,r.params.numYChecks, r.params.numXChecks);
-        r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
+        if isfield(r, 'ICspikes')
+          r = getSTRFOnline(r, r.ICspikes(ii,:), r.seed(ii));
+        else
+          r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
+        end
       else
         % updated with mike's new online analysis stuff but now throws errors for RGB noise, will fix at some pt
         r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
@@ -382,11 +499,11 @@ function r = analyzeDataOnline(r, varargin)
   end
 
   function [localFilter, linearFilter] = MTFanalysis(r, data, seed)
-    
+
     numBins = floor(r.params.stimTime/1000 * r.analysis.binRate);
     binSize = r.params.sampleRate / r.analysis.binRate;
     binData = zeros(1, numBins);
-    
+
     switch r.params.recordingType
     case 'extracellular'
       data = data(r.params.preTime/1000 * r.params.sampleRate+1:end);
@@ -450,6 +567,45 @@ function r = analyzeDataOnline(r, varargin)
     end
   end
 
+  function  isOutlier = getOutliers(data, SD)
+    isOutlier = zeros(size(data));
+    for ii = 1:length(data)
+      if data(ii) > (mean(data) + SD*std(data)) || data(ii) < (mean(data) + SD*std(data))
+        isOutlier(ii) = 1;
+      end
+    end
+  end
+
+  function stimValues = generateCurrentStim(r, seed)
+      gen = edu.washington.riekelab.manookin.stimuli.GaussianNoiseGeneratorV2();
+
+      gen.tailTime = 100;
+      gen.preTime = r.params.preTime;
+      gen.stimTime = r.params.stimTime;
+      gen.stDev = r.params.stdev;
+      gen.freqCutoff = r.params.frequencyCutoff;
+      gen.numFilters = r.params.numberOfFilters;
+      gen.mean = 0;
+      gen.seed = seed;
+      gen.sampleRate = r.params.sampleRate;
+      gen.units = 'pA';
+
+      stim = gen.generate();
+      stimValues = stim.getData();
+  end
+
+  function [xBin, yBin] = getNL(r, P, R)
+      % Sort the data; xaxis = prediction; yaxis = response;
+      [a, b] = sort(P(:));
+      xSort = a;
+      ySort = R(b);
+
+      % Bin the data.
+      valsPerBin = floor(length(xSort) / r.analysis.nonlinearityBins);
+      xBin = mean(reshape(xSort(1 : r.analysis.nonlinearityBins*valsPerBin),valsPerBin,r.analysis.nonlinearityBins));
+      yBin = mean(reshape(ySort(1 : r.analysis.nonlinearityBins*valsPerBin),valsPerBin,r.analysis.nonlinearityBins));
+  end
+
   function [STA, numSpikes] = STAanalysis(r, spikes, seed)
     binRate = 60;
     if strcmp(r.params.chromaticClass, 'RGB')
@@ -503,10 +659,10 @@ function r = analyzeDataOnline(r, varargin)
      STA = STA/numSpikes;
    end
 
-  if neuron == 2
-    r.secondary.analysis = r.analysis;
-    clear r.analysis;
-    r.analysis = r.primaryAnalysis;
-    clear r.primaryAnalysis
-  end
+    if neuron == 2
+      r.secondary.analysis = r.analysis;
+      clear r.analysis;
+      r.analysis = r.primaryAnalysis;
+      clear r.primaryAnalysis
+    end
 end

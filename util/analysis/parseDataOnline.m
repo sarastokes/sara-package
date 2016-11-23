@@ -148,7 +148,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         end
         r.data(eb).analog(ep,:) = getAnalog(resp, r.data(eb).params.preTime, r.data(eb).params.sampleRate);
       end
-
     end
   end
 
@@ -183,16 +182,23 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         r.params.recordingType = recordingType;
       else
         if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
-          r.analog = zeros(size(r.resp));
           r.params.recordingType = 'voltage_clamp';
         elseif ~isempty(strfind('IC ', r.groupName(1:2)))
-          r.subthresh = zeros(size(r.resp));
-          r.ICspikes = zeros(size(r.resp));
+          r.params.recordingType = 'current_clamp';
         else 
-          r.spikes = zeros(size(r.resp));
-          r.spikeData.resp = zeros(size(resp));
           r.params.recordingType = 'extracellular';
         end
+      end
+      % preallocate initial data analysis 
+      switch r.params.recordingType
+          case 'voltage_clamp'
+            r.analog = zeros(size(r.resp)); 
+          case 'current_clamp'
+            r.subthresh = zeros(r.numEpochs, length(r.resp));
+            r.ICspikes = zeros(r.numEpochs, length(r.resp));
+          case 'extracellular'
+            r.spikes = zeros(size(r.resp));
+            r.spikeData.resp = zeros(size(resp));
       end
       % set the analysis type & do initial analysis
       if ~isempty(analysisType)
@@ -205,21 +211,21 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
           else
             r.params.analysisType = 'single';
           end
-          [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
-          r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
+  %        [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
+   %       r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
         case 'voltage_clamp'
           if mean(resp) > 0
             r.params.analysisType = 'inhibition';
           else
             r.params.analysisType = 'excitation';
           end
-          r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);   
+ %         r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);   
         case 'current_clamp'
           r.params.analysisType = 'spikes&subthresh';
-          [r.ICspikes, r.ICstikeTimes, r.subthresh] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
+%          [r.ICspikes(ep,:), r.ICstikeTimes(ep,:), r.subthresh(ep,:)] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
         end 
       end
-      if isempty(strfind(r.protocol, 'Pulse'))
+      if isempty(strfind(r.protocol, 'Pulse')) && isempty(strfind(r.protocol, 'Inject'))
         r.params.ndf = epoch.protocolParameters('ndf');
         r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
         r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
@@ -228,7 +234,17 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         r.params.timingFlag = checkFrames(epoch);
       end
       r.ampNum = ampNum;
-    end
+      end
+        switch r.params.recordingType
+        case 'extracellular'
+          [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
+          r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
+        case 'voltage_clamp'
+          r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);
+        case 'current_clamp'
+          [r.ICspikes(ep,:), r.ICstikeTimes{ep}, r.subthresh(ep,:)] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
+        end
+      r.ampNum = ampNum;
     % check on bath temp + flow
     r.params.bathTemp(1, ep) = epoch.protocolParameters('bathTemperature');
 
@@ -314,12 +330,36 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         r.params.pulses(1,ep) = r.params.incrementPerPulse * (double(ep) - 1) + r.params.firstPulseSignal;
       end
     end
+    for ii = 1:length(r.params.pulses)
+      r.meanResp = squeeze(mean(r.respBlock(ii,:,:), 2));
+    end
+
+  case 'edu.washington.riekelab.manookin.protocols.InjectNoise'
+    r.params.frequencyCutoff = epochBlock.protocolParameters('frequencyCutoff');
+    r.params.numberOfFilters = epochBlock.protocolParameters('numberOfFilters');
+    r.params.stdev = epochBlock.protocolParameters('stdev');
+    r.params.randomSeed = epochBlock.protocolParameters('randomSeed');
+    r.params.correlation = epochBlock.protocolParameters('correlation');
+    if isKey(epochBlock.protocolParameters, 'amp2PulseAmplitude');
+      r.params.amp2PulseAmplitude = epochBlock.protocolParameters('amp2PulseAmplitude');
+      r.params.interpulseInterval = epochBlock.protocolParamters('interpulseInterval');
+    end
+    r.param.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
+    r.params.onlineAnalysis = epochBlock.protocolParameters('onlineAnalysis');
+    r.params.seed = zeros(r.numEpochs, 1);
+    for ii = 1:r.numEpochs
+      epoch = epochBlock.getEpochs{ii};
+      r.params.seed(ii) = epoch.protocolParameters('seed');
+    end
+
 
   case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
     r.params.pulseAmplitude = epochBlock.protocolParameters('pulseAmplitude');
     r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
     r.params.interpulseInterval = epochBlock.protocolParameters('interpulseInterval');
     r.params.amp2PulseAmplitude = epochBlock.protocolParameters('amp2PulseAmplitude');
+    r.params.onlineAnalysis = epochBlock.protocolParameters('onlineAnalysis');
+
     if ~isempty(strfind(r.protocol, 'Resistance'))
       % get the online analysis properties attached to the last epoch
       lastEpoch = epochBlock.getEpochs{r.numEpochs};
@@ -330,8 +370,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       r.oa.capacitance = epochBlock.protocolParamters('capacitance');
       r.oa.tau_msec = epochBlock.protocolParameters('tau_msec');
     end
-
-
 
   case 'edu.washington.riekelab.sara.protocols.IsoSTC'
     r.params.paradigmClass = epochBlock.protocolParameters('paradigmClass');
@@ -537,8 +575,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.bathTempFlag = 1;
   end
 
-end
-
 
 %% ANALYSIS FUNCTIONS------------------------------------------
   function [spikes, spikeTimes, spikeAmps] = getSpikes(response, comp)
@@ -606,5 +642,5 @@ end
       fprintf('Frame monitor not found\n');
     end
   end
-
+  end % parseEpochBlock
 end % overall function
