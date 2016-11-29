@@ -95,7 +95,10 @@ function prepareRun(obj)
 
   if ~strcmp(obj.onlineAnalysis, 'none')
     obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
-    obj.showFigure('edu.washington.riekelab.sara.figures.MeanConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+    if strcmp(obj.onlineAnalysis, 'extracellular') || strcmp(obj.onlineAnalysis, 'Spikes_CClamp')
+      obj.showFigure('edu.washington.riekelab.sara.figures.ConeFiringRateFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace, 'onlineAnalysis', obj.onlineAnalysis);
+    end
+%    obj.showFigure('edu.washington.riekelab.sara.figures.MeanConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
   end
   if strcmp(obj.onlineAnalysis, 'extracellular') && obj.checkSpikes
     obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));

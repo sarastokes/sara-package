@@ -352,6 +352,12 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       r.params.seed(ii) = epoch.protocolParameters('seed');
     end
 
+  case 'edu.washington.riekelab.manookin.protocols.InjectChirp'
+    r.params.chirpRate = epochBlock.protocolParameters('chirpRate');
+    r.params.invertRate = epochBlock.protocolParameters('invertRate');
+    r.params.interpulseInterval = epochBlock.protocolParamters('interpulseInterval');
+    r.params.amplitude = epochBlock.protocolParameters('amplitude');
+    % TODO: sample rate
 
   case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
     r.params.pulseAmplitude = epochBlock.protocolParameters('pulseAmplitude');
@@ -435,7 +441,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
 
   case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
-%    r.params.temporalClass = epochBlock.temporalClass('temporalClass');
     r.params.radius = epochBlock.protocolParameters('radius');
     r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
     r.params.maxStepBits = epochBlock.protocolParameters('maxStepBits');
@@ -448,6 +453,98 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.plotColor = zeros(2,3);
     r.params.plotColor(1,:) = getPlotColor('l');
     r.params.plotColor(2,:) = getPlotColor('m');
+
+  case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
+    r.params.stimuli = {'uncorrelated', '2-point positive', '2-point negative', '3-point diverging positive', '3-point converging positive', '3-point diverging negative', '3-point converging negative'};
+%   sequence = (1:length(r.params.stimuli))' * ones(1, r.numEpochs);
+    r.params.numStimFrames = ceil(r.params.stimTime/1000*r.params.frameRate) + 10;
+    r.params.stixelSize = epochBlock.protocolParameters('stixelSize');
+    r.params.stixelSizeMicrons = r.params.stixelSize * r.params.micronsPerPixel;
+    r.params.orientation = epochBlock.protocolParameters('orientation');
+    r.params.dimensionality = epochBlock.protocolParameters('dimensionality');
+    r.params.contrast = epochBlock.protocolParameters('contrast');
+    r.params.waitTime = epochBlock.protocolParameters('waitTime');
+    r.params.innerRadius = epochBlock.protocolParameters('innerRadius');
+    r.params.innerRadiusMicrons = r.params.innerRadius * r.params.micronsPerPixel;
+    r.params.outerRadius = epochBlock.protocolParameters('outerRadius');
+    r.params.outerRadiusMicrons = r.params.outerRadius * r.params.micronsPerPixel;
+    r.params.randomSeed = epochBlock.protocolParameters('randomSeed');
+    if isKey(epochBlock.protocolParameters, 'centerOffset')
+      r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
+    end
+
+    % group by stimulus
+    r.block.resp = zeros(length(r.params.stimuli), ceil(r.numEpochs/length(r.params.stimuli)), size(r.resp,2));
+    switch r.params.recordingType
+      case 'extracellular'
+        r.block.spikes = size(r.block.resp);
+      case 'voltage_clamp'
+        r.block.analog = size(r.block.resp);
+      case 'current_clamp'
+        r.block.spikes = size(r.block.resp);
+        r.block.subthresh = size(r.block.resp);
+    end
+    for ep = 1:r.numEpochs
+      [ind1, ind2] = ind2sub([length(r.params.stimuli), size(r.block.resp,2)], ep);
+      r.block.resp(ind1, ind2, :) = r.resp(ep,:);
+      switch r.params.recordingType
+%      case 'extracellular'
+%        r.block.spikes(ind1, ind2, :) = r.spikes(ep, :);
+      case 'voltage_clamp'
+        r.block.analog(ind1, ind2, :) = r.analog(ep, :);
+      case 'current_clamp'
+        r.block.spikes(ind1, ind2, :) = r.ICspikes(ep, :);
+        r.block.subthresh(ind1, ind2, :) = r.subthresh(ep, :);
+      end
+    end
+
+    % init epoch specific parameters
+    r.params.seed = zeros(r.numEpochs, 1);
+    r.params.parity = zeros(r.numEpochs, 1);
+    r.params.stimulusType = cell(r.numEpochs, 1);
+    r.params.glider = cell(r.numEpochs, 1);
+
+    % get epoch specific parameters
+    for ii = 1:r.numEpochs
+      epoch = epochBlock.getEpochs{ii};
+      if ii == 1
+        r.params.numYChecks = epoch.protocolParameters('numYChecks');
+        r.params.numXChecks = epoch.protocolParameters('numXChecks');
+      end
+%     r.params.parity{ii} = epoch.protocolParameters('stimulusType');
+%     r.params.stimulusName{ii} = r.params.stimuli{mod(ii -1, length(r.params.stimuli)) + 1};
+      r.params.stimulusType{ii} = epoch.protocolParameters('stimulusType');
+      r.params.seed(ii) = epoch.protocolParameters('seed');
+
+      if isempty(strfind(r.params.stimulusType{ii}, 'uncorrelated'))
+        if isempty(strfind(r.params.stimulusType{ii}, 'positive'))
+          r.params.parity(ii) = 1; % negative
+        else
+          r.params.parity(ii) = 0; % positive
+        end
+      else
+        r.params.glider{ii} = 0;
+      end
+      % get the glider matrix
+      switch r.params.stimulusType{ii}
+        case {'2-point positive', '2-point negative'}
+          r.params.glider{ii} = [0 1 1; 1 1 0];
+        case {'3-point diverging positive', '3-point diverging negative'}
+          r.params.glider{ii} = [0 1 1; 1 1 1; 1 1 0];
+        case {'3-point converging positive', '3-point converging negative'}
+          r.params.glider{ii} = [0 0 0; 1 0 0; 1 0 1];
+      end
+      fprintf('epoch %u - parity = %u, stim = %s, glider = %u x %u\n',... 
+          ii, r.params.parity(ii), r.params.stimulusType{ii},... 
+          size(r.params.glider{ii},1), size(r.params.glider{ii},2));
+      % get frames - either noise or glider
+      if strcmp(r.params.stimulusType{ii}, 'uncorrelated')
+        noiseStream = RandStream('mt19937ar', 'Seed', r.params.seed(ii));
+        r.params.frameSequence{ii} = (noiseStream.rand(r.params.numYChecks, r.params.numXChecks, r.params.numStimFrames) > 0.5);
+      else
+        r.params.frameSequence{ii} = makeGlider(r.params.numYChecks, r.params.numXChecks, r.params.numStimFrames, r.params.glider{ii}, r.params.parity(ii), r.params.seed(ii));
+      end
+    end
 
   case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');

@@ -26,6 +26,9 @@ function r = graphDataOnline(r, neuron, graphType)
     set(groot, 'DefaultFigureColor', 'w');
     set(groot, 'DefaultAxesBox', 'off');
 
+    % subtightplot util ([vertical, horizontal], [lower, upper], [left right])
+    tsubplot = @(m,n,p) subtightplot(m, n, p, [0.1 0.1], [0.1 0.5], [0.1 0.1]);
+
 if ~isfield(r, 'protocol')
     for ii = 1:length(r)
       params = r(ii).params;
@@ -280,7 +283,7 @@ if ~isfield(r, 'protocol')
       end
       set(gca, 'Box', 'off', 'TickDir', 'out', 'XTickLabel', {}, 'XColor', 'w');
       ylabel('mean response (mV)'); axis tight;
-      ax=gca; ax.YLim(1) = 0;
+      ax = gca; ax.YLim(1) = 0;
       title([r.cellName ' - ' num2str(r.params.stimTime) 'ms pulse family (avg of ' num2str(size(r.respBlock,2)) ')']);
 
       subplot(5,1,5); hold on;
@@ -291,37 +294,21 @@ if ~isfield(r, 'protocol')
       ylabel('pulse (pA)'); xlabel('Time (s)');
       ylim([(r.params.pulses(1) - r.params.incrementPerPulse) (r.params.pulses(end) + r.params.incrementPerPulse)]);
 
+    case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
+      indivPlot = false;
+      c2 = r.params.plotColor + (0.6 * (1-r.params.plotColor));
+      xpts = 1:length(analysis.linearFilter);
+      xpts = xpts/r.analysis.binsPerFrame;
 
-  case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
-    indivPlot = false;
-    c2 = r.params.plotColor + (0.6 * (1-r.params.plotColor));
-    xpts = 1:length(analysis.linearFilter);
-    xpts = xpts/r.analysis.binsPerFrame;
-
-    % plot the linear filter
-    figure; hold on;
-    if r.params.radius > 1000
-      stimType = 'full field';
-    else
-      stimType = sprintf('%u radius', ceil(r.params.radiusMicrons));
-    end
-    plot(xpts, analysis.linearFilter, 'color', r.params.plotColor, 'linewidth', 1); hold on;
-    plot([1 xpts(end)], zeros(1,2), 'color', [0.5 0.5 0.5]);
-    if strcmp(r.params.recordingType, 'voltage_clamp')
-      title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-    else
-      title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-    end
-    set(gca,'box', 'off', 'TickDir', 'out');
-    xlabel('msec'); ylabel('filter units');
-
-    % plot individual linear filters
-    if indivPlot
+      % plot the linear filter
       figure; hold on;
-      for ii = 1:r.numEpochs
-        plot(xpts, analysis.lf(ii,:), 'color', c2, 'linewidth', 0.8); hold on;
+      if r.params.radius > 1000
+        stimType = 'full field';
+      else
+        stimType = sprintf('%u radius', ceil(r.params.radiusMicrons));
       end
-      plot(xpts, analysis.linearFilter, 'color', r.params.plotColor, 'linewidth', 1);
+      plot(xpts, analysis.linearFilter, 'color', r.params.plotColor, 'linewidth', 1); hold on;
+      plot([1 xpts(end)], zeros(1,2), 'color', [0.5 0.5 0.5]);
       if strcmp(r.params.recordingType, 'voltage_clamp')
         title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
       else
@@ -329,225 +316,284 @@ if ~isfield(r, 'protocol')
       end
       set(gca,'box', 'off', 'TickDir', 'out');
       xlabel('msec'); ylabel('filter units');
-    end
 
-    % % plot the nonlinearity
-    % figure; hold on;
-    % plot(analysis.nonlinearity.xBin, analysis.nonlinearity.yBin, '.', 'color', c2);
-    % plot(analysis.nonlinearity.xBin, analysis.nonlinearity.fit, 'color', r.params.plotColor, 'linewidth', 1);
-    % axis square; %axis tight;
-    % set(gca, 'box', 'off', 'tickdir', 'out');
-    % xlabel('generator'); ylabel('spikes/sec');
-    % title([r.cellName ' - nonlinearity (' r.params.chromaticClass ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-
-    % plot both - mike format
-    figure;
-    subplot(1,2,1); hold on;
-    if r.params.radius > 1000
-      stimType = 'full field';
-    else
-      stimType = sprintf('%u radius', ceil(r.params.radiusMicrons));
-    end
-    plot(xpts, analysis.linearFilter, 'color', r.params.plotColor, 'linewidth', 1); hold on;
-    plot([1 xpts(end)], zeros(1,2), 'color', [0.5 0.5 0.5]);
-    if strcmp(r.params.recordingType, 'voltage_clamp')
-      title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-    else
-      title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-    end
-    set(gca,'box', 'off', 'TickDir', 'out');
-    xlabel('msec'); ylabel('filter units');
-
-    subplot(1,2,2); hold on;
-    plot(analysis.nonlinearity.xBin, analysis.nonlinearity.yBin, '.', 'color', c2);
-    plot(analysis.nonlinearity.xBin, analysis.nonlinearity.fit, 'color', r.params.plotColor, 'linewidth', 1);
-    axis tight; axis square;
-    xlabel('generator'); ylabel('spikes/sec');
-    set(gca,'tickdir', 'out', 'box', 'off');
-
-    % temporal
-    figure; hold on;
-    plot(analysis.tempFT, 'color', r.params.plotColor, 'linewidth', 1);
-    title([r.cellName ' - ' r.params.chromaticClass ' temporal tuning (' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-
-  case 'edu.washington.riekelab.manookin.protocols.InjectNoise'
-    % Plot the linear filter and nonlinearity
-    figure();
-    subplot(1,2,1);
-    plot((1:r.analysis.plotLngth)/r.analysis.binRate, r.analysis.linearFilter(1:r.analysis.plotLngth), 'Color', 'k');
-    axis tight; set(gca, 'Box', 'off', 'TickDir', 'out');
-    title([r.cellName ' - max/min output: ', num2str(max(abs(r.analysis.yaxis(:))))]);
-
-    subplot(1,2,2); axis tight; axis square;
-    plot(r.analysis.xBin, r.analysis.yBin, 'Color', 'k', 'Marker', '.');
-    set(gca, 'Box', 'off', 'TickDir', 'out');
-
-    % 2nd plot
-    figure();
-    plot(r.analysis.tempFT, 'Color', 'k', 'LineWidth', 1);
-    title([r.cellName]);
-    xlabel('frequency (hz)'); xlim([0 100]);
-    set(gca, 'Box', 'off', 'TickDir', 'out');
-
-
-  case 'edu.washington.riekelab.sara.protocols.IsoSTC'
-    switch r.params.paradigmClass
-      case 'STA'
-        x = 0:r.params.frameRate - 1;
-        if r.params.radius > 1000
-          stimType = sprintf('(full field, %ux)', r.params.objectiveMag);
+      % plot individual linear filters
+      if indivPlot
+        figure; hold on;
+        for ii = 1:r.numEpochs
+          plot(xpts, analysis.lf(ii,:), 'color', c2, 'linewidth', 0.8); hold on;
+        end
+        plot(xpts, analysis.linearFilter, 'color', r.params.plotColor, 'linewidth', 1);
+        if strcmp(r.params.recordingType, 'voltage_clamp')
+          title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
         else
-          stimType = sprintf('spot (%u micron radius)', ceil(r.params.radiusMicrons));
+          title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
         end
-        if ~isempty(strfind(r.params.chromaticClass, 'RGB'))
-          r.params.plotColor = [0.82, 0, 0; 0, 0.53, 0.22; 0.14, 0.21, 0.84];
-          figure; hold on;
-          plot(x, analysis.linearFilter(1,:), 'color', r.params.plotColor(1,:), 'linewidth', 1);
-          plot(x, analysis.linearFilter(2,:), 'color', r.params.plotColor(2,:), 'linewidth', 1);
-          plot(x, analysis.linearFilter(3,:), 'color', r.params.plotColor(3,:), 'linewidth', 1);
-          xlabel('msec'); ylabel('filter units'); ax = gca;
-          ax.Box = 'off'; ax.TickDir = 'out'; ax.YLim(1) = 0;
-          title([r.cellName ' - RGB binary noise ' stimType]);
+        set(gca,'box', 'off', 'TickDir', 'out');
+        xlabel('msec'); ylabel('filter units');
+      end
 
-          figure; hold on;
-          for ii = 1:length(analysis.linearFilter)
-            rectangle('position', [ii-1, 0, 1, 1], 'facecolor', analysis.linearFilter(:,ii), 'edgecolor', analysis.linearFilter(:,ii));
-          end
-          ax=gca; ax.Box = 'off'; xlabel('msec'); ax.YColor = 'w'; ax.YTickLabel = [];
-          if r.params.radius > 1000
-    	      stimType = sprintf('full-field, %ux', r.params.objectiveMag);
-          else
-    	      stimType = sprintf('%u micron spot', ceil(r.params.radiusMicrons));
-          end
+      % % plot the nonlinearity
+      % figure; hold on;
+      % plot(analysis.nonlinearity.xBin, analysis.nonlinearity.yBin, '.', 'color', c2);
+      % plot(analysis.nonlinearity.xBin, analysis.nonlinearity.fit, 'color', r.params.plotColor, 'linewidth', 1);
+      % axis square; %axis tight;
+      % set(gca, 'box', 'off', 'tickdir', 'out');
+      % xlabel('generator'); ylabel('spikes/sec');
+      % title([r.cellName ' - nonlinearity (' r.params.chromaticClass ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
 
-          title([r.cellName ' - chromatic temporal receptive field (' stimType ')']);
-          set(gca, 'TitleFontSize', 1);
-        end
-      case 'ID'
-       if r.numEpochs > 1
-         figure; hold on;
-         c2 = r.params.plotColor + (0.5 * (1-r.params.plotColor));
-         for ii = 1:r.numEpochs
-           plot(abs(analysis.f1phase(ii)), abs(analysis.f1amp(ii)), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
-         end
-         plot(mean(abs(analysis.f1phase),2), mean(abs(analysis.f1amp), 2), 'o', 'MarkerFaceColor', r.params.plotColor, 'MarkerEdgeColor', r.params.plotColor);
-         title([r.cellName ' - ' r.params.chromaticClass ' spot - ' num2str(r.params.radiusMicrons) ' microns, ' r.params.temporalClass ' at ' num2str(r.params.temporalFrequency) ' hz']);
-         xlabel('f1 phase'); ylabel('f1amp'); xlim([0 180]);
-         ax = gca; ax.YLim(1) = 0;
-       else
-         fprintf('F1amp is %.3f and F1phase is %.3f\n', analysis.meanAmp, analysis.meanPhase);
-       end
-
-       r.params.stimTrace = getStimTrace(r.params, 'modulation', 'offline');
-
-       % plot PTSH
-       figure; set(gcf, 'color', 'w');
-       subplot(3,1,1:2); hold on;
-       bar(analysis.ptsh.binCenters, analysis.ptsh.spikeCounts,...
-        'facecolor', r.params.plotColor, 'edgecolor', 'k', 'linestyle', 'none');
-       set(gca, 'box', 'off', 'tickdir', 'out');
-
-       subplot(3,1,3); hold on;
-       plot(r.params.stimTrace, 'color', r.params.plotColor, 'linewidth', 1);
-       set(gca, 'box', 'off', 'tickdir', 'out');
-
-       % plot response
-       if r.numEpochs == 1
-         figure; set(gcf,'color', 'w');
-         subplot(3,1,1:2); hold on;
-         plot(r.resp); axis tight;
-         set(gca, 'box', 'off', 'tickdir', 'out');
-         subplot(3,1,3); hold on;
-         plot(r.params.stimTrace, 'color', r.params.plotColor);
-         set(gca,'box','off', 'tickdir', 'out', 'xcolor', 'w', 'xticklabel', []);
-       end
-     end
-
-  case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
-    figure;
-    imagesc('XData', r.params.xaxis, 'YData', r.params.yaxis, 'CData', analysis.spatialRF);
-    if strcmp(r.params.chromaticClass, 'achromatic')
-      colormap(bone);
-    end
-    axis tight; axis equal;
-    title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
-
-    % also plot in pixels... makes it easier for pixelSTA stuff
-    figure;
-    imagesc(analysis.spatialRF);
-    axis tight; axis equal;
-    if strcmp(r.params.chromaticClass, 'achromatic')
-      colormap(bone);
-    end
-    title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
-    % if strcmp(r.params.chromaticClass, 'RGB')
-    %   STRF = shiftdim(analysis.strf, 1); %#ok<NASGU>
-    % end
-
-  case 'edu.washington.riekelab.manookin.protocols.ChromaticSpatialNoise'
-    if isfield(r.liso)
+      % plot both - mike format
       figure;
-      subplot(3,1,1);
-      imagesc(r.liso.analysis.spatialRF);
-      subplot(3,1,2);
-      imagesc(r.miso.analysis.spatialRF);
-      subplot(3,1,3);
-      imagesc(r.siso.analysis.spatialRF);
-    else
+      subplot(1,2,1); hold on;
+      if r.params.radius > 1000
+        stimType = 'full field';
+      else
+        stimType = sprintf('%u radius', ceil(r.params.radiusMicrons));
+      end
+      plot(xpts, analysis.linearFilter, 'color', r.params.plotColor, 'linewidth', 1); hold on;
+      plot([1 xpts(end)], zeros(1,2), 'color', [0.5 0.5 0.5]);
+      if strcmp(r.params.recordingType, 'voltage_clamp')
+        title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
+      else
+        title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
+      end
+      set(gca,'box', 'off', 'TickDir', 'out');
+      xlabel('msec'); ylabel('filter units');
+
+      subplot(1,2,2); hold on;
+      plot(analysis.nonlinearity.xBin, analysis.nonlinearity.yBin, '.', 'color', c2);
+      plot(analysis.nonlinearity.xBin, analysis.nonlinearity.fit, 'color', r.params.plotColor, 'linewidth', 1);
+      axis tight; axis square;
+      xlabel('generator'); ylabel('spikes/sec');
+      set(gca,'tickdir', 'out', 'box', 'off');
+
+      % temporal
+      figure; hold on;
+      plot(analysis.tempFT, 'color', r.params.plotColor, 'linewidth', 1);
+      title([r.cellName ' - ' r.params.chromaticClass ' temporal tuning (' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
+
+    case 'edu.washington.riekelab.manookin.protocols.InjectNoise'
+      % Plot the linear filter and nonlinearity
+      figure();
+      subplot(1,2,1);
+      plot((1:r.analysis.plotLngth)/r.analysis.binRate, r.analysis.linearFilter(1:r.analysis.plotLngth), 'Color', 'k');
+      axis tight; set(gca, 'Box', 'off', 'TickDir', 'out');
+      title([r.cellName ' - max/min output: ', num2str(max(abs(r.analysis.yaxis(:))))]);
+
+      subplot(1,2,2); axis tight; axis square;
+      plot(r.analysis.xBin, r.analysis.yBin, 'Color', 'k', 'Marker', '.');
+      set(gca, 'Box', 'off', 'TickDir', 'out');
+
+      % 2nd plot
+      figure();
+      plot(r.analysis.tempFT, 'Color', 'k', 'LineWidth', 1);
+      title([r.cellName]);
+      xlabel('frequency (hz)'); xlim([0 100]);
+      set(gca, 'Box', 'off', 'TickDir', 'out');
+
+    case 'edu.washington.riekelab.sara.protocols.IsoSTC'
+      switch r.params.paradigmClass
+        case 'STA'
+          x = 0:r.params.frameRate - 1;
+          if r.params.radius > 1000
+            stimType = sprintf('(full field, %ux)', r.params.objectiveMag);
+          else
+            stimType = sprintf('spot (%u micron radius)', ceil(r.params.radiusMicrons));
+          end
+          if ~isempty(strfind(r.params.chromaticClass, 'RGB'))
+            r.params.plotColor = [0.82, 0, 0; 0, 0.53, 0.22; 0.14, 0.21, 0.84];
+            figure; hold on;
+            plot(x, analysis.linearFilter(1,:), 'color', r.params.plotColor(1,:), 'linewidth', 1);
+            plot(x, analysis.linearFilter(2,:), 'color', r.params.plotColor(2,:), 'linewidth', 1);
+            plot(x, analysis.linearFilter(3,:), 'color', r.params.plotColor(3,:), 'linewidth', 1);
+            xlabel('msec'); ylabel('filter units'); ax = gca;
+            ax.Box = 'off'; ax.TickDir = 'out'; ax.YLim(1) = 0;
+            title([r.cellName ' - RGB binary noise ' stimType]);
+
+            figure; hold on;
+            for ii = 1:length(analysis.linearFilter)
+              rectangle('position', [ii-1, 0, 1, 1], 'facecolor', analysis.linearFilter(:,ii), 'edgecolor', analysis.linearFilter(:,ii));
+            end
+            ax=gca; ax.Box = 'off'; xlabel('msec'); ax.YColor = 'w'; ax.YTickLabel = [];
+            if r.params.radius > 1000
+      	      stimType = sprintf('full-field, %ux', r.params.objectiveMag);
+            else
+      	      stimType = sprintf('%u micron spot', ceil(r.params.radiusMicrons));
+            end
+
+            title([r.cellName ' - chromatic temporal receptive field (' stimType ')']);
+            set(gca, 'TitleFontSize', 1);
+          end
+        case 'ID'
+         if r.numEpochs > 1
+           figure; hold on;
+           c2 = r.params.plotColor + (0.5 * (1-r.params.plotColor));
+           for ii = 1:r.numEpochs
+             plot(abs(analysis.f1phase(ii)), abs(analysis.f1amp(ii)), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
+           end
+           plot(mean(abs(analysis.f1phase),2), mean(abs(analysis.f1amp), 2), 'o', 'MarkerFaceColor', r.params.plotColor, 'MarkerEdgeColor', r.params.plotColor);
+           title([r.cellName ' - ' r.params.chromaticClass ' spot - ' num2str(r.params.radiusMicrons) ' microns, ' r.params.temporalClass ' at ' num2str(r.params.temporalFrequency) ' hz']);
+           xlabel('f1 phase'); ylabel('f1amp'); xlim([0 180]);
+           ax = gca; ax.YLim(1) = 0;
+         else
+           fprintf('F1amp is %.3f and F1phase is %.3f\n', analysis.meanAmp, analysis.meanPhase);
+         end
+
+         r.params.stimTrace = getStimTrace(r.params, 'modulation', 'offline');
+
+         % plot PTSH
+         figure; set(gcf, 'color', 'w');
+         subplot(3,1,1:2); hold on;
+         bar(analysis.ptsh.binCenters, analysis.ptsh.spikeCounts,...
+          'facecolor', r.params.plotColor, 'edgecolor', 'k', 'linestyle', 'none');
+         set(gca, 'box', 'off', 'tickdir', 'out');
+
+         subplot(3,1,3); hold on;
+         plot(r.params.stimTrace, 'color', r.params.plotColor, 'linewidth', 1);
+         set(gca, 'box', 'off', 'tickdir', 'out');
+
+         % plot response
+         if r.numEpochs == 1
+           figure; set(gcf,'color', 'w');
+           subplot(3,1,1:2); hold on;
+           plot(r.resp); axis tight;
+           set(gca, 'box', 'off', 'tickdir', 'out');
+           subplot(3,1,3); hold on;
+           plot(r.params.stimTrace, 'color', r.params.plotColor);
+           set(gca,'box','off', 'tickdir', 'out', 'xcolor', 'w', 'xticklabel', []);
+         end
+       end
+
+    case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
+      figure;
+      imagesc('XData', r.params.xaxis, 'YData', r.params.yaxis, 'CData', analysis.spatialRF);
+      if strcmp(r.params.chromaticClass, 'achromatic')
+        colormap(bone);
+      end
+      axis tight; axis equal;
+      title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
+
+      % also plot in pixels... makes it easier for pixelSTA stuff
       figure;
       imagesc(analysis.spatialRF);
-      title([r.cellName ' - ' r.params.chromaticClass(1) '-cone iso noise (' r.params.objectiveMag 'x,' r.params.stixelSize ' microns)']);
-    end
+      axis tight; axis equal;
+      if strcmp(r.params.chromaticClass, 'achromatic')
+        colormap(bone);
+      end
+      title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
+      % if strcmp(r.params.chromaticClass, 'RGB')
+      %   STRF = shiftdim(analysis.strf, 1); %#ok<NASGU>
+      % end
 
-  case 'edu.washington.riekelab.manookin.protocols.BarCentering'
-    figure;
-    posMicron = r.params.positions * r.params.micronsPerPixel;
-    subplot(3,1,1:2); hold on;
-    plot(posMicron, analysis.f1amp, '-o', 'linewidth', 1, 'color', r.params.plotColor);
-    title([r.cellName ' - ' r.params.searchAxis ' bar centering (' num2str(ceil(r.params.barSizeMicrons(1))) ' x ' num2str(ceil(r.params.barSizeMicrons(2))) ' um)']);
-    xlabel('bar position (microns)'); ylabel('f1 amplitude');
-    ax = gca; axis tight; ax.YLim(1) = 0;
-    set(gca, 'box', 'off', 'tickdir', 'out');
+    case 'edu.washington.riekelab.manookin.protocols.ChromaticSpatialNoise'
+      if isfield(r.liso)
+        figure;
+        subplot(3,1,1);
+        imagesc(r.liso.analysis.spatialRF);
+        subplot(3,1,2);
+        imagesc(r.miso.analysis.spatialRF);
+        subplot(3,1,3);
+        imagesc(r.siso.analysis.spatialRF);
+      else
+        figure;
+        imagesc(analysis.spatialRF);
+        title([r.cellName ' - ' r.params.chromaticClass(1) '-cone iso noise (' r.params.objectiveMag 'x,' r.params.stixelSize ' microns)']);
+      end
 
-    subplot(9,1,8:9); hold on;
-    plot(posMicron, analysis.f1phase, '-o', 'linewidth', 1, 'color', r.params.plotColor);
-    axis tight; ylim([-180 180]); ylabel('f1 phase');
-    set(gca,'box', 'off','YTick', -180:90:180, 'tickdir', 'out', 'xcolor', 'w');
+    case 'edu.washington.riekelab.manookin.protocols.BarCentering'
+      figure;
+      posMicron = r.params.positions * r.params.micronsPerPixel;
+      subplot(3,1,1:2); hold on;
+      plot(posMicron, analysis.f1amp, '-o', 'linewidth', 1, 'color', r.params.plotColor);
+      title([r.cellName ' - ' r.params.searchAxis ' bar centering (' num2str(ceil(r.params.barSizeMicrons(1))) ' x ' num2str(ceil(r.params.barSizeMicrons(2))) ' um)']);
+      xlabel('bar position (microns)'); ylabel('f1 amplitude');
+      ax = gca; axis tight; ax.YLim(1) = 0;
+      set(gca, 'box', 'off', 'tickdir', 'out');
 
-  case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
-    c2 = r.params.plotColor + (0.6 * (1-r.params.plotColor));
-    figure;
-    subplot(3, 1, 1:2); hold on;
-    for ii = 1:r.numEpochs
-      plot(r.params.contrasts(ii), analysis.f1amp(ii), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
-    end
-    plot(analysis.xaxis, analysis.mean_f1amp, '-o', 'color', r.params.plotColor, 'linewidth', 1);
-    ax = gca; axis tight; ax.YLim(1) = 0;
-    set(gca, 'box', 'off', 'tickdir', 'out');
-    ylabel('f1 amplitude');
-    title([r.cellName ' - ' r.params.chromaticClass ' contrast response spot (' num2str(round(r.params.radiusMicrons)) ' radius)']);
+      subplot(9,1,8:9); hold on;
+      plot(posMicron, analysis.f1phase, '-o', 'linewidth', 1, 'color', r.params.plotColor);
+      axis tight; ylim([-180 180]); ylabel('f1 phase');
+      set(gca,'box', 'off','YTick', -180:90:180, 'tickdir', 'out', 'xcolor', 'w');
 
-    subplot(9, 1, 8:9); hold on;
-    for ii = 1:r.numEpochs
-      plot(r.params.contrasts(ii), analysis.f1phase(ii), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
-    end
-    plot(analysis.xaxis, analysis.mean_f1phase, '-o', 'color', r.params.plotColor, 'linewidth', 1);
-    set(gca, 'box', 'off', 'ytick', -180:90:180);
-    ylabel('f1 phase'); ylim([-180 180]);
+    case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
+      c2 = r.params.plotColor + (0.6 * (1-r.params.plotColor));
+      figure;
+      subplot(3, 1, 1:2); hold on;
+      for ii = 1:r.numEpochs
+        plot(r.params.contrasts(ii), analysis.f1amp(ii), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
+      end
+      plot(analysis.xaxis, analysis.mean_f1amp, '-o', 'color', r.params.plotColor, 'linewidth', 1);
+      ax = gca; axis tight; ax.YLim(1) = 0;
+      set(gca, 'box', 'off', 'tickdir', 'out');
+      ylabel('f1 amplitude');
+      title([r.cellName ' - ' r.params.chromaticClass ' contrast response spot (' num2str(round(r.params.radiusMicrons)) ' radius)']);
 
-  case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
-    figure;
-    subplot(3,1,1:2);
-    c1 = getPlotColor(r.params.chromaticClass);
-    semilogx(r.params.radii, analysis.f1amp, 'o-','color', c1, 'linewidth', 1);
-    title([r.cellName ' - ' r.params.chromaticClass ' ' r.params.stimulusClass ' sMTF']);
-    set(gca,'box', 'off'); ylabel('f1 amplitude'); axis tight;
-    ax=gca; ax.YLim(1) = 0;
-    subplot(3,1,3);
-    semilogx(r.params.radii, analysis.f1phase, 'o-', 'color', c1, 'linewidth', 1);
-    set(gca,'box', 'off'); ylabel('f1 phase'); axis tight; ylim([-180 180]);
-    set(gca, 'YTick', -180:90:180);
+      subplot(9, 1, 8:9); hold on;
+      for ii = 1:r.numEpochs
+        plot(r.params.contrasts(ii), analysis.f1phase(ii), 'o', 'MarkerFaceColor', c2, 'MarkerEdgeColor', c2);
+      end
+      plot(analysis.xaxis, analysis.mean_f1phase, '-o', 'color', r.params.plotColor, 'linewidth', 1);
+      set(gca, 'box', 'off', 'ytick', -180:90:180);
+      ylabel('f1 phase'); ylim([-180 180]);
+
+    case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
+      figure;
+      subplot(3,1,1:2);
+      c1 = getPlotColor(r.params.chromaticClass);
+      semilogx(r.params.radii, analysis.f1amp, 'o-','color', c1, 'linewidth', 1);
+      title([r.cellName ' - ' r.params.chromaticClass ' ' r.params.stimulusClass ' sMTF']);
+      set(gca,'box', 'off'); ylabel('f1 amplitude'); axis tight;
+      ax=gca; ax.YLim(1) = 0;
+      subplot(3,1,3);
+      semilogx(r.params.radii, analysis.f1phase, 'o-', 'color', c1, 'linewidth', 1);
+      set(gca,'box', 'off'); ylabel('f1 phase'); axis tight; ylim([-180 180]);
+      set(gca, 'YTick', -180:90:180);
+
+    case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
+      figure(); hold on;
+      co = pmkmp(length(r.params.stimuli), 'cubicL');
+      xpts = linspace(1, (r.params.stimTime + r.params.tailTime)*10, r.analysis.binRate);
+      xpts = xpts/r.params.sampleRate;
+      for ii = 1:size(r.analysis.binAvg,1)
+        plot(r.analysis.binAvg(ii,:), 'Color', co(ii,:));
+      end
+      assignin('base', 'xpts', xpts);
+      legend(r.params.stimuli);
+      set(legend, 'edgecolor', 'w');
+      set(gca, 'Box', 'off', 'TickDir', 'out');
+      if r.params.innerRadius ~= 0
+        r.params.stimFocus = sprintf('surround - %u annulus', round(r.params.innerRadiusMicrons));
+      else % no inner radius
+        if r.params.outerRadius >= 1500
+          r.analysis.stimFocus = 'full-field';
+        else
+          r.analysis.stimFocus = sprintf('center - %u radius', round(r.params.outerRadiusMicrons));
+        end
+      end
+      title([r.cellName ' - glider stimulus (' num2str(r.params.objectiveMag) 'x, ' r.analysis.stimFocus ')']);
+
+      figure(); fig = gcf;
+      % fig.Position(2) = fig.Position(2) - 300; fig.Position(4) = fig.Position(4) + 300;
+      % fig.Units = 'normalized';
+      for ii = 1:size(r.analysis.binAvg, 1)
+%        tsubplot(size(r.analysis.binAvg,1), 1, ii); hold on;
+        subtightplot (size(r.analysis.binAvg,1), 1, ii, [0.1 0.01], [0.1 0.01], [0.1 0.01]);
+        plot(r.analysis.binAvg(ii,:), 'Color', co(ii,:));
+        legend(r.params.stimuli{ii});
+        set(legend, 'edgecolor', 'w');
+        set(gca, 'Box', 'off')
+        if ii < size(r.analysis.binAvg)
+          set(gca, 'XColor', 'w', 'XLabel', [], 'XTickLabel', {});
+        end
+        if ii == 1
+          title([r.cellName ' - glider stimulus (' num2str(r.params.objectiveMag) 'x, ' r.analysis.stimFocus ')']);
+        end        
+        axis tight;  % round YLim to nearest 10s
+        set(gca, 'YLim', [0 round(max(max(r.analysis.binAvg)), -1)]);
+      end
+
   end
+
 
   if neuron == 2
     r.cellName = r.cellName(1:end-1);

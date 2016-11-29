@@ -14,8 +14,8 @@ function SpikeDetectionGUI(r, varargin)
 	ip = inputParser();
 	ip.addParameter('epochNum', 1, @(x)isvector(x));
 	ip.addParameter('status', 'offline', @(x)ischar(x));
-	ip.parse{varargin{:}}
-	status = ip.Results.status;
+	ip.parse(varargin{:});
+	S.status = ip.Results.status;
 	epochNum = ip.Results.epochNum;
 
 	% flag for changes to spike detection

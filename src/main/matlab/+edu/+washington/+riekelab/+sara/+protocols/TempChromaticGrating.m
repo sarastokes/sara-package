@@ -7,7 +7,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         stimTime = 4000                 % Grating duration (ms)
         tailTime = 250                  % Grating trailing duration (ms)
         waitTime = 1000                 % Grating wait duration (ms)
-        contrast = 1.0                  % Grating contrast (0-1)
+        contrast = 0.7                  % Grating contrast (0-1)
         orientation = 0.0               % Grating orientation (deg)
         spatialFreqs = 10.^(-0.301:0.301/3:1.4047) % Spatial frequency (cyc/short axis of screen)
         temporalFrequency = 2.0         % Temporal frequency (Hz)
@@ -32,7 +32,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         apertureClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
         spatialClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
         temporalClassType = symphonyui.core.PropertyType('char', 'row', {'drifting', 'reversing'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','red','green','blue','S-iso','M-iso','L-iso'})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','S-iso','M-iso','L-iso', 'LM-iso'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         rawImage
         spatialPhaseRad % The spatial phase in radians.
@@ -79,7 +79,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             [obj.colorWeights, obj.stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp),... 
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp),...
                 obj.stimTrace, 'stimColor', obj.stimColor);
 
             % Calculate the spatial phase in radians.
@@ -91,14 +91,14 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
-            
+
             if ~strcmp(obj.onlineAnalysis,'none')
-                obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),... 
-                    obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,... 
-                    'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor);
-                obj.showFigure('edu.washington.riekelab.sara.figures.MeanGratingFigure', obj.rig.getDevice(obj.amp),... 
+                obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),...
                     obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
-                    'temporalFrequency', obj.temporalFrequency, 'chromaticClass', obj.chromaticClass, 'demoMode', obj.demoMode);
+                    'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor);
+%                obj.showFigure('edu.washington.riekelab.sara.figures.MeanGratingFigure', obj.rig.getDevice(obj.amp),...
+%                    obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
+%                    'temporalFrequency', obj.temporalFrequency, 'chromaticClass', obj.chromaticClass, 'demoMode', obj.demoMode);
             end
 
             if obj.checkSpikes
