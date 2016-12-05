@@ -2,7 +2,7 @@ classdef F1Figure < symphonyui.core.FigureHandler
 
 properties
   device
-  xvals                 % this is bar positions, spatialFreqs, radii, etc...
+  xvals               % this is bar positions, spatialFreqs, radii, etc...
   onlineAnalysis
   preTime
   stimTime
@@ -71,7 +71,7 @@ function createUi(obj)
         'Separator', 'on', ...
         'ClickedCallback', @obj.onSelectedStoreSweep);
   setIconImage(storeSweepButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
-            
+
 
   obj.axesHandle(1) = subplot(3,1,1:2,...
     'Parent', obj.figureHandle,...

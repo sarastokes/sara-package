@@ -8,14 +8,14 @@ function r = graphDataOnline(r, neuron, graphType)
   elseif nargin == 1
     graphType = 'full';
     neuron = 1;
-    if ~isfield(r, 'protocol') || isempty(strfind(r.protocol, 'Pulse'))
+    if isfield(r, 'analysis');
       analysis = r.analysis;
     end
   else
     neuron = 2;
     if isfield(r, 'protocol')
       analysis = r.secondary.analysis;
-    r.cellName = [r.cellName '*'];
+      r.cellName = [r.cellName '*'];
     else
       error('No secondary neuron analysis for spot stimuli - for now');
     end
@@ -63,7 +63,7 @@ if ~isfield(r, 'protocol')
       end
 
       if strcmp(r(ii).recordingType, 'extracellular')
-      % get PTSH without bothering with analyzeDataOnline
+        % get PTSH without bothering with analyzeDataOnline
         r(ii).ptsh = getPTSH(r, r(ii).spikes, 200);
         if n > 1
           figure; hold on;
@@ -549,6 +549,24 @@ if ~isfield(r, 'protocol')
       set(gca,'box', 'off'); ylabel('f1 phase'); axis tight; ylim([-180 180]);
       set(gca, 'YTick', -180:90:180);
 
+      if strcmp(r.params.temporalClass, 'squarewave')
+        c2 = c1 + (0.6 * (1-c1));
+        figure;
+        subplot(3, 1, 1:2); hold on;
+        semilogx(r.params.radii, analysis.f1amp, 'o-', 'color', c1, 'linewidth', 1);
+        semilogx(r.params.radii, analysis.f2amp, 'o-', 'color', c2, 'linewidth', 1);
+        title([r.cellName ' - ' params.chromaticClass ' squarewave ' r.params.stimulusClass ' sMTF']);
+        legend('onset', 'offset', 'EdgeColor', 'w');
+        set(gca,'box', 'off'); ylabel('response amplitude'); axis tight;
+        ax=gca; ax.YLim(1) = 0;
+        
+        subplot(3,1,3);
+        semilogx(r.params.radii, analysis.f1phase, 'o-', 'color', c1, 'linewidth', 1);
+        semilogx(r.params.radii, analysis.f2phase, 'o-', 'color', c2, 'linewidth', 1);
+        set(gca,'box', 'off'); ylabel('response phase'); axis tight; ylim([-180 180]);
+        set(gca, 'YTick', -180:90:180);
+      end      
+
     case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
       figure(); hold on;
       co = pmkmp(length(r.params.stimuli), 'cubicL');
@@ -576,7 +594,7 @@ if ~isfield(r, 'protocol')
       % fig.Position(2) = fig.Position(2) - 300; fig.Position(4) = fig.Position(4) + 300;
       % fig.Units = 'normalized';
       for ii = 1:size(r.analysis.binAvg, 1)
-%        tsubplot(size(r.analysis.binAvg,1), 1, ii); hold on;
+        % tsubplot(size(r.analysis.binAvg,1), 1, ii); hold on;
         subtightplot (size(r.analysis.binAvg,1), 1, ii, [0.1 0.01], [0.1 0.01], [0.1 0.01]);
         plot(r.analysis.binAvg(ii,:), 'Color', co(ii,:));
         legend(r.params.stimuli{ii});
@@ -592,7 +610,48 @@ if ~isfield(r, 'protocol')
         set(gca, 'YLim', [0 round(max(max(r.analysis.binAvg)), -1)]);
       end
 
-  end
+    case 'edu.washington.riekelab.manookin.protocols.MovingBar'
+      co = pmkmp(size(r.respBlock, 2), 'cubicL');
+      xpts = (1:size(r.respBlock, 3)) / r.params.sampleRate;
+
+      for ii = 1:size(r.respBlock, 1)
+        for jj = 1:size(r.respBlock, 2)
+          ind = sub2ind([size(r.respBlock, 1) size(r.respBlock, 2)], ii, jj);
+          subplot(size(r.respBlock, 1), 1, ii); hold on;
+          plot(xpts, r.spikes(ind, :), 'Color', co(jj, :)); axis tight;
+          set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []);
+          ylabel(sprintf('%u%s     ', (30*ii)-30, char(176)),... 
+            'Rotation', 0, 'VerticalAlignment', 'middle');
+          if ii ~= size(r.respBlock, 1)
+            set(gca, 'XColor', 'w', 'XTickLabel', {}, 'XTick', []);
+          else
+            xlabel('time (sec)');
+          end
+          if ii == 1
+            title([r.cellName ' - moving bar stimulus raster plot']);
+          end
+        end
+      end
+
+      for jj = 1:size(r.respBlock, 2)
+        figure('Color', 'w', 'Name', sprintf('moving bar trial %u', jj));
+        for ii = 1:size(r.respBlock, 1)
+          subplot(size(r.respBlock, 1), 1, ii); hold on;
+          plot(xpts, squeeze(r.respBlock(ii, jj, :)), 'Color', co(jj, :));
+          set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []); axis tight;
+          ylabel(sprintf('%u%s     ', (30*ii) - 30, char(176)),... 
+            'Rotation', 0, 'VerticalAlignment', 'middle');
+          if ii ~= size(r.respBlock, 1)
+            set(gca, 'XColor', 'w', 'XTickLabel', {}, 'XTick', []);
+          else
+            xlabel('time (sec)');
+          end
+          if ii == 1
+            title([r.cellName ' - moving bar stimulus (trial ' num2str(jj) ')']);
+          end
+        end
+      end
+  end % protocol switch
 
 
   if neuron == 2

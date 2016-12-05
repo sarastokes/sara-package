@@ -546,7 +546,7 @@ function r = analyzeDataOnline(r, varargin)
     case 'extracellular'
       data = data(r.params.preTime/1000 * r.params.sampleRate+1:end);
       % bin the data
-      for m = 1:numBins
+      for k = 1:numBins
         index = round((k-1) * binSize + 1 : k*binSize);
         binData(k) = sum(data(index)) * r.analysis.binRate;
       end

@@ -16,6 +16,10 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
   % also for quick offline data
   % will soon switch over to better object system
 
+  if nargin < 2
+    recordingType = 'extracellular';
+  end
+
   ip = inputParser();
   ip.addParameter('ampNum', 1, @(x)isvector(x));
   ip.addParameter('comp', 'laptop', @(x)ischar(x));
@@ -265,6 +269,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.orientation = epochBlock.protocolParameters('orientation');
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
+    if r.numEpochs <= length(r.params.spatialFrequencies)
+      r.params.spatialFrequencies = r.params.spatialFrequencies(1:r.numEpochs);
+    else
+      r.params.spatialFrequencies = [r.params.spatialFrequencies r.params.spatialFrequencies(1:(r.numEpochs-length(r.params.spatialFrequencies)))];
+    end
     r.params.spatialPhase = epochBlock.protocolParameters('spatialPhase');
     r.params.randomOrder = epochBlock.protocolParameters('randomOrder');
     if isKey(epoch.protocolParameters,'sContrast')
@@ -285,6 +294,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.radii = epochBlock.protocolParameters('radii');
+    if r.numEpochs <= length(r.params.radii)
+      r.params.radii = r.params.radii(1:r.numEpochs);
+    else
+      r.params.radii = [r.params.radii r.params.radii(1:r.numEpochs-length(r.params.radii))];
+    end
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     [r.params.plotColor,~] = getPlotColor(r.params.chromaticClass);
 
@@ -418,6 +432,25 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       r.params.seed(1, ep) = epoch.protocolParameters('seed');
     end
 
+  case 'edu.washington.riekelab.manookin.protocols.MovingBar'
+    r.params.barSize = epochBlock.protocolParameters('barSize');
+    r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
+    r.params.intensity = epochBlock.protocolParameters('intensity');
+    r.params.outerMaskRadius = epochBlock.protocolParameters('outerMaskRadius');
+    r.params.innerMaskRadius = epochBlock.protocolParameters('innerMaskRadius');
+    r.params.orientations = epochBlock.protocolParameters('orientations');
+    r.params.randomOrder = epochBlock.protocolParameters('randomOrder');
+    r.params.interpulseInterval = epochBlock.protocolParameters('interpulseInterval');
+    r.params.speed = epochBlock.protocolParameters('speed');
+
+    r.respBlock = zeros(length(r.params.orientations), ceil(r.numEpochs/length(r.params.orientations)), size(r.resp,2));
+    for ep = 1:r.numEpochs
+      epoch = epochBlock.getEpochs{ep};
+      r.params.orientation(1, ep) = epoch.protocolParameters('orientation');
+      o = find(r.params.orientations == r.params.orientation(1, ep)); % for rand order
+      r.respBlock(o, ceil(ep/length(r.params.orientations)), :) = r.resp(ep, :);
+    end
+
   case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
     r.params.radius = epochBlock.protocolParameters('radius');
     r.params.radiusMicrons = r.params.radius * r.params.micronsPerPixel;
@@ -425,6 +458,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.stimulusClass = epochBlock.protocolParameters('stimulusClass');
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.contrasts = epochBlock.protocolParameters('contrasts');
+    if r.numEpochs <= r.params.contrasts
+      r.params.contrasts = r.params.contrasts(1:r.numEpochs);
+    else
+      r.params.contrasts = [r.params.contrasts r.params.contrasts(1:r.numEpochs-length(r.params.contrasts))];
+    end
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     [r.params.plotColor, ~] = getPlotColor(r.params.chromaticClass);
@@ -437,6 +475,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.intensity = epochBlock.protocolParameters('intensity');
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.positions = epochBlock.protocolParameters('positions');
+    if r.numEpochs <= length(r.params.positions)
+      r.params.positions = r.params.positions(1:r.numEpochs);
+    else
+      r.params.positions = [r.params.positions r.params.positions(1:r.numEpochs-length(r.params.positions))];
+    end
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
 
   case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
