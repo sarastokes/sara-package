@@ -1,6 +1,9 @@
 classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % Chromatic grating but with my response figures and option for mask
 
+% 12Sep2016 - copied mike's ChromaticGrating protocol, added working online analysis & response w/ stim figure
+% 7Dec2016 - new F1Figure test
+
     properties
         amp                             % Output amplifier
         preTime = 250                   % Grating leading duration (ms)
@@ -91,6 +94,13 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
+            if length(obj.orientation) > 1
+                numReps = length(obj.orientation);
+            elseif length(obj.spatialPhase)>1
+                numReps = length(obj.spatialPhase);
+            else
+                numReps = 1;
+            end
 
             if ~strcmp(obj.onlineAnalysis,'none')
                 obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),...
@@ -99,6 +109,9 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 %                obj.showFigure('edu.washington.riekelab.sara.figures.MeanGratingFigure', obj.rig.getDevice(obj.amp),...
 %                    obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
 %                    'temporalFrequency', obj.temporalFrequency, 'chromaticClass', obj.chromaticClass, 'demoMode', obj.demoMode);
+                obj.showFigure('edu.washington.riekelab.sara.figures.FullF1Figure', obj.rig.getDevice(obj.amp),...
+                    obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency,... 
+                    'plotColor', obj.stimColor, 'waitTime', obj.waitTime, 'numReps', numReps);
             end
 
             if obj.checkSpikes
