@@ -259,7 +259,8 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
 
   %% protocol specific data - could be condensed but keeping separate for now.
   switch r.protocol
-  case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating', 'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
+  case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',... 
+    'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
     epoch = epochBlock.getEpochs{1};
     r.params.waitTime = epochBlock.protocolParameters('waitTime');
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
@@ -499,7 +500,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
 
   case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
     r.params.stimuli = {'uncorrelated', '2-point positive', '2-point negative', '3-point diverging positive', '3-point converging positive', '3-point diverging negative', '3-point converging negative'};
-%   sequence = (1:length(r.params.stimuli))' * ones(1, r.numEpochs);
     r.params.numStimFrames = ceil(r.params.stimTime/1000*r.params.frameRate) + 10;
     r.params.stixelSize = epochBlock.protocolParameters('stixelSize');
     r.params.stixelSizeMicrons = r.params.stixelSize * r.params.micronsPerPixel;
@@ -589,68 +589,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       end
     end
 
-  case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
-    r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
-    r.params.stixelSize = epochBlock.protocolParameters('stixelSize');
-    r.params.stixelSizeMicrons = r.params.stixelSize * r.params.micronsPerPixel;
-    r.params.frameDwell = epochBlock.protocolParameters('frameDwell');
-    r.params.intensity = epochBlock.protocolParameters('intensity');
-    r.params.maskRadius = epochBlock.protocolParameters('maskRadius');
-    r.params.maskRadiusMicrons = r.params.maskRadius * r.params.micronsPerPixel;
-    r.params.numXChecks = epoch.protocolParameters('numXChecks');
-    r.params.numYChecks = epoch.protocolParameters('numYChecks');
-    r.params.useRandomSeed = epochBlock.protocolParameters('useRandomSeed');
-    r.params.runFullProtocol = epochBlock.protocolParameters('runFullProtocol');
-    r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
-
-    if r.params.runFullProtocol
-      cones = {'liso' 'miso' 'siso'};
-      indCount = 1; % where to store within each cone iso struct
-      for ii = 1:3
-        stim = cones{ii};
-        r.(stim).params = r.params;
-        r.(stim).params.chromaticClass = char(stim);
-        r.(stim).protocol = r.protocol;
-        r.(stim).cellName = r.cellName;
-      end
-    end
-
-    if ~r.params.useRandomSeed
-      r.seed = 1;
-    else
-      for ii = 1:r.numEpochs
-        r.seed(ii) = epoch.protocolParameters('seed');
-      end
-    end
-    epochCounter = 0;
-
-    for ep = 1:3:r.numEpochs
-      epochCounter = epochCounter + 1;
-      fprintf('ep%u\n', ep);
-      r.liso.resp(epochCounter, :) = r.resp(ep, :);
-      r.liso.spikes(epochCounter, :) = r.spikes(ep, :);
-      r.liso.spikeData.resp(epochCounter, :) = r.spikeData.resp(ep,:);
-      r.liso.spikeData.times{epochCounter} = r.spikeData.times{ep};
-      r.liso.spikeData.amps{epochCounter} = r.spikeData.times{ep};
-      r.liso.seed(epochCounter) = r.seed(ep);
-      if ep + 1 <= r.numEpochs
-        r.miso.resp(epochCounter, :) = r.resp(ep+1, :);
-        r.miso.spikes(epochCounter, :) = r.spikes(ep+1, :);
-        r.miso.spikeData.resp(epochCounter, :) = r.spikeData.resp(ep+1, :);
-        r.miso.spikeData.times{epochCounter} = r.spikeData.times{ep+1};
-        r.miso.spikeData.amps{epochCounter} = r.spikeData.amps{ep+1};
-        r.miso.seed(epochCounter) = r.seed(ep + 1);
-      end
-      if ep+2 <= r.numEpochs
-        r.siso.resp(epochCounter, :) = r.resp(ep+2, :);
-        r.siso.spikes(epochCounter, :) = r.spikes(ep+2, :);
-        r.siso.spikeData.resp(epochCounter, :) = r.spikeData.resp(ep+2,:);
-        r.siso.spikeData.times{epochCounter} = r.spikeData.times{ep+2};
-        r.siso.spikeData.amps{epochCounter} = r.spikeData.amps{ep+2};
-        r.siso.seed(epochCounter) = r.seed(epochCounter + 2);
-      end
-    end
-
   case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
@@ -714,6 +652,9 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     fprintf('Low bath temp --> %.2f\n', min(r.params.bathTemp));
     r.bathTempFlag = 1;
   end
+
+  % save date parsed
+  r.log.parsed = date;
 
 
 %% ANALYSIS FUNCTIONS------------------------------------------

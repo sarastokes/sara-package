@@ -1,9 +1,10 @@
 function r = analyzeDataOnline(r, varargin)
   % INPUT = r,
-  % optional 2nd input to specify secondary neuron
+  % optional 2nd input to specify secondary neuron or binsPerFrame
 
   % 5Oct2016 - added 2nd neuron option
   % 11Nov2016 - using analysisType and recordingType now rather than onlineAnalysis & assuming extracellular (lines 26-33 should keep things compatible)
+  % 5Dec2016 - lots of changes, added some of mike's stimuli, most significant: now saving time of analysis
 
   ip = inputParser();
   ip.addParameter('neuron', 1, @(x)isvector(x));
@@ -11,10 +12,6 @@ function r = analyzeDataOnline(r, varargin)
   ip.parse(varargin{:});
   neuron = ip.Results.neuron;
   binsPerFrame = ip.Results.binsPerFrame;
-
-  if nargin < 2
-    neuron = 1;
-  end
 
   % doubt i'll need paired WC analysis anytime soon...
   if neuron == 1 && isfield(r, 'spikes')
@@ -218,34 +215,6 @@ function r = analyzeDataOnline(r, varargin)
       % get the nonlinearity
       r = nonlinearity(r);
 
-    case 'edu.washington.riekelab.sara.protocols.ChromaticSpatialNoise'
-      r.liso.epochCount = 0; r.miso.epochCount = 0; r.siso.epochCount = 0;
-
-      r.liso.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
-      r.liso.analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
-      r.miso.analysis = r.liso.analysis;
-      r.siso.analysis = r.liso.analysis;
-
-      for ii = 1:size(r.liso.resp,1)
-          r.liso.epochCount = r.liso.epochCount + 1;
-          r.liso = getSTRFOnline(r.liso, r.liso.spikes(ii,:), r.liso.seed(ii));
-      end
-
-      for ii = 1:size(r.miso.resp,1)
-          r.miso.epochCount = r.miso.epochCount + 1;
-          r.miso = getSTRFOnline(r.miso, r.miso.spikes(ii,:), r.miso.seed(ii));
-      end
-
-      for ii = 1:size(r.siso.resp,1)
-          r.siso.epochCount = r.siso.epochCount + 1;
-          r.siso = getSTRFOnline(r.siso, r.siso.spikes(ii,:), r.siso.seed(ii));
-      end
-
-      r.liso.analysis.strf = r.liso.analysis.strf/size(r.liso.resp,1);
-      r.liso.analysis.spatialRF = squeeze(mean(r.liso.analysis.strf,3));
-      r.miso.analysis.strf = r.miso.analysis.strf/size(r.miso.resp,1);
-      r.siso.analysis.strf = r.siso.analysis.strf/size(r.siso.resp,1);
-
     case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
       r.analysis = pulseAnalysis(r, r.resp, r.params.pulseAmplitude);
 
@@ -408,6 +377,21 @@ function r = analyzeDataOnline(r, varargin)
         [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
       end
 
+      % fit F1 amplitude
+      yd = abs(r.analysis.f1amp(:)');
+      r.analysis.params0 = [max(yd) 200 0.1*max(yd) 400]
+      switch r.params.stimulusClass
+      case 'spot'
+        [r.analysis.Kc, r.analysis.sigmaC, r.analysis.Ks, r.analysis.sigmaS] = fitDoGAreaSummation(2*r.params.radii(:)', yd, r.analysis.params0);
+        res = fitDoGAreaSummation([r.analysis.Kc, r.analysis.sigmaC, r.analysis.Ks, r.analysis.sigmaS], 2*r.params.radii(:)');
+      case 'annulus'
+        r.analysis.params = fitAnnulusAreaSum([r.params.radii(:)' 456], yd, r.analysis.params0);
+        res = fitAnnulusAreaSummation(r.analysis.params, [r.params.radii(:)' 456]);
+        r.analysis.sigmaC = r.analysis.params(2);
+        r.analysis.sigmaS = r.analysis.params(4);
+      end
+        
+
     case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
       r.analysis.binRate = 60;
       prePts = r.params.preTime*1e-3*r.params.sampleRate;
@@ -448,6 +432,20 @@ function r = analyzeDataOnline(r, varargin)
         r.analysis.binAvg(ind1, :) = squeeze(mean(r.analysis.bins(ind1, 1:ind2, :),2));
       end
   end % parse epoch block
+
+
+if isfield(r.log, 'analysisTime')
+  r.log.analyzed = {r.log.analyzed, date};
+else
+  r.log.analyzed = date;
+end
+
+if neuron == 2
+  r.secondary.analysis = r.analysis;
+  clear r.analysis;
+  r.analysis = r.primaryAnalysis;
+  clear r.primaryAnalysis
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   function instFt = getInstFiringRate(spikes, sampleRate)
@@ -644,63 +642,4 @@ function r = analyzeDataOnline(r, varargin)
       yBin = mean(reshape(ySort(1 : r.analysis.nonlinearityBins*valsPerBin),valsPerBin,r.analysis.nonlinearityBins));
   end
 
-  function [STA, numSpikes] = STAanalysis(r, spikes, seed)
-    binRate = 60;
-    if strcmp(r.params.chromaticClass, 'RGB')
-	    STA = zeros(3, binRate);
-    else
-	    STA = zeros(1, binRate);
-    end
-
-    numSpikes = 0;
-    stimCov = zeros(size(STA));
-    stimMean = zeros(size(STA));
-    numStim = 0;
-
-    for ii = 1:r.numEpochs
-      frameTTLs = r.frame(ii,:);
-	    [frameTimes, frameRate] = getFrameTimingTTLs(frameTTLs, r.params.sampleRate);
-	    frameRate = 60;
-
-      stimStart = r.params.preTime / 1000 * r.params.sampleRate + 1;
-      stimEnd = r.params.preTime + r.params.stimTime / 1000 * sampleRate;
-
-	    % get frame times during the stimulus
-	    frameTimes = frameTimes(frameTimes >= stimStart & frameTimes <= stimEnd)
-
-	    % make sure you sync with the actual presentation of first non-gray frame
-	    stimStart = frameTimes(1);
-	    stimEnd = max(frameTimes(end) + ceil(r.params.sampleRate/frameRate), stimEnd);
-
-	    % calculate the number of frames
-	    numFrames = length(frameTimes);
-
-	    % regenerate the noise
-	     noiseStream = RandStream('my19937ar', 'Seed', r.seed(ii));
-       if strcmp(r.params.noiseClass, 'gaussian') && strcmp(r.params.chromaticClass, 'achromatic')
-         noise = r.params.stdev * noiseStream.randn(1, numFrames);
-       elseif strcmp(r.params.noiseClass, 'binary') && strcmp(r.params.chromaticClass, 'RGB')
-         noise = noiseStream.randn(3, numFrames) > 0.5;
-       end
-
-       % get the spike times
-       spikeTimes = find(r.resp(ii, stimStart:end) == 1);
-       % convert to bin rate
-       spikeTimes = ceil(spikeTimes / r.params.sampleRate * binRate);
-       spikeTimes(spikeTimes > length(stimulus)) = [];
-       response = spikeTimes;
-
-       sr = makeStimRows(stimulus(:), binRate, response);
-       STA = STA + sum(sr, 1);
-       numSpikes = numSpikes + size(sr, 1);
-     end
-     STA = STA/numSpikes;
-  end
-
-if neuron == 2
-  r.secondary.analysis = r.analysis;
-  clear r.analysis;
-  r.analysis = r.primaryAnalysis;
-  clear r.primaryAnalysis
-end
-end
+end % analyzeDataOnline

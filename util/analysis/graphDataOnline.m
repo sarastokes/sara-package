@@ -5,19 +5,15 @@ function r = graphDataOnline(r, neuron, graphType)
 
   if nargin == 2
     graphType = 'full';
+    if neuron == 2 && isfield(r, 'protocol') % not for chromatic spot yet
+        analysis = r.secondary.analysis;
+        r.cellName = [r.cellName '*'];
+    end
   elseif nargin == 1
     graphType = 'full';
     neuron = 1;
     if isfield(r, 'analysis');
       analysis = r.analysis;
-    end
-  else
-    neuron = 2;
-    if isfield(r, 'protocol')
-      analysis = r.secondary.analysis;
-      r.cellName = [r.cellName '*'];
-    else
-      error('No secondary neuron analysis for spot stimuli - for now');
     end
   end
 
@@ -98,7 +94,8 @@ if ~isfield(r, 'protocol')
   else
 
   switch(r.protocol)
-    case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',  'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
+    case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',...  
+      'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
       figure;
       subplot(3,1,1:2); hold on;
       plot(r.params.spatialFrequencies, analysis.F1, 'o-', 'color', r.params.plotColor, 'linewidth', 1);
@@ -230,15 +227,15 @@ if ~isfield(r, 'protocol')
       figure();
       subplot(1,2,1); hold on;
       r.params.plotColor(1,:) = getPlotColor('l'); r.params.plotColor(2,:) = getPlotColor('m');
-      plot(r.params.searchValues, r.analysis.redF1, '-o', 'Color', r.params.plotColor(1,:), 'LineWidth',1);
-      title(sprintf('red min = %.3f', r.analysis.redMin)); ylabel('f1 amplitude'); xlabel('red contrast');
+      plot(r.params.searchValues, analysis.redF1, '-o', 'Color', r.params.plotColor(1,:), 'LineWidth',1);
+      title(sprintf('red min = %.3f', analysis.redMin)); ylabel('f1 amplitude'); xlabel('red contrast');
       subplot(1,2,2); hold on;
-      plot(r.params.searchValues, r.analysis.greenF1, '-o', 'Color', r.params.plotColor(2,:), 'LineWidth', 1);
-      title(sprintf('green min = %.3f', r.analysis.greenMin)); xlabel('green contrast');
+      plot(r.params.searchValues, analysis.greenF1, '-o', 'Color', r.params.plotColor(2,:), 'LineWidth', 1);
+      title(sprintf('green min = %.3f', analysis.greenMin)); xlabel('green contrast');
 
       figure();hold on;
-      plot3(r.params.searchValues, zeros(size(r.params.searchValues)), r.analysis.greenF1, '-o', 'Color', [0.1333 0.5451 0.1333]);
-      plot3(r.analysis.greenMin*ones(size(r.params.searchValues)), r.params.searchValues, r.analysis.redF1, '-o', 'Color', r.params.plotColor(1,:));
+      plot3(r.params.searchValues, zeros(size(r.params.searchValues)), analysis.greenF1, '-o', 'Color', [0.1333 0.5451 0.1333]);
+      plot3(analysis.greenMin*ones(size(r.params.searchValues)), r.params.searchValues, analysis.redF1, '-o', 'Color', r.params.plotColor(1,:));
       grid on;
       xlabel('green contrast'); ylabel('red contrast'); zlabel('spikes/sec');
       set(gca, 'XTick', -1:0.2:1); set(gca, 'YTick', -1:0.2:1);
@@ -484,21 +481,6 @@ if ~isfield(r, 'protocol')
       % if strcmp(r.params.chromaticClass, 'RGB')
       %   STRF = shiftdim(analysis.strf, 1); %#ok<NASGU>
       % end
-
-    case 'edu.washington.riekelab.manookin.protocols.ChromaticSpatialNoise'
-      if isfield(r.liso)
-        figure;
-        subplot(3,1,1);
-        imagesc(r.liso.analysis.spatialRF);
-        subplot(3,1,2);
-        imagesc(r.miso.analysis.spatialRF);
-        subplot(3,1,3);
-        imagesc(r.siso.analysis.spatialRF);
-      else
-        figure;
-        imagesc(analysis.spatialRF);
-        title([r.cellName ' - ' r.params.chromaticClass(1) '-cone iso noise (' r.params.objectiveMag 'x,' r.params.stixelSize ' microns)']);
-      end
 
     case 'edu.washington.riekelab.manookin.protocols.BarCentering'
       figure;
