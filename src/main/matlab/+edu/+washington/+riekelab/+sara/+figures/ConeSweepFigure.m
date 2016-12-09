@@ -10,6 +10,7 @@ properties (Access = private)
   axesHandle
   traceHandle
   plotStim
+  trace
   epochSort
   epochCap
   epochColors
@@ -113,7 +114,7 @@ methods
       error(['Epoch does not contain a response for ' obj.device.name]);
     end
     response = epoch.getResponse(obj.device);
-    [quantities, units] = response.getData();
+    [quantities, ~] = response.getData();
     sampleRate = response.sampleRate.quantityInBaseUnits;
 
     obj.epochSort = obj.epochSort + 1;
@@ -161,9 +162,16 @@ methods
 
     % plot trace
     if obj.plotStim
-      plot(1:length(obj.stimTrace), obj.stimTrace, 'parent', obj.traceHandle, 'color', 'k', 'LineWidth', 1);
-      set(obj.traceHandle, 'Box', 'off', 'XColor', 'w', 'XTickLabel', {});
-      obj.traceHandle.XLim(2) = length(obj.stimTrace);
+      if isempty(obj.trace)
+        obj.trace = line(1:length(obj.stimTrace), obj.stimTrace,... 
+          'Parent', obj.traceHandle, 'Color', 'k', 'LineWidth', 1);
+          set(obj.traceHandle, 'Box', 'off', 'XColor', 'w', 'XTickLabel', {},...
+              'XLimMode', 'manual', 'XLim', [0 length(obj.stimTrace)]);
+        obj.traceHandle.XLim(2) = length(obj.stimTrace);
+      else
+        set(obj.trace, 'XData', 1:length(obj.stimTrace), 'YData', obj.stimTrace);
+        set(obj.traceHandle, 'XLim', [0 length(obj.stimTrace)]);
+      end
     end
   end
 end

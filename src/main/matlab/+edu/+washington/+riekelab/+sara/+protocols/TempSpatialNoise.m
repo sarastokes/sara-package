@@ -25,7 +25,7 @@ classdef TempSpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinL
         ampType
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         noiseClassType = symphonyui.core.PropertyType('char', 'row', {'binary', 'ternary', 'gaussian'})
-        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB','L-iso','M-iso','S-iso'})
+        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB','L-iso','M-iso','S-iso', 'custom'})
         noiseStream
         numXChecks
         numYChecks
@@ -74,26 +74,6 @@ classdef TempSpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinL
                 'noiseClass', obj.noiseClass, 'chromaticClass', obj.chromaticClass,...
                 'preTime', obj.preTime, 'stimTime', obj.stimTime, ...
                 'frameRate', obj.frameRate, 'numFrames', numFrames);
-
-            % Automated analysis figure.
-%             if ~strcmp(obj.onlineAnalysis,'none')
-%                 % custom figure handler
-%                 if isempty(obj.analysisFigure) || ~isvalid(obj.analysisFigure)
-%                     obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.getSTRF);
-%                     f = obj.analysisFigure.getFigureHandle();
-%                     set(f, 'Name', 'spatial receptive field');
-%                     obj.analysisFigure.userData.axesHandle = axes('Parent', f);
-%                 end
-%
-%                 % Init the strf.
-%                 if strcmp(obj.chromaticClass, 'achromatic')
-%                     obj.strf = zeros(obj.numYChecks, obj.numXChecks, floor(obj.frameRate*0.5/obj.frameDwell));
-%                     obj.spatialRF = zeros(obj.numYChecks, obj.numXChecks);
-%                 else
-%                     obj.strf = zeros(3, obj.numYChecks, obj.numXChecks, floor(obj.frameRate*0.5/obj.frameDwell));
-%                     obj.spatialRF = zeros(obj.numYChecks, obj.numXChecks, 3);
-%                 end
-%             end
 
             % Get the frame values for repeating epochs.
             if ~obj.useRandomSeed

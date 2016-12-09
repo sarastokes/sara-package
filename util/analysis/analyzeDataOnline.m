@@ -71,16 +71,16 @@ function r = analyzeDataOnline(r, varargin)
           r.ptsh.binSize = 200;
             r.instFt(stim, trial, :) = getInstFiringRate(spikes(ep,:), r.params.sampleRate);
           if ep == r.numEpochs
-            for stim = 1:length(r.params.stimClass) % TODO: this shouldn't be here right?
-              r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(r.respBlock(stim,:,:)), 200);
-            end
+%            for stim = 1:length(r.params.stimClass) % TODO: this shouldn't be here right?
+%              r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(r.respBlock(stim,:,:)), 200);
+%            end
           end
         else % voltage_clamp
           r.respBlock(stim, trial, :) = r.analog(ep,:);
           [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.analog(ep,:));
           if ep == r.numEpochs
-            for stim = 1:length(r.params.stimClass)
-              r.avgResp.(r.params.stimClass(stim)) = mean(squeeze(respBlock(stim,:,:)));
+            for sss = 1:length(r.params.stimClass)
+              r.avgResp.(r.params.stimClass(stim)) = mean(squeeze(respBlock(sss,:,:)));
             end
           end
         end
@@ -220,7 +220,6 @@ function r = analyzeDataOnline(r, varargin)
 
     case {'edu.washington.riekelab.protocols.PulseFamily'}
       for ii = 1:length(r.params.pulses)
-        ii
         result = biophys(r, squeeze(r.respBlock(ii,:,:)), r.params.pulses(ii));
         r.analysis.charge(ii) = result.charge;
         r.analysis.current0(ii) = result.charge;
@@ -235,7 +234,7 @@ function r = analyzeDataOnline(r, varargin)
       end
 
       % clean all this up later.. just trying to see it work for now
-      props = fieldnames(r.analysis)
+      props = fieldnames(r.analysis);
       for ii = 1:length(props)
         outlier = getOutliers(r.analysis.(props{ii}), 5);
         ind = nonzeros(outlier);
@@ -328,7 +327,9 @@ function r = analyzeDataOnline(r, varargin)
       end
       r.analysis.tempFT = abs(fft(r.analysis.linearFilter));
 
-    case {'edu.washington.riekelab.manookin.protocols.SpatialNoise', 'edu.washington.riekelab.manookin.protocols.TernaryNoise'}
+    case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',...
+            'edu.washington.riekelab.manookin.protocols.TernaryNoise',...
+            'edu.washington.riekelab.sara.protocols.TempSpatialNoise'}
       r.epochCount = 0;
 
       r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));

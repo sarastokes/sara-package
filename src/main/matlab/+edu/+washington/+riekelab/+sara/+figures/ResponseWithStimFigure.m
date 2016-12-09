@@ -16,6 +16,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     axesHandle
     sweep
     stim
+    stim2
+    stim3
     storedSweep
     epochNum
   end
@@ -27,8 +29,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     obj.stimTrace = stimTrace;
     ip = inputParser();
 
-    ip.addParameter('stimPerSweep', [], @(x)isvector(x));
-    ip.addParameter('sweepColor', [], @(x)ischar(x) || isvector(x));
+    ip.addParameter('stimPerSweep', 1, @(x)isvector(x) || ischar(x));
+    ip.addParameter('sweepColor', 'k', @(x)ischar(x) || isvector(x));
     ip.addParameter('stimColor', [], @(x)ischar(x) || isvector(x));
     ip.addParameter('storedSweepColor', 'r', @(x)ischar(x) || isvector(x));
     ip.addParameter('stimTitle', [], @(x)ischar(x));
@@ -39,6 +41,11 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     obj.stimColor = ip.Results.stimColor;
     obj.stimPerSweep = ip.Results.stimPerSweep;
     obj.stimTitle = ip.Results.stimTitle;
+
+    if obj.stimPerSweep == 3
+      load stimColors;
+      obj.stimColor = [stimColors.L; stimColors.M; stimColors.S];
+    end
 
     obj.epochNum = 0;
 
@@ -76,7 +83,7 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
       'XTickMode', 'auto',...
       'XTick', [], 'XColor', 'w');
 
-      set(obj.figureHandle, 'Color', 'w');
+    set(obj.figureHandle, 'Color', 'w');
   end
 
   function setTitle(obj, t)
@@ -86,7 +93,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
 
   function clear(obj)
     cla(obj.axesHandle(1)); cla(obj.axesHandle(2));
-    obj.sweep = []; obj.stim = [];
+    obj.sweep = []; obj.stim = []; 
+    obj.stim2 = []; obj.stim3 = [];
   end
 
   function handleEpoch(obj, epoch)
@@ -102,9 +110,8 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     if isempty(obj.sweepColor)
       obj.sweepColor = [0 0 0];
     end
-
     if isempty(obj.stimColor)
-      obj.stimColor = [0 0 0];
+        obj.stimColor = [0 0 0];
     end
 
     if numel(quantities) > 0
@@ -126,7 +133,26 @@ classdef ResponseWithStimFigure < symphonyui.core.FigureHandler
     % plot stimuli
     if ~isempty(obj.stimTrace)
       % multiple stim traces per epoch
-      if obj.stimPerSweep > 1
+      if obj.stimPerSweep == 3 % RGB led weights
+        LEDs = epoch.parameter('ledContrasts');
+        switch epoch.parameters('searchAxis')
+        case 'green'
+          obj.stim = line([1 length(obj.stimTrace)], [LEDs(1) LEDs(1)],... 
+            'Parent', obj.axesHandle(2), 'Color', obj.stimColor(1,:), 'LineWidth', 1);
+          obj.stim2 = line(1:length(obj.stimTrace), LEDs(2) * obj.stimTrace,...
+            'Parent', obj.axesHandle(2), 'Color', obj.stimColor(2,:), 'LineWidth', 1);
+          obj.stim3 = line([1 length(obj.stimTrace)], [LEDs(3) LEDs(3)],... 
+            'Parent', obj.axesHandle(2), 'Color', obj.stimColor(3,:), 'LineWidth', 1);
+        case 'red'
+          set(obj.stim, 'XData', 1:length(obj.stimTrace), 'YData', LEDs(1)*obj.stimTrace);
+          set(obj.stim2, 'XData', [1 length(obj.stimTrace)], 'YData', [LEDs(2) LEDs(2)]);
+          set(obj.stim3, 'XData', [1 length(obj.stimTrace)], 'YData', [LEDs(3) LEDs(3)]);
+        case 'blue'
+          set(obj.stim, 'XData', [1 length(obj.stimTrace)], 'YData', [LEDs(1) LEDs(1)]);
+          set(obj.stim2, 'XData', [1 length(obj.stimTrace)], 'YData', [LEDs(2) LEDs(2)]);
+          set(obj.stim3, 'XData', 1:length(obj.stimTrace), 'YData', LEDs(3)*obj.stimTrace);
+        end        
+      elseif obj.stimPerSweep == 2
         plot((obj.stimTrace)', 'Parent', obj.axesHandle(2)); % this works but i'm going to try a better way later
       else % single stim trace per epoch
         if size(obj.stimTrace, 1) > 1

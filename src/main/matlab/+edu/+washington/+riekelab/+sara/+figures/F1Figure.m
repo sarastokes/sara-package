@@ -9,6 +9,7 @@ properties
   temporalFrequency   % don't pass if temporalFrequency = xvals
   plotColor
   numReps   % pass if numReps would ever be >1, otherwise numReps = 1
+  waitTime
 end
 
 properties
@@ -37,9 +38,11 @@ function obj = F1Figure(device, xvals, onlineAnalysis, preTime, stimTime, vararg
   ip.addParameter('temporalFrequency', [], @(x)ischar(x) || isvector(x));
   ip.addParameter('plotColor', [0 0 0], @(x)ischar(x) || isvector(x));
   ip.addParameter('numReps', 1, @(x)isnumeric(x) || isvector(x));
+  ip.addParameter('waitTime', 0, @(x)isfloat(x));
   ip.parse(varargin{:});
 
   obj.temporalFrequency = ip.Results.temporalFrequency;
+  obj.waitTime = ip.Results.waitTime;
 
   obj.numReps = ip.Results.numReps;
   obj.plotColor = zeros(2,3);
@@ -125,10 +128,10 @@ function handleEpoch(obj, epoch)
   responseTrace = getResponseByType(responseTrace, obj.onlineAnalysis);
 
   % Get the F1 amplitude and phase.
-  responseTrace = responseTrace(obj.preTime/1000*sampleRate+1 : end);
+  responseTrace = responseTrace((obj.preTime+obj.waitTime)/1000*sampleRate+1 : end);
   binRate = 60;
   binWidth = sampleRate / binRate; % Bin at 60 Hz.
-  numBins = floor(obj.stimTime/1000 * binRate);
+  numBins = floor((obj.stimTime-obj.waitTime)/1000 * binRate);
   binData = zeros(1, numBins);
   for k = 1 : numBins
       index = round((k-1)*binWidth+1 : k*binWidth);

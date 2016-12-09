@@ -589,7 +589,8 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       end
     end
 
-  case 'edu.washington.riekelab.manookin.protocols.SpatialNoise'
+  case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',... 
+    'edu.washington.riekelab.sara.protocols.TempSpatialNoise'}
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
     r.params.chromaticClass =  epochBlock.protocolParameters('chromaticClass');
