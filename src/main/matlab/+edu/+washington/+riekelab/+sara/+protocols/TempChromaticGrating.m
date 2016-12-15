@@ -36,7 +36,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         apertureClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
         spatialClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
         temporalClassType = symphonyui.core.PropertyType('char', 'row', {'drifting', 'reversing'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','S-iso','M-iso','L-iso', 'LM-iso', 'custom'})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','S-iso','M-iso','L-iso', 'LM-iso', 'x', 'z', 'w'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         rawImage
         spatialPhaseRad % The spatial phase in radians.

@@ -21,7 +21,7 @@ end
 
 properties (Hidden)
   ampType
-  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'alms', 'cpy', 'ysa', 'lmx', 'almx', 'yxa', 'rgb', 'rgby'})
+  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'alms', 'cpy', 'ysa', 'lmx', 'zwx', 'azwx' 'almx', 'yxa', 'rgb', 'rgby'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'flash'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   chromaticClass
