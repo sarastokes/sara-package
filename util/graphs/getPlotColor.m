@@ -1,4 +1,10 @@
-function [p, c] = getPlotColor(colorCall)
+function [p, c] = getPlotColor(colorCall, fac)
+  % optional: fac = lighten plot color by factor (usually 0.5 or 0.6)
+
+    if nargin < 2
+      fac = 1;
+    end
+
     % Cone iso options
     if strcmp(colorCall, 'L-iso') || strcmp(colorCall, 'l')
       c = 'L-iso';
@@ -50,4 +56,11 @@ function [p, c] = getPlotColor(colorCall)
       p = [0 0 0];
       c = 'Achromatic';
     end
+
+    if length(fac) ~= 1
+      p = [p; p+(fac(2)*(1-p))];
+    elseif fac ~= 1
+      p = p + (fac * (1-p));
+    end
+
  end

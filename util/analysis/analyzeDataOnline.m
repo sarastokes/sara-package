@@ -13,6 +13,13 @@ function r = analyzeDataOnline(r, varargin)
   neuron = ip.Results.neuron;
   binsPerFrame = ip.Results.binsPerFrame;
 
+  % keep up with new log changes
+  if ~isfield(r, 'log')
+    r.log{1} = ['recorded at ' r.startTimes{1}];
+    r.log{2} = 'parsed before 10Dec2016 log update';
+  end
+  r.log{end+1} = ['analyzeDataOnline at ' datestr(now)];
+
   % doubt i'll need paired WC analysis anytime soon...
   if neuron == 1 && isfield(r, 'spikes')
     spikes = r.spikes;
@@ -50,41 +57,41 @@ function r = analyzeDataOnline(r, varargin)
   switch r.protocol
     case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',  'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
       r.analysis = sMTFanalysis(r);
+      r.log{end+1} = ['sMTFanalysis at ' datestr(now)];
 
     case 'edu.washington.riekelab.sara.protocols.ConeSweep'
       r.analysis.f1amp = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
       r.analysis.f1phase = zeros(length(r.params.stimClass), r.numEpochs/length(r.params.stimClass));
       r.params.plotColors = zeros(length(r.params.stimClass), 3);
 
-      r.respBlock = zeros(length(r.params.stimClass), (r.numEpochs/length(r.params.stimClass)), length(r.resp));
       r.instFt = zeros(size(r.respBlock));
 
-      for ep = 1:r.numEpochs
-        stim = rem(ep, length(r.params.stimClass));
-        if stim == 0
-          stim = length(r.params.stimClass);
-        end
-        trial = ceil(ep / length(r.params.stimClass));
-        if strcmp(r.params.recordingType, 'extracellular')
-          r.respBlock(stim, trial, :) = spikes(ep,:);
+      switch r.params.recordingType
+      case 'extracellular'
+        for ep = 1:r.numEpochs
+          [stim, trial] = ind2sub([length(r.params.stimClass) size(r.respBlock,2)], ep);
+          % r.respBlock(stim, trial, :) = spikes(ep,:);
           [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, spikes(ep,:));
-          r.ptsh.binSize = 200;
-            r.instFt(stim, trial, :) = getInstFiringRate(spikes(ep,:), r.params.sampleRate);
-          if ep == r.numEpochs
-%            for stim = 1:length(r.params.stimClass) % TODO: this shouldn't be here right?
-%              r.ptsh.(r.params.stimClass(stim)) = getPTSH(r, squeeze(r.respBlock(stim,:,:)), 200);
-%            end
-          end
-        else % voltage_clamp
+          r.instFt(stim, trial, :) = getInstFiringRate(spikes(ep,:), r.params.sampleRate);
+        end
+        r.ptsh.binSize = 200;
+        for sss = 1:length(r.params.stimClass)
+          r.ptsh.(r.params.stimClass(sss)) = getPTSH(r, squeeze(r.spikeBlock(sss,:,:)), 200);
+        end
+      case 'voltage_clamp'
+        for ep = 1:r.numEpochs
+          [stim, trial] = ind2sub([length(r.params.stimClass) size(r.respBlock,2)], ep);
           r.respBlock(stim, trial, :) = r.analog(ep,:);
           [r.analysis.f1amp(stim,trial), r.analysis.f1phase(stim,trial), ~, ~] = CTRanalysis(r, r.analog(ep,:));
-          if ep == r.numEpochs
-            for sss = 1:length(r.params.stimClass)
-              r.avgResp.(r.params.stimClass(stim)) = mean(squeeze(respBlock(sss,:,:)));
-            end
-          end
         end
+        for sss = 1:length(r.params.stimClass)
+          r.avgResp.(r.params.stimClass(sss)) = mean(squeeze(respBlock(sss,:,:)));
+        end
+      case 'current_clamp'
+        % not yet
       end
+      r.log{end+1} = ['instFt calc at ' datestr(now)];
+      r.log{end+1} = ['CTRanalysis at ' datestr(now)];
 
     case 'edu.washington.riekelab.sara.protocols.IsoSTC'
       switch r.params.paradigmClass
@@ -96,6 +103,8 @@ function r = analyzeDataOnline(r, varargin)
           end
           r.analysis.lf = zeros(r.numEpochs, c, 60);
           r.analysis.linearFilter = zeros(c, 60);
+          r.analysis.binsPerFrame = binsPerFrame; % default is 1
+          r.analysis.binRate = 60 * r.analysis.binsPerFrame;
           for ep = 1:r.numEpochs
             if isempty(strfind(r.params.chromaticClass,'RGB'))
               [r.analysis.lf(ep,:), r.analysis.linearFilter] = MTFanalysis(r, spikes(ep,:), r.params.seed{ep});
@@ -104,6 +113,23 @@ function r = analyzeDataOnline(r, varargin)
             end
           end
           r.analysis.linearFilter = r.analysis.linearFilter/r.numEpochs;
+
+          if isempty(strfind(r.params.chromaticClass, 'RGB'))
+            r.analysis.linearFilter = r.analysis.linearFilter/std(r.analysis.linearFilter);
+            % take the mean
+            r.analysis.tempFT = abs(fft(r.analysis.linearFilter));
+
+            % get the nonlinearity
+            r = nonlinearity(r);
+          else
+            r.analysis.tempFT = zeros(size(r.analysis.linearFilter));
+            for ii = 1:3
+              r.analysis.linearFilter(ii,:) = r.analysis.linearFilter(ii,:)/std(r.analysis.linearFilter(ii,:));
+              r.analysis.tempFT(ii,:) = abs(fft(r.analysis.linearFilter(ii,:)));
+            end
+          end
+            r.log{end+1} = ['MTFanalysis at ' datestr(now)];
+            r.log{end+1} = ['nonlinearity at ' datestr(now)];
         case 'ID'
           switch r.params.recordingType
           case 'extracellular'
@@ -131,6 +157,7 @@ function r = analyzeDataOnline(r, varargin)
       for ep = 1:r.numEpochs
         [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
       end
+      r.log{end+1} = ['CTRanalysis at ' datestr(now)];
 
     case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
       r.analysis.f1amp = zeros(1, length(r.numEpochs));
@@ -214,6 +241,9 @@ function r = analyzeDataOnline(r, varargin)
 
       % get the nonlinearity
       r = nonlinearity(r);
+
+      r.log{end+1} = ['MTFanalysis at ' datestr(now)];
+      r.log{end+1} = ['nonlinearity at ' datestr(now)];
 
     case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
       r.analysis = pulseAnalysis(r, r.resp, r.params.pulseAmplitude);
@@ -327,6 +357,8 @@ function r = analyzeDataOnline(r, varargin)
       end
       r.analysis.tempFT = abs(fft(r.analysis.linearFilter));
 
+      r.analysis.log{end+1} = ['injectNoise analysis - run at ' datestr(now)];
+
     case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',...
             'edu.washington.riekelab.manookin.protocols.TernaryNoise',...
             'edu.washington.riekelab.sara.protocols.TempSpatialNoise'}
@@ -353,6 +385,12 @@ function r = analyzeDataOnline(r, varargin)
           % updated with mike's new online analysis stuff but now throws errors for RGB noise, will fix at some pt
           r = getSTRFOnline(r, spikes(ii,:), r.seed(ii));
         end
+        % track analysis
+        if isfield(r.analysis, 'log')
+          r.analysis.log{end+1} = ['getSTRFOnline - run at ' datestr(now)];
+        else
+          r.analysis.log{1} = ['getSTRFOnline - run at ' datestr(now)];
+        end
       end
 
       % not really sure why i'm saving these (not really a STS)
@@ -374,24 +412,26 @@ function r = analyzeDataOnline(r, varargin)
       end
 
     case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
+      % preallocate analysis variables
+      r.analysis.f0amp = zeros(1, r.numEpochs);
+      r.analysis.f1amp = zeros(1, r.numEpochs);
+      r.analysis.f2amp = zeros(1, r.numEpochs);
+      r.analysis.f1phase = zeros(1, r.numEpochs);
+      r.analysis.f2phase = zeros(1, r.numEpochs);
       for ep = 1:r.numEpochs
-        [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
+        % [r.analysis.f1amp(ep), r.analysis.f1phase(ep), r.analysis.f2amp(ep), r.analysis.f2phase(ep)] = CTRanalysis(r, spikes(ep,:));
+        r = sMTFanalysis2(r, ep);
       end
 
-      % fit F1 amplitude
-      yd = abs(r.analysis.f1amp(:)');
-      r.analysis.params0 = [max(yd) 200 0.1*max(yd) 400]
-      switch r.params.stimulusClass
-      case 'spot'
-        [r.analysis.Kc, r.analysis.sigmaC, r.analysis.Ks, r.analysis.sigmaS] = fitDoGAreaSummation(2*r.params.radii(:)', yd, r.analysis.params0);
-        res = fitDoGAreaSummation([r.analysis.Kc, r.analysis.sigmaC, r.analysis.Ks, r.analysis.sigmaS], 2*r.params.radii(:)');
-      case 'annulus'
-        r.analysis.params = fitAnnulusAreaSum([r.params.radii(:)' 456], yd, r.analysis.params0);
-        res = fitAnnulusAreaSummation(r.analysis.params, [r.params.radii(:)' 456]);
-        r.analysis.sigmaC = r.analysis.params(2);
-        r.analysis.sigmaS = r.analysis.params(4);
+      % fit F1 and F2 (on-off) amplitude
+      r.analysis.f1Fit = struct();
+      r.analysis.f1Fit = FTAmpFit(r, r.analysis.f1amp);
+      if strcmp(r.params.temporalClass, 'squarewave')
+        r.analysis.f2Fit = FTAmpFit(r, r.analysis.f2amp);
       end
-        
+
+      r.log{end+1} = ['sMTFanalysis2 + fits at ' datestr(now)];
+
 
     case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
       r.analysis.binRate = 60;
@@ -434,13 +474,6 @@ function r = analyzeDataOnline(r, varargin)
       end
   end % parse epoch block
 
-
-if isfield(r.log, 'analysisTime')
-  r.log.analyzed = {r.log.analyzed, date};
-else
-  r.log.analyzed = date;
-end
-
 if neuron == 2
   r.secondary.analysis = r.analysis;
   clear r.analysis;
@@ -449,6 +482,25 @@ if neuron == 2
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
+  function s = FTAmpFit(r, amp)
+    yd = abs(amp(:)');
+    s.params0 = [max(yd) 200 0.1*max(yd) 400];
+    switch r.params.stimulusClass
+    case 'spot'
+      [s.Kc, s.sigmaC, s.Ks, s.sigmaS] = fitDoGAreaSummation(2*r.params.radii(:)', yd, s.params0);
+      s.fit = DoGAreaSummation([s.Kc, s.sigmaC, s.Ks, s.sigmaS], 2*r.params.radii(:)');
+      fprintf('Kc = %.2f, sigmaC = %.2f, Ks = %.2f, sigmaS = %.2f\n',... 
+        s.Kc, s.sigmaC, s.Ks, s.sigmaS);
+    case 'annulus'
+      s.params = fitAnnulusAreaSum([r.params.radii(:)' 456], yd, s.params0);
+      s.fit = annulusAreaSummation(s.params, [r.params.radii(:)' 456]);
+      s.sigmaC = s.params(2);
+      s.sigmaS = s.params(4);
+      fprintf('sigmaC = %.2f, sigmaS = %.2f\n', s.sigmaC, s.sigmaS);
+    end
+  end
+
   function instFt = getInstFiringRate(spikes, sampleRate)
     % instantaneous firing rate
     n = size(spikes,1);
@@ -459,6 +511,59 @@ end
     instFt = zeros(size(spikes));
     for ii = 1:n
       instFt(ii,:) = sampleRate*conv(spikes(ii,:), newFilt, 'same');
+    end
+  end
+
+  function r = sMTFanalysis2(r, epochNum)
+    binRate = 60;
+    if isfield(r.params, 'waitTime')
+      prePts = (r.params.preTime + r.params.stimTime) * 1e-3 * r.params.sampleRate;
+      stimFrames = (r.params.stimTime - r.params.waitTime) * 1e-3 * binRate;
+    else
+      prePts = r.params.preTime*1e-3*r.params.sampleRate;
+      stimFrames = r.params.stimTime * 1e-3 * binRate;
+    end
+    if strcmp(r.params.recordingType, 'extracellular')
+      y = BinSpikeRate(r.spikes(epochNum, :), binRate, r.params.sampleRate);
+    else
+      if prePts > 0
+        y = y - median(y(1:prePts));
+      else
+        y = y-median(y);
+      end
+      y = binData(y(prePts+1:end), binRate, r.params.sampleRate);
+    end
+
+    binSize = binRate/r.params.temporalFrequency;
+    numBins = floor(stimFrames/binSize);
+    avgCycle = zeros(1, floor(binSize));
+    for k = 1:numBins
+      index = round((k-1)*binSize)+(1:floor(binSize));
+      index(index > length(y)) = [];
+      ytmp = y(index);
+      avgCycle = avgCycle + ytmp(:)';
+    end
+    avgCycle = avgCycle / numBins;
+
+    ft = fft(avgCycle);
+    r.analysis.f0amp(epochNum) = abs(ft(1))/length(avgCycle*2);
+    r.analysis.f1amp(epochNum) = abs(ft(2))/length(avgCycle*2);
+    r.analysis.f2amp(epochNum) = abs(ft(3))/length(avgCycle*2);
+    r.analysis.f1phase(epochNum) = angle(ft(2)) * 180/pi;
+    r.analysis.f2phase(epochNum) = angle(ft(3)) * 180/pi;
+
+    % save analysis information
+    r.analysis.avgCycle(epochNum,:) = avgCycle;
+    if epochNum == 1
+      r.analysis.params.binRate = binRate;
+      r.analysis.params.prePts = prePts;
+      r.analysis.params.stimFrames = stimFrames;
+      logstr = sprintf('SMTFanalysis2 - run at %s', datestr(now));
+      if isfield(r.analysis, 'log')
+        r.analysis.log{end+1} = logstr;
+      else
+        r.analysis.log{1} = logstr;
+      end
     end
   end
 

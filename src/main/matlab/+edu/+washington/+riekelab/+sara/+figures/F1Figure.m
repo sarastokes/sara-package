@@ -177,11 +177,11 @@ end
 
 methods (Access = private)
 function onSelectedStoreSweep(obj,~,~)
-  outputStruct.F1 = obj.f1amp;
-  outputStruct.P1 = obj.f1phase;
-  outputStruct.chromaticClass = obj.chromaticClass;
-
-  assignin(base, 'outputStruct', 'outputStruct');
+  outputStruct.F1 = obj.F1amp;
+  outputStruct.P1 = obj.F1phase;
+  answer = inputdlg('Save to workspace as:', 'save dialog', 1, {'r'});
+  fprintf('%s new grating named %s\n', datestr(now), answer{1});
+  assignin('base', sprintf('%s', answer{1}), outputStruct);
 end
 end
 end

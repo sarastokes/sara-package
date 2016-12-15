@@ -267,7 +267,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.contrast = epochBlock.protocolParameters('contrast');
     r.params.spatialClass = epochBlock.protocolParameters('spatialClass');
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
-    r.params.orientation = epochBlock.protocolParameters('orientation');
+    if isKey(epochBlock.protocolParameters, 'orientations')
+      r.params.orientation = epochBlock.protocolParameters('orientations');
+    else
+      r.params.orientation = epochBlock.protocolParameters('orientation');
+    end
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
     if r.numEpochs <= length(r.params.spatialFrequencies)
@@ -319,13 +323,23 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     else
       r.params.equalQuantalCatch = 0;
     end
+    r.respBlock = zeros(length(r.params.stimClass), ceil(r.numEpochs/length(r.params.stimClass)), size(r.resp, 2));
+    if strcmp(r.params.recordingType, 'extracellular')
+      r.spikeBlock = zeros(size(r.respBlock));
+    end
     for ep = 1:r.numEpochs
+      [ind1, ind2] = ind2sub([length(r.params.stimClass), size(r.respBlock, 2)], ep);
+      r.respBlock(ind1, ind2, :) = r.resp(ep,:);
+      if strcmp(r.params.recordingType, 'extracellular')
+        r.spikeBlock(ind1, ind2, :) = r.spikes(ep,:);
+      end
       epoch = epochBlock.getEpochs{ep}; % get epoch
       if ep <= length(r.params.stimClass) && isKey(epoch.protocolParameters, 'sweepColor')
           r.params.plotColors(ep,:) = epoch.protocolParameters('sweepColor');
       end
       r.trials(ep).chromaticClass = epoch.protocolParameters('chromaticClass');
     end
+
 
   case 'edu.washington.riekelab.protocols.PulseFamily'
     r.params.firstPulseSignal = epochBlock.protocolParameters('firstPulseSignal');
@@ -475,6 +489,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.barSizeMicrons = r.params.barSize * r.params.micronsPerPixel;
     r.params.intensity = epochBlock.protocolParameters('intensity');
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
+    r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.positions = epochBlock.protocolParameters('positions');
     if r.numEpochs <= length(r.params.positions)
       r.params.positions = r.params.positions(1:r.numEpochs);
@@ -655,7 +670,9 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
   end
 
   % save date parsed
-  r.log.parsed = date;
+  r.log = cell(2,1);
+  r.log{1} = ['recorded at ' r.startTimes{1}];
+  r.log{2} = ['parsed at ' datestr(now)];
 
 
 %% ANALYSIS FUNCTIONS------------------------------------------
