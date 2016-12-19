@@ -246,7 +246,7 @@ function r = analyzeDataOnline(r, varargin)
       r.log{end+1} = ['nonlinearity at ' datestr(now)];
 
     case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
-      r.analysis = pulseAnalysis(r, r.resp, r.params.pulseAmplitude);
+        r.analysis = pulseAnalysis(r, r.resp, r.params.pulseAmplitude);
 
     case {'edu.washington.riekelab.protocols.PulseFamily'}
       for ii = 1:length(r.params.pulses)
@@ -360,8 +360,8 @@ function r = analyzeDataOnline(r, varargin)
       r.analysis.log{end+1} = ['injectNoise analysis - run at ' datestr(now)];
 
     case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',...
-            'edu.washington.riekelab.manookin.protocols.TernaryNoise',...
-            'edu.washington.riekelab.sara.protocols.TempSpatialNoise'}
+      'edu.washington.riekelab.manookin.protocols.TernaryNoise',...
+      'edu.washington.riekelab.sara.protocols.TempSpatialNoise'}
       r.epochCount = 0;
 
       r.analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
@@ -432,7 +432,6 @@ function r = analyzeDataOnline(r, varargin)
 
       r.log{end+1} = ['sMTFanalysis2 + fits at ' datestr(now)];
 
-
     case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
       r.analysis.binRate = 60;
       prePts = r.params.preTime*1e-3*r.params.sampleRate;
@@ -468,6 +467,11 @@ function r = analyzeDataOnline(r, varargin)
           r.analysis.binAvg = zeros(length(r.params.stimuli), size(y,2));
         end
         [ind1, ind2] = ind2sub([length(r.params.stimuli), size(y,2)], ii);
+        if ii == 1
+          ift = getInstFiringRate(r.resp(ii,:), r.params.sampleRate);
+          r.analysis.instFt = zeros(length(r.params.stimuli), size(y,2), length(ift));
+        end
+        r.analysis.instFt(ind1, ind2, :) = getInstFiringRate(r.resp(ii,:), r.params.sampleRate);
         r.analysis.bins(ind1, ind2, :) = y;
         % for now this will avoid counting zeros when not all stim were run equal times
         r.analysis.binAvg(ind1, :) = squeeze(mean(r.analysis.bins(ind1, 1:ind2, :),2));

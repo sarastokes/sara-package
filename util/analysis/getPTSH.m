@@ -1,4 +1,4 @@
-function res = getPSTH(r, spikeTrials ,binSize)
+function res = getPTSH(r, spikeTrials ,binSize)
   %For online analysis
   %spikeTrials is a n * d matrix of cell-attached spike recordings
   %    where d=number data points per trial and n is number trials

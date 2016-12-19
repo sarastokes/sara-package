@@ -1,4 +1,4 @@
-function r = getNonlinearity(r)
+function r = nonlinearity(r)
   % for now, run thru spike detection protocols before function
 
   nonlinearityBins = 250;
@@ -40,7 +40,7 @@ function r = getNonlinearity(r)
       data = data - median(data);
       for m = 1:numBins
         index = round((m-1)*binSize+1 : round(m*binSize));
-        binData(m) = mean(data(index));
+        binData(m) = mean(data(index)); %#ok<AGROW>
       end
 
       % convert to conductance
@@ -51,8 +51,12 @@ function r = getNonlinearity(r)
       end
     end
 
-    seed = r.params.seed(ii);
-
+    if iscell(r.params.seed)
+        seed = r.params.seed{ii};
+    else
+        seed = r.params.seed(ii);
+    end
+    
     noiseStream = RandStream('mt19937ar', 'Seed', seed);
     frameValues = stdev * noiseStream.randn(1, numBins/binsPerFrame);
 

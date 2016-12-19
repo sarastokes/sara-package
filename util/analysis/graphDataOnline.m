@@ -663,14 +663,21 @@ if ~isfield(r, 'protocol')
       end
 
     case 'edu.washington.riekelab.manookin.protocols.MovingBar'
-      co = pmkmp(size(r.respBlock, 2), 'cubicL');
+      co = pmkmp(length(r.params.orientations), 'cubicL');
+      cp = co - (0.4*(1-co)); cp(cp < 0) = 0;
       xpts = (1:size(r.respBlock, 3)) / r.params.sampleRate;
 
+      figure('Name', 'moving bar raster plot')
       for ii = 1:size(r.respBlock, 1)
         for jj = 1:size(r.respBlock, 2)
           ind = sub2ind([size(r.respBlock, 1) size(r.respBlock, 2)], ii, jj);
           subplot(size(r.respBlock, 1), 1, ii); hold on;
-          plot(xpts, r.spikes(ind, :), 'Color', co(jj, :)); axis tight;
+          switch r.params.recordingType
+          case 'extracellular'
+            plot(xpts, r.spikes(ind, :), 'Color', co(jj*2, :)); axis tight;
+          case 'voltage_clamp'
+            plot(xpts, r.analog(ind,:), 'Color', co(jj*2,:)); axis tight;
+          end
           set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []);
           ylabel(sprintf('%u%s     ', (30*ii)-30, char(176)),... 
             'Rotation', 0, 'VerticalAlignment', 'middle');
@@ -680,16 +687,49 @@ if ~isfield(r, 'protocol')
             xlabel('time (sec)');
           end
           if ii == 1
-            title([r.cellName ' - moving bar stimulus raster plot']);
+            title(sprintf('%s - moving bar stimulus %u% contrast at %.1f mean',... 
+              r.cellName, 100*r.params.intensity, r.params.backgroundIntensity));
           end
         end
       end
 
+      % instft or analog plot
+      figure(); hold on;
+      for ii = 1:size(r.respBlock,1)
+        plot(xpts, squeeze(mean(r.instFt(ii, :, :), 2)), 'Color', co(ii,:), 'LineWidth', 1);
+        legendstr{ii} = sprintf('%u%s', (30*ii)-30, char(176));
+      end
+      legend(legendstr);
+      set(legend, 'EdgeColor', 'w', 'FontSize', 10);
+      title([r.cellName sprintf(' moving bar avg firing rate (%u % at %.1f mean)',... 
+        100*r.params.intensity, r.params.backgroundIntensity)]);
+
+      figure;
+      for jj = 1:size(r.respBlock, 1)
+        subplot(size(r.respBlock,1), 1, jj); hold on;
+        for ii = 1:size(r.respBlock,2)
+          plot(xpts, squeeze(r.instFt(jj,ii,:)),... 
+            'Color', cp(jj,:), 'LineWidth', 1);
+        end
+        plot(xpts, squeeze(mean(r.instFt(jj,:,:))),... 
+          'Color', co(jj,:), 'LineWidth', 1);
+        ylabel(sprintf('%u%s     ', (30*jj) - 30, char(176)),... 
+          'Rotation', 0, 'VerticalAlignment', 'middle');
+        ylim([0 max(max(max(r.instFt)))]);
+        if jj ~= size(r.respBlock, 1)
+          set(gca, 'XColor', 'w', 'XTick', []);
+        end
+      end
+      subplot(size(r.respBlock, 1), 1, 1);
+      title(sprintf('%s - moving bar (%u% on %.1f mean)', r.cellName, 100*r.params.intensity, r.params.backgroundIntensity))
+
+
       for jj = 1:size(r.respBlock, 2)
-        figure('Color', 'w', 'Name', sprintf('moving bar trial %u', jj));
+        figure('Color', 'w', 'Name', sprintf('moving bar trial %u (%u% at %.1f mean)',... 
+          jj, r.params.intensity, r.params.backgroundIntensity));
         for ii = 1:size(r.respBlock, 1)
           subplot(size(r.respBlock, 1), 1, ii); hold on;
-          plot(xpts, squeeze(r.respBlock(ii, jj, :)), 'Color', co(jj, :));
+          plot(xpts, squeeze(r.respBlock(ii, jj, :)), 'Color', co(jj*2, :));
           set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []); axis tight;
           ylabel(sprintf('%u%s     ', (30*ii) - 30, char(176)),... 
             'Rotation', 0, 'VerticalAlignment', 'middle');

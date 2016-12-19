@@ -1,10 +1,10 @@
 function r = parseDataOnline(symphonyInput, recordingType, varargin)
   % INPUTS:
   %     symphonyInput: epochBlock (or epochGroup for ChromaticSpot)
-  %     ampNum: which amplifier to analyze. for paired recordings
-  %     comp: input 'slu' if don't have wavelet toolbox
   %     recordingType: in case it isn't defined thru onlineAnalysis or epochGroup name. 
   %                   options are 'extracellular', 'voltage_clamp', 'current_clamp'
+  %     ampNum: which amplifier to analyze. for paired recordings
+  %     spikeDM: detection method for spikes, default = SpikeDetector, 'check', 'online'
   %     analysisType: program should pick up on this unless it's a dual recording
   %         options for extracellular are 'single', 'paired' and 'dual'
   %         for voltage_clamp: 'excitation', 'inhibition'
@@ -14,19 +14,27 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
   %
   %
   % also for quick offline data
-  % will soon switch over to better object system
+  % will soon(ish) switch over to better object system
 
   if nargin < 2
     recordingType = 'extracellular';
+    fprintf('Recording type set to extracellular\n');
+  elseif strcmp(recordingType, 'vc')
+    recordingType = 'voltage_clamp';
+  elseif strcmp(recordingType, 'ic')
+    recordingType = 'current_clamp';
+  elseif strcmp(recordingType, 'ec')
+    recordingType = 'extracellular';
   end
+
 
   ip = inputParser();
   ip.addParameter('ampNum', 1, @(x)isvector(x));
-  ip.addParameter('comp', 'laptop', @(x)ischar(x));
+  ip.addParameter('spikeDM', 'SpikeDetector', @(x)ischar(x));
   ip.addParameter('analysisType', [], @(x)ischar(x));
   ip.parse(varargin{:});
   ampNum = ip.Results.ampNum;
-  comp = ip.Results.comp;
+  spikeDM = ip.Results.spikeDM;
   analysisType = ip.Results.analysisType;
 
 
@@ -50,7 +58,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
   elseif strcmp(class(symphonyInput), 'symphonyui.core.persistent.EpochBlock')
     r = parseEpochBlock(symphonyInput);
   end
-
+%%
   function r = parseSpotStimulus(r, epochBlock, eb)
     r.numEpochs = length(epochBlock.getEpochs);
     epoch = epochBlock.getEpochs{1}; % to grab params stored in epochs
@@ -105,17 +113,9 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         r.data(eb).resp = zeros(r.numEpochs, length(resp));
       end
       r.data(eb).resp(ep,:) = resp;
-      % get recording type --> TODO: clean up once i figure out how to access EpochGroup properties
       if ep == 1
-        if ~isempty(recordingType)
-          r.data(eb).recordingType = recordingType;          
-        else
-          if strcmp(r.data(eb).params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.data(eb).label))
-              r.data(eb).recordingType = 'voltage_clamp';
-          else % extracellular
-              r.data(eb).recordingType = 'extracellular';
-          end
-        end
+        r.data(eb).recordingType = recordingType;          
+      end
         % set analysisType
         if ~isempty(analysisType)
           r.data(eb).analysisType = analysisType;
@@ -144,7 +144,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         if ep == 1
           r.data(eb).spikes = zeros(size(r.data(eb).resp));
         end
-        [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, comp);
+        [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, spikeDM);
         r.data(eb).spikeData.resp(ep, r.data(eb).spikeData.times{ep}) = r.data(eb).spikeData.amps{ep};
       case 'voltage_clamp'        
         if ep == 1
@@ -152,15 +152,15 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         end
         r.data(eb).analog(ep,:) = getAnalog(resp, r.data(eb).params.preTime, r.data(eb).params.sampleRate);
       end
-    end
   end
-
+%%
   function r = parseEpochBlock(epochBlock)
   r.numEpochs = length(epochBlock.getEpochs);
   r.cellName = epochBlock.epochGroup.source.label;
   r.protocol = epochBlock.protocolId; % get protocol name
   r.groupName = epochBlock.epochGroup.label;
   r.uuid = epochBlock.uuid;
+  r.params.recordingType = recordingType;
   r.params.preTime = epochBlock.protocolParameters('preTime');
   r.params.stimTime = epochBlock.protocolParameters('stimTime');
   r.params.tailTime = epochBlock.protocolParameters('tailTime');
@@ -168,7 +168,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.backgroundIntensity = epochBlock.protocolParameters('backgroundIntensity');
     r.params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
   end
-    r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
+  r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
   r.params.sampleRate = 10000;
 
   % init new monitoring params
@@ -181,18 +181,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     resp = epoch.getResponses{ampNum}.getData; % get response
     if ep == 1
       r.resp = zeros(r.numEpochs, length(resp));
-      % set the recording type
-      if ~isempty(recordingType)
-        r.params.recordingType = recordingType;
-      else
-        if strcmp(r.params.onlineAnalysis, 'analog') || ~isempty(strfind('WC ', r.groupName))
-          r.params.recordingType = 'voltage_clamp';
-        elseif ~isempty(strfind('IC ', r.groupName(1:2)))
-          r.params.recordingType = 'current_clamp';
-        else 
-          r.params.recordingType = 'extracellular';
-        end
-      end
       % preallocate initial data analysis 
       switch r.params.recordingType
           case 'voltage_clamp'
@@ -215,18 +203,14 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
           else
             r.params.analysisType = 'single';
           end
-  %        [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
-   %       r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
         case 'voltage_clamp'
           if mean(resp) > 0
             r.params.analysisType = 'inhibition';
           else
-            r.params.analysisType = 'excitation';
-          end
- %         r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);   
+            r.params.analysisType = 'excitation'; 
+          end  
         case 'current_clamp'
           r.params.analysisType = 'spikes&subthresh';
-%          [r.ICspikes(ep,:), r.ICstikeTimes(ep,:), r.subthresh(ep,:)] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
         end 
       end
       if isempty(strfind(r.protocol, 'Pulse')) && isempty(strfind(r.protocol, 'Inject'))
@@ -241,7 +225,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       end
         switch r.params.recordingType
         case 'extracellular'
-          [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, comp);
+          [r.spikes(ep,:), r.spikeData.times{ep}, r.spikeData.amps{ep}] = getSpikes(resp, spikeDM);
           r.spikeData.resp(ep, r.spikeData.times{ep}) = r.spikeData.amps{ep};
         case 'voltage_clamp'
           r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);
@@ -273,11 +257,15 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       r.params.orientation = epochBlock.protocolParameters('orientation');
     end
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
-    r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
-    if r.numEpochs <= length(r.params.spatialFrequencies)
-      r.params.spatialFrequencies = r.params.spatialFrequencies(1:r.numEpochs);
-    else
-      r.params.spatialFrequencies = [r.params.spatialFrequencies r.params.spatialFrequencies(1:(r.numEpochs-length(r.params.spatialFrequencies)))];
+    % r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
+    % if r.numEpochs <= length(r.params.spatialFrequencies)
+    %   r.params.spatialFrequencies = r.params.spatialFrequencies(1:r.numEpochs);
+    % else
+    %   r.params.spatialFrequencies = [r.params.spatialFrequencies r.params.spatialFrequencies(1:(r.numEpochs-length(r.params.spatialFrequencies)))];
+    % end
+    r.params.spatialFrequencies = zeros(1, r.numEpochs);
+    for ii = 1:length(r.numEpochs)
+      r.params.spatialFrequencies(ii) = epoch.protocolParameters('spatialFreq');
     end
     r.params.spatialPhase = epochBlock.protocolParameters('spatialPhase');
     r.params.randomOrder = epochBlock.protocolParameters('randomOrder');
@@ -340,7 +328,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       r.trials(ep).chromaticClass = epoch.protocolParameters('chromaticClass');
     end
 
-
   case 'edu.washington.riekelab.protocols.PulseFamily'
     r.params.firstPulseSignal = epochBlock.protocolParameters('firstPulseSignal');
     r.params.incrementPerPulse = epochBlock.protocolParameters('incrementPerPulse');
@@ -397,7 +384,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
 
     if ~isempty(strfind(r.protocol, 'Resistance'))
       % get the online analysis properties attached to the last epoch
-      lastEpoch = epochBlock.getEpochs{r.numEpochs};
+      % lastEpoch = epochBlock.getEpochs{r.numEpochs};
       r.oa.rInput = epochBlock.protocolParameters('rInput');
       r.oa.rSeries = epochBlock.protocolParameters('rSeries');
       r.oa.rMembrane = epochBlock.protocolParameters('rMembrane');
@@ -459,11 +446,13 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.speed = epochBlock.protocolParameters('speed');
 
     r.respBlock = zeros(length(r.params.orientations), ceil(r.numEpochs/length(r.params.orientations)), size(r.resp,2));
+    r.instFt = zeros(size(r.respBlock));
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.params.orientation(1, ep) = epoch.protocolParameters('orientation');
       o = find(r.params.orientations == r.params.orientation(1, ep)); % for rand order
       r.respBlock(o, ceil(ep/length(r.params.orientations)), :) = r.resp(ep, :);
+      r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFiringRate(r.spikes(ep,:), r.params.sampleRate);
     end
 
   case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
@@ -546,8 +535,8 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       [ind1, ind2] = ind2sub([length(r.params.stimuli), size(r.block.resp,2)], ep);
       r.block.resp(ind1, ind2, :) = r.resp(ep,:);
       switch r.params.recordingType
-%      case 'extracellular'
-%        r.block.spikes(ind1, ind2, :) = r.spikes(ep, :);
+      % case 'extracellular'
+      %   r.block.spikes(ind1, ind2, :) = r.spikes(ep, :);
       case 'voltage_clamp'
         r.block.analog(ind1, ind2, :) = r.analog(ep, :);
       case 'current_clamp'
@@ -569,8 +558,6 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         r.params.numYChecks = epoch.protocolParameters('numYChecks');
         r.params.numXChecks = epoch.protocolParameters('numXChecks');
       end
-%     r.params.parity{ii} = epoch.protocolParameters('stimulusType');
-%     r.params.stimulusName{ii} = r.params.stimuli{mod(ii -1, length(r.params.stimuli)) + 1};
       r.params.stimulusType{ii} = epoch.protocolParameters('stimulusType');
       r.params.seed(ii) = epoch.protocolParameters('seed');
 
@@ -598,9 +585,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       % get frames - either noise or glider
       if strcmp(r.params.stimulusType{ii}, 'uncorrelated')
         noiseStream = RandStream('mt19937ar', 'Seed', r.params.seed(ii));
-        r.params.frameSequence{ii} = (noiseStream.rand(r.params.numYChecks, r.params.numXChecks, r.params.numStimFrames) > 0.5);
+        r.params.frameSequence{ii} = (noiseStream.rand(r.params.numYChecks,... 
+          r.params.numXChecks, r.params.numStimFrames) > 0.5);
       else
-        r.params.frameSequence{ii} = makeGlider(r.params.numYChecks, r.params.numXChecks, r.params.numStimFrames, r.params.glider{ii}, r.params.parity(ii), r.params.seed(ii));
+        r.params.frameSequence{ii} = makeGlider(r.params.numYChecks, r.params.numXChecks,... 
+          r.params.numStimFrames, r.params.glider{ii}, r.params.parity(ii), r.params.seed(ii));
       end
     end
 
@@ -676,15 +665,25 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
 
 
 %% ANALYSIS FUNCTIONS------------------------------------------
-  function [spikes, spikeTimes, spikeAmps] = getSpikes(response, comp)
-    if ~strcmp(comp, 'slu')
-      response = wavefilter(response(:)', 6);
+  function [spikes, spikeTimes, spikeAmps, refViols] = getSpikes(response, detectionMethod)
+    switch detectionMethod
+      case 'SpikeDetector'
+        [spikeTimes, spikeAmps, refViols] = SpikeDetector(response);
+      case 'check'
+        [spikeTimes, spikeAmps, refViols] = SpikeDetector(response, 'checkDetection', true);
+      case 'online'
+        try
+          response = wavefilter(response(:)', 6);
+        catch
+          fprintf('Running without wavefilter toolbox');
+        end
+        S = spikeDetectorOnline(response);
+        spikeAmps = S.spikeAmps;
+        spikeTimes = S.sp;
+        refViols = [];
     end
-      S = spikeDetectorOnline(response);
-      spikes = zeros(size(response));
-      spikes(S.sp) = 1;
-      spikeAmps = S.spikeAmps;
-      spikeTimes = S.sp;
+    spikes = zeros(size(response));
+    spikes(spikeTimes) = 1;
   end
 
   function analog = getAnalog(response, preTime, sampleRate)
