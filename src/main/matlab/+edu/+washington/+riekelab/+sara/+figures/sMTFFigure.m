@@ -171,18 +171,18 @@ classdef sMTFFigure < symphonyui.core.FigureHandler
             
             % Create your plot.
             obj.lineHandle = line(obj.xaxis, obj.yaxis,...
-                'Parent', obj.axesHandle, 'Color', 'k', 'Marker', 'o');
+                'Parent', obj.axesHandle, 'Color', [0.385 0.4868 0.9645], 'Marker', 'o');
             obj.lineHandle2 = line(obj.xaxis, obj.yaxis2,...
-                'Parent', obj.axesHandle, 'Color', 'r', 'Marker', 'o');
+                'Parent', obj.axesHandle, 'Color', [0.2864 0.8122 0.4997], 'Marker', 'o');
             if strcmp(obj.temporalType, 'pulse')
-                legend(obj.axesHandle, 'pulse', 'tail', 'Location', 'NorthEast');
+                legend(obj.axesHandle, 'pulse', 'tail', 'Location', 'NorthEast', 'EdgeColor', 'w');
             else
                 line(obj.xaxis, obj.yaxis,...
-                    'Parent', obj.axesHandle, 'Color', 'g', 'Marker', 'o');
-                legend(obj.axesHandle, 'F1', 'F2', 'F0', 'Location', 'NorthEast');
+                    'Parent', obj.axesHandle, 'Color', [0.385 0.4868 0.9645], 'Marker', 'o');
+                legend(obj.axesHandle, 'F1', 'F2', 'F0', 'Location', 'NorthEast', 'EdgeColor', 'w');
                 cla(obj.phaseAxesHandle);
                 obj.phaseHandle = line(obj.xaxis, obj.paxis,...
-                    'Parent', obj.phaseAxesHandle, 'Color', 'k', 'Marker', 'o');
+                    'Parent', obj.phaseAxesHandle, 'Color', [0.385 0.4868 0.9645], 'Marker', 'o');
             end
             
             % Plot the fit after making it through at least one cycle.
@@ -199,7 +199,7 @@ classdef sMTFFigure < symphonyui.core.FigureHandler
                     sigmaS  = params(4);
                 end
                 obj.fitLine = line(obj.xaxis, res, ...
-                    'Parent', obj.axesHandle, 'Color', 'm');
+                    'Parent', obj.axesHandle, 'Color', [0.9765 0.5887 0.3569]);
                 % Display the fitted parameters.
                 title(obj.axesHandle, ['center: ',num2str(round(sigmaC)), '; surround: ',num2str(round(sigmaS))]);
             end

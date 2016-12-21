@@ -14,7 +14,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
         numFrames
         stixelSize
     end
-    
+
     properties (Access = private)
         axesHandle
         imgHandle
@@ -30,9 +30,9 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
         RFsign
         showOnOff
     end
-    
+
     methods
-        
+
         function obj = ReceptiveFieldFigure(device, varargin)
             ip = inputParser();
             ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
@@ -45,9 +45,9 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             ip.addParameter('stimTime',0.0, @(x)isfloat(x));
             ip.addParameter('frameRate',6.0, @(x)isfloat(x));
             ip.addParameter('numFrames',[], @(x)isfloat(x));
-            
+
             ip.parse(varargin{:});
-            
+
             obj.device = device;
             obj.recordingType = ip.Results.recordingType;
             obj.stixelSize = ip.Results.stixelSize;
@@ -59,17 +59,17 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             obj.stimTime = ip.Results.stimTime;
             obj.frameRate = ip.Results.frameRate;
             obj.numFrames = ip.Results.numFrames;
-            
+
             % Set the x/y axes
             obj.xaxis = linspace(-obj.numXChecks/2,obj.numXChecks/2,obj.numXChecks)*obj.stixelSize;
             obj.yaxis = linspace(-obj.numYChecks/2,obj.numYChecks/2,obj.numYChecks)*obj.stixelSize;
-            
+
             obj.cmap = 'bone';
             obj.RFsign = 'both';
-            
+
             obj.createUi();
         end
-        
+
         function createUi(obj)
             import appbox.*;
 
@@ -80,6 +80,12 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'Separator', 'on', ...
                 'ClickedCallback', @obj.onSelectedChangeCmap);
             setIconImage(changeCmapButton, symphonyui.app.App.getResource('icons', 'sweep_store.png'));
+            sendToWorkspaceButton = uipushtool(...
+          		'Parent', toolbar,...
+          		'TooltipString', 'Send to workspace',...
+          		'Separator', 'on',...
+          		'ClickedCallback', @obj.onSelectedStoreSweep);
+          	setIconImage(sendToWorkspaceButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
 
             mainLayout = uix.VBox('Parent', obj.figureHandle, 'Padding', 10, 'Spacing', 5);
 
@@ -103,7 +109,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 obj.setTitle([obj.device.name 'mean receptive field']);
             end
 
-            
+
             uiLayout = uix.HBox('Parent', mainLayout, 'Padding', 5, 'Spacing', 10);
             obj.timeBinSlider = uicontrol(uiLayout, 'Style', 'slider',...
                 'Min', 0, 'Max', floor(obj.frameRate*0.5), 'Value', 0,...
@@ -111,7 +117,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'Callback', @obj.onChangedTimeBin);
             obj.timeBin = uicontrol(uiLayout, 'Style', 'text',...
                 'String', 'mean',...
-                'FontSize', 10,... 
+                'FontSize', 10,...
                 'FontName', 'Roboto');
             obj.peakFinder = uicontrol(uiLayout, 'Style', 'push',...
                 'String', 'Find peaks',...
@@ -130,9 +136,9 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
 
             obj.strf = zeros(obj.numYChecks, obj.numXChecks, floor(obj.frameRate*0.5));
             obj.spaceFilter = [];
-            
+
         end % createUi
-        
+
         function setTitle(obj, t)
             set(obj.figureHandle, 'Name', t);
             if strcmp(obj.RFsign, 'both')
@@ -142,7 +148,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 title(obj.axesHandle(2), t);
             end
         end
-        
+
         function clear(obj)
             cla(obj.axesHandle);
             obj.strf = zeros(obj.numYChecks, obj.numXChecks, floor(obj.frameRate*0.5));
@@ -151,21 +157,21 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             obj.xaxis = linspace(-obj.numXChecks/2,obj.numXChecks/2,obj.numXChecks)*obj.stixelSize;
             obj.yaxis = linspace(-obj.numYChecks/2,obj.numYChecks/2,obj.numYChecks)*obj.stixelSize;
         end
-        
+
         function handleEpoch(obj, epoch)
             if ~epoch.hasResponse(obj.device)
                 error(['Epoch does not contain a response for ' obj.device.name]);
             end
-            
+
             response = epoch.getResponse(obj.device);
             [quantities, ~] = response.getData();
             sampleRate = response.sampleRate.quantityInBaseUnits;
             prePts = obj.preTime*1e-3*sampleRate;
-            
+
             if numel(quantities) > 0
                 % Parse the response by type.
                 y = responseByType(quantities, obj.recordingType, obj.preTime, sampleRate);
-                
+
                 if strcmp(obj.recordingType,'extracellular') || strcmp(obj.recordingType, 'spikes_CClamp')
                     y = BinSpikeRate(y(prePts+1:end), obj.frameRate, sampleRate);
                 else
@@ -178,20 +184,20 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                     end
                     y = binData(y(prePts+1:end), obj.frameRate, sampleRate);
                 end
-                
+
                 % Make it the same size as the stim frames.
                 y = y(1 : obj.numFrames);
-                
+
                 % Columate.
                 y = y(:);
 
                 % Pull the seed.
                 seed = epoch.parameters('seed');
-                
+
                 % Get the frame/contrast sequence.
                 frameValues = getSpatialNoiseFrames(obj.numXChecks, obj.numYChecks, ...
                     obj.numFrames, obj.noiseClass, obj.chromaticClass, seed);
-                
+
                 % Zero out the first second while cell is adapting to
                 % stimulus.
                 y(1 : floor(obj.frameRate)) = 0;
@@ -200,10 +206,10 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 else
                     frameValues(1 : floor(obj.frameRate),:,:) = 0;
                 end
-                
+
                 filterFrames = floor(obj.frameRate*0.5);
                 lobePts = round(0.05*obj.frameRate) : round(0.15*obj.frameRate);
-                
+
                 % Perform reverse correlation.
                 if strcmpi(obj.chromaticClass, 'RGB')
                     filterTmpC = zeros(3, obj.numYChecks, obj.numXChecks, filterFrames);
@@ -230,7 +236,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                     obj.strf = obj.strf + filterTmp;
                     obj.spaceFilter = squeeze(mean(obj.strf(:,:,lobePts),3));
                 end
-                
+
                 % Display the spatial RF.
                 slider_value = get(obj.timeBinSlider, 'Value');
                 if slider_value == 0 % mean RF
@@ -243,9 +249,9 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 axis(obj.axesHandle, 'image');
                 colormap(obj.axesHandle, obj.cmap);
             end
-        end % handleEpoch    
+        end % handleEpoch
     end % methods
-    
+
     methods (Access = private)
     function onSelectedChangeCmap(obj, ~, ~)
         if strcmp(obj.cmap, 'parula')
@@ -294,5 +300,13 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             obj.setTitle([obj.device.name sprintf('receptive field at t=%u', slider_value)]);
         end
     end
+
+    function onSelectedStoreSweep(obj,~,~)
+    	strf = obj.strf;
+    	answer = inputdlg('Save to workspace as:', 'save dialog', 1, {'r'});
+    	fprintf('%s new grating named %s\n', datestr(now), answer{1});
+    	assignin('base', sprintf('%s', answer{1}), strf);
+    end
+
 end % methods private
 end % classdef

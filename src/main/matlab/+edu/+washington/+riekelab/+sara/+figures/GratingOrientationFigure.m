@@ -22,6 +22,7 @@ properties
 	F1phase
 	cInd1
 	cInd2
+	cInd3
 	epochNum
 	repNum
 	ornt
@@ -54,6 +55,7 @@ function obj = GratingOrientationFigure(device, onlineAnalysis, preTime, stimTim
 
 	[obj.cInd1,~] = getPlotColor(obj.chromaticClass, [1 0.5]);
 	obj.cInd2 = flipud(pmkmp(length(obj.orientations), 'CubicL'));
+	obj.cInd3 = flipud(pmkmp(length(obj.spatialFrequencies), 'CubicL'))
 	[obj.ornt, obj.ind] = sort(obj.orientations);
 
 	obj.F1amp.y = zeros(length(obj.orientations), length(obj.spatialFrequencies));
@@ -217,7 +219,7 @@ function handleEpoch(obj, epoch)
 
 	if isempty(obj.os.(sf))
 		obj.os.(sf) = line(obj.ornt, obj.F1amp.y(:, obj.epochNum)', 'Parent', obj.osHandle,...
-		'Color', obj.cInd2(obj.epochNum,:), 'LineWidth', 1, 'Marker', 'o');
+		'Color', obj.cInd3(obj.epochNum,:), 'LineWidth', 1, 'Marker', 'o');
 	else
 		set(obj.os.(sf), 'YData', obj.F1amp.y(:, obj.epochNum)');
 	end

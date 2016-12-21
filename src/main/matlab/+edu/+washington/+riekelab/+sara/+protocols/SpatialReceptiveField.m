@@ -1,4 +1,4 @@
-classdef TempSpatialNoise < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
 % SSP 6Nov2016 - added aperture to properties, createPresentation lines 312-320
 

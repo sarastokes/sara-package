@@ -59,14 +59,14 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             if length(obj.orientations)>1
                 if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))
-                    warndlg(sprintf('number of averages might be an issue - should be %u',... 
+                    warndlg(sprintf('number of averages might be an issue - should be %u',...
                         length(obj.spatialFreqs)*length(obj.orientations)));
                 end
-            elseif length(obj.contrasts) > 1
-                if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)* length(obj.contrasts))
-                    warndlg(sprintf('number of averages might be an issue - should be %u',...
-                        length(obj.spatialFreqs)* length(obj.orientations)));
-                end
+            % elseif length(obj.contrasts) > 1
+            %     if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)* length(obj.contrasts))
+            %         warndlg(sprintf('number of averages might be an issue - should be %u',...
+            %             length(obj.spatialFreqs)* length(obj.orientations)));
+            %     end
             end
 
             % trace for response figure
@@ -99,7 +99,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             end
 
             if obj.checkSpikes
-                obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',... 
+                obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',...
                     obj.rig.getDevice(obj.amp));
             end
         end
