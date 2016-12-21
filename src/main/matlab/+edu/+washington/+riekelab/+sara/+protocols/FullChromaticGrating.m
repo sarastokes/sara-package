@@ -1,8 +1,9 @@
-classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % Chromatic grating but with my response figures and option for mask
 
 % 12Sep2016 - copied mike's ChromaticGrating protocol, added working online analysis & response w/ stim figure
 % 7Dec2016 - new F1Figure test
+% 20Dec2016 - changed to protocol focused on running and analyzing multiple orientations (CRF later)
 
     properties
         amp                             % Output amplifier
@@ -10,8 +11,8 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         stimTime = 4000                 % Grating duration (ms)
         tailTime = 250                  % Grating trailing duration (ms)
         waitTime = 1000                 % Grating wait duration (ms)
-        contrast = 0.7                  % Grating contrast (0-1)
-        orientations = [0 90]           % Grating orientation (deg)
+        contrast = 0.7                 % Grating contrast (0-1)
+        orientations = [0 90 45 135 270 180 225 315]           % Grating orientation (deg)
         spatialFreqs = [0.5 2 8]        % Spatial frequency (cyc/short axis of screen)
         temporalFrequency = 2.0         % Temporal frequency (Hz)
         spatialPhase = 0.0              % Spatial phase of grating (deg)
@@ -27,8 +28,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         randomOrder = false             % Run the sequence in random order?
         checkSpikes = false             % Show SpikeDetectionFigure
         demoMode = true                 % use earlier grating data
-        newFigure = false
-        numberOfAverages = uint16(18)   % spatialFreqs * orientations
+        numberOfAverages = uint16(24)   % spatialFreqs * orientations
     end
 
     properties (Hidden)
@@ -39,17 +39,12 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','S-iso','M-iso','L-iso', 'LM-iso', 'x', 'z', 'w'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         rawImage
+        params
         spatialPhaseRad % The spatial phase in radians.
         spatialFrequencies
         spatialFreq % The current spatial frequency for the epoch
         orientation % The current orientation
-    end
-
-    % Analysis properties
-    properties (Hidden) % SSP 12Sep2016
         coneContrasts
-        stimColor
-        stimTrace
     end
 
     methods
@@ -62,26 +57,24 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
-            if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))
-                warndlg('number of averages might be an issue');
+            if length(obj.orientations)>1
+                if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))
+                    warndlg(sprintf('number of averages might be an issue - should be %u',... 
+                        length(obj.spatialFreqs)*length(obj.orientations)));
+                end
+            elseif length(obj.contrasts) > 1
+                if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)* length(obj.contrasts))
+                    warndlg(sprintf('number of averages might be an issue - should be %u',...
+                        length(obj.spatialFreqs)* length(obj.orientations)));
+                end
             end
 
             % trace for response figure
-            x = 0:0.001:((obj.stimTime - 1) * 1e-3);
-            stimValues = zeros(1, length(x));
-            for ii = 1:length(x)
-              if strcmp(obj.spatialClass, 'sinewave')
-                stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
-              elseif strcmp(obj.spatialClass, 'squarewave')
-                stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
-              end
-            end
-            obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
-
-            [obj.colorWeights, obj.stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
+            stimTrace = getStimTrace(obj, 'modulation', obj.waitTime);
+            [obj.colorWeights, stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp),...
-                obj.stimTrace, 'stimColor', obj.stimColor);
+                stimTrace, 'stimColor', stimColor);
 
             % Calculate the spatial phase in radians.
             obj.spatialPhaseRad = obj.spatialPhase / 180 * pi;
@@ -92,28 +85,22 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
-            if length(obj.orientations) > 1
-                numReps = length(obj.orientations);
-            elseif length(obj.spatialPhase)>1
-                numReps = length(obj.spatialPhase);
-            else
-                numReps = double(obj.numberOfAverages/length(obj.spatialFreqs));
-            end
 
             if ~strcmp(obj.onlineAnalysis,'none')
-                if obj.newFigure
-                    obj.showFigure('edu.washington.riekelab.sara.figures.FullF1Figure', obj.rig.getDevice(obj.amp),...
-                        obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency,... 
-                        'plotColor', obj.stimColor, 'waitTime', obj.waitTime, 'numReps', numReps, 'demoMode', obj.demoMode);
+                if length(obj.orientations) > 1
+                    obj.showFigure('edu.washington.riekelab.sara.figures.GratingOrientationFigure', obj.rig.getDevice(obj.amp),...
+                        obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency, obj.spatialFreqs,...
+                        obj.chromaticClass, 'waitTime', obj.waitTime, 'orientations', obj.orientations, 'demoMode', obj.demoMode);
                 else
                     obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),...
                         obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
-                        'temporalFrequency', obj.temporalFrequency, 'plotColor', obj.stimColor, 'waitTime', obj.waitTime);
+                        'temporalFrequency', obj.temporalFrequency, 'plotColor', stimColor, 'waitTime', obj.waitTime);
                 end
             end
 
             if obj.checkSpikes
-                obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
+                obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',... 
+                    obj.rig.getDevice(obj.amp));
             end
         end
 
@@ -213,19 +200,12 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             x = x + obj.centerOffset(1);
             y = y + obj.centerOffset(2);
 
-            % Get the radial calculation.
-            r = sqrt(x.^2 + y.^2);
-
             x = x / min(obj.canvasSize) * 2 * pi;
             y = y / min(obj.canvasSize) * 2 * pi;
-
-            % Calculate the orientation in radians.
-            rotRads = obj.orientation / 180 * pi;
 
             % Calculate the raw grating image.
             img = (cos(0)*x + sin(0) * y) * obj.spatialFreq;
             obj.rawImage = img(1,:);
-%             obj.rawImage = (cos(rotRads) * x + sin(rotRads) * y) * obj.spatialFreq;
 
             if ~strcmp(obj.chromaticClass, 'achromatic')
                 obj.rawImage = repmat(obj.rawImage, [1 1 3]);
@@ -238,7 +218,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             % Create the matrix of bar positions.
             numReps = ceil(double(obj.numberOfAverages) / length(obj.spatialFreqs));
 
-            % Get the array of radii.
+            % Get the array of spatial frequencies
             freqs = obj.spatialFreqs(:) * ones(1, numReps);
             freqs = freqs(:)';
 
@@ -253,22 +233,26 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             freqs = freqs( epochSyntax );
 
             % Copy to spatial frequencies.
-            obj.spatialFrequencies = freqs;
+            obj.params.spatialFrequencies = freqs;
 
+            % orientation matrix
+            obj.params.orientations = repelem(obj.orientations, length(obj.spatialFreqs));
+
+            % contrast matrix
+            % obj.params.contrasts = repelem(obj.contrasts, length(obj.spatialFreqs));
         end
 
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
             % Set the current spatial frequency.
-            obj.spatialFreq = obj.spatialFrequencies( obj.numEpochsCompleted+1 );
+            obj.spatialFreq = obj.params.spatialFrequencies(obj.numEpochsCompleted+1);
 
             % Set the current orientation
-            if length(obj.orientations) == 1
-                obj.orientation = obj.orientations;
-            else%
-                obj.orientation = obj.orientations(ceil((obj.numEpochsCompleted + 1) / length(obj.spatialFreqs)));
-            end
+            obj.orientation = obj.params.orientations(obj.numEpochsCompleted+1);
+
+            % Set the current contrast
+            % obj.contrast = obj.params.contrasts(obj.numEpochsCompleted+1);
 
             % Set up the raw image.
             obj.setRawImage();
@@ -276,6 +260,7 @@ classdef TempChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             % Add the spatial frequency to the epoch.
             epoch.addParameter('spatialFreq', obj.spatialFreq);
             epoch.addParameter('orientation', obj.orientation);
+            % epoch.addParameter('contrast', obj.contrast);
 
             % Save out the cone/rod contrasts.
             epoch.addParameter('lContrast', obj.coneContrasts(1));

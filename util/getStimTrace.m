@@ -1,5 +1,13 @@
-function stimTrace = getStimTrace(r, stimType)
+function stimTrace = getStimTrace(r, stimType, waitTime)
   % if calling from onlineAnalysis, r = obj. if calling from offline structure, r = r.params
+
+  if nargin < 3
+    if isfield(r, 'waitTime')
+      waitTime = r.waitTime;
+    else
+      waitTime = 0;
+    end
+  end
 
   if ~isfield(r, 'contrast')
     if isfield(r, 'intensity')
@@ -18,11 +26,7 @@ function stimTrace = getStimTrace(r, stimType)
     end
 
   elseif strcmp(stimType, 'modulation')
-    if isfield(r, 'waitTime')
-      x = 0:0.001:((r.stimTime - r.waitTime - 1) * 1e-3);
-    else
-      x = 0:0.001:((r.stimTime - 1) * 1e-3);
-    end
+    x = 0:0.001:((r.stimTime - waitTime - 1) * 1e-3);
     stimValues = zeros(1, length(x));
     for ii = 1:length(x)
       if isfield(r, 'temporalClass')
@@ -36,7 +40,7 @@ function stimTrace = getStimTrace(r, stimType)
       end
     end
 
-    if isfield(r, 'waitTime')
+    if waitTime ~= 0
       stimTrace = [(r.backgroundIntensity*ones(1,r.preTime)) (stimValues(1) * ones(1, r.waitTime)) stimValues r.backgroundIntensity*ones(1, r.tailTime)];
     else
       stimTrace = [(r.backgroundIntensity * ones(1, r.preTime)) stimValues (r.backgroundIntensity * ones(1, r.tailTime))];

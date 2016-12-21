@@ -1,4 +1,6 @@
 classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
+
+% 20Dec2016 - added RGB analysis
     properties (SetAccess = private)
         device
         recordingType
@@ -204,6 +206,19 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 
                 % Perform reverse correlation.
                 if strcmpi(obj.chromaticClass, 'RGB')
+                    filterTmpC = zeros(3, obj.numYChecks, obj.numXChecks, filterFrames);
+                      for l = 1 : 3
+                        filterTmp = zeros(obj.numYChecks, obj.numXChecks,filterFrames);
+                        for m = 1 : obj.numYChecks
+                          for n = 1 : obj.numXChecks
+                            tmp = ifft(fft([responseTrace; zeros(60,1)]) .* conj(fft([squeeze(stimulus(:,m,n,l)); zeros(60,1);])));
+                            filterTmp(m,n,:) = tmp(1 : filterFrames);
+                            filterTmpC(l,m,n,:) = tmp(1:filterFrames);
+                          end
+                        end
+                    end
+                    obj.strf = obj.strf + filterTmpC;
+                    obj.spatialRF = squeeze(mean(obj.strf(l,:,:,lobePts),4));
                 else
                     filterTmp = zeros(obj.numYChecks, obj.numXChecks, filterFrames);
                     for m = 1 : obj.numYChecks
