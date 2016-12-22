@@ -13,7 +13,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         waitTime = 1000                 % Grating wait duration (ms)
         contrast = 0.7                 % Grating contrast (0-1)
         orientations = [0 90 45 135 270 180 225 315]           % Grating orientation (deg)
-        spatialFreqs = [0.5 2 8]        % Spatial frequency (cyc/short axis of screen)
+        spatialFreqs = 10.^(-0.301:0.301/3:1.4047)        % Spatial frequency (cyc/short axis of screen)
         temporalFrequency = 2.0         % Temporal frequency (Hz)
         spatialPhase = 0.0              % Spatial phase of grating (deg)
         backgroundIntensity = 0.5       % Background light intensity (0-1)
@@ -27,8 +27,8 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         onlineAnalysis = 'extracellular' % Type of online analysis
         randomOrder = false             % Run the sequence in random order?
         checkSpikes = false             % Show SpikeDetectionFigure
-        demoMode = true                 % use earlier grating data
-        numberOfAverages = uint16(24)   % spatialFreqs * orientations
+        demoMode = false                 % use earlier grating data
+        numberOfAverages = uint16(144)   % spatialFreqs * orientations
     end
 
     properties (Hidden)
