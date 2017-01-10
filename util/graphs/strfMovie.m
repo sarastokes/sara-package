@@ -1,4 +1,10 @@
 function strfMovie(r, numBins, pauseLength)
+  % make movie of spatial receptive field
+  % INPUT:      r = input structure
+  % OPTIONAL:   numBins = 1:input (default is all)
+  %             pauseLength = default 0.25
+  %             cmap = color map
+
 
   if nargin < 3
     pauseLength = 0.25;

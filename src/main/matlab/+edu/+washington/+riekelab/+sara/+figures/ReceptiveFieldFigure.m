@@ -80,6 +80,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'Separator', 'on', ...
                 'ClickedCallback', @obj.onSelectedChangeCmap);
             setIconImage(changeCmapButton, symphonyui.app.App.getResource('icons', 'sweep_store.png'));
+            
 
             mainLayout = uix.VBox('Parent', obj.figureHandle, 'Padding', 10, 'Spacing', 5);
 

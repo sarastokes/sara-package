@@ -1,9 +1,11 @@
-function r = getSTRFOnline(r, spikes, seed)
+function [r, analysis] = getSTRFOnline(r, analysis, spikes, seed)
   % 24Sept - replaced parts with mike's new code which isn't working for RGB so use older version for those analyses.
 
-  r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
-  r.params.preF = floor(r.params.preTime/1000 * r.params.frameRate);
-  r.params.stimF = floor(r.params.stimTime/1000 * r.params.frameRate);
+  if ~isfield(r.params, 'preF')
+    r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
+    r.params.preF = floor(r.params.preTime/1000 * r.params.frameRate);
+    r.params.stimF = floor(r.params.stimTime/1000 * r.params.frameRate);
+  end
   prePts = r.params.preTime * 1e-3 * r.params.sampleRate;
 
   noiseStream = RandStream('mt19937ar', 'Seed', seed);
@@ -12,7 +14,8 @@ function r = getSTRFOnline(r, spikes, seed)
     frameValues = noiseStream.rand(r.params.numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
     frameValues = 2*frameValues-1;
   else
-    frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks, r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
+    frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks,... 
+      r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
   end
 
   responseTrace = BinSpikeRate(spikes(prePts+1:end), r.params.frameRate, r.params.sampleRate);
@@ -54,8 +57,8 @@ function r = getSTRFOnline(r, spikes, seed)
           end
         end
       end
-      r.analysis.strf = r.analysis.strf + filterTmpC;
-      r.analysis.spatialRF = squeeze(mean(r.analysis.strf(l,:,:,lobePts),4));
+      analysis.strf = analysis.strf + filterTmpC;
+      analysis.spatialRF = squeeze(mean(analysis.strf(l,:,:,lobePts),4));
     else
       filterTmp = zeros(r.params.numYChecks,r.params.numXChecks,filterFrames);
       for m = 1 : r.params.numYChecks
@@ -65,7 +68,7 @@ function r = getSTRFOnline(r, spikes, seed)
           filterTmp(m,n,:) = tmp(1 : filterFrames);
         end
       end
-      r.analysis.strf = r.analysis.strf + filterTmp;
-      r.analysis.spatialRF = squeeze(mean(r.analysis.strf(:,:,lobePts),3));
+      analysis.strf = analysis.strf + filterTmp;
+      analysis.spatialRF = squeeze(mean(analysis.strf(:,:,lobePts),3));
     end
 end

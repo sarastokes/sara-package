@@ -1,5 +1,17 @@
-function r = nonlinearity(r)
+function nl = nonlinearity(r, resp)
   % for now, run thru spike detection protocols before function
+  % 19Dec2016 - works with 2nd neuron analysis
+
+  if nargin < 2
+    switch r.params.recordingType
+    case 'extracellular'
+      resp = r.spikes;
+    case 'analog'
+      resp = r.analog;
+    case 'current_clamp'
+      warndlg('nonlinearity.m not ready for current clamp yet');
+    end
+  end
 
   nonlinearityBins = 250;
 
@@ -21,7 +33,7 @@ function r = nonlinearity(r)
   for ii = 1:r.numEpochs
 
     if strcmp(r.params.recordingType, 'extracellular')
-      data = r.spikes(ii,:);
+      data = resp(ii,:);
       % subtract the leak and clip the preTime
       if r.params.preTime > 0
         data(1:round(sampleRate * (preTime - 16.7) * 1e-3)) = [];
@@ -32,7 +44,7 @@ function r = nonlinearity(r)
         binData(m) = sum(data(index)) * binRate;
       end
     else
-      data = r.analog(ii,:);
+      data = resp(ii,:);
       % subtract the leak and clip the preTime
       if r.params.preTime > 0
         data(1:round(sampleRate * (preTime - 16.7) * 1e-3)) = [];
@@ -125,7 +137,8 @@ function r = nonlinearity(r)
 
 
   % save to data structure
-  r.analysis.nonlinearity.fit = modelfun(p, xBin);
-  r.analysis.nonlinearity.xBin = xBin;
-  r.analysis.nonlinearity.yBin = yBin;
+  nl.fit = modelfun(p, xBin);
+  nl.xBin = xBin;
+  nl.yBin = yBin;
+  nl.bins = nonlinearityBins;
 end

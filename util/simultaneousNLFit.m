@@ -1,4 +1,4 @@
-function y = simultaneousNLFit(params, xData)
+dfunction y = simultaneousNLFit(params, xData)
     % xData is binned
     % 1 = mean
     % 2 = SD

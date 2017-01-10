@@ -50,7 +50,7 @@ methods
 
   function createUi(obj)
     import appbox.*;
-    toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+    % toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
 
     set(obj.figureHandle, 'Name', 'Cone Response Figure');
 
@@ -101,10 +101,11 @@ methods
         'FontSize', 10,...
         'XTickMode', 'auto');
     end
+    set(obj.figureHandle, 'Color', 'w');
   end
 
   function clear(obj)
-    cla(obj.axesHandle(1)); cla(obj.axesHandle(2)); cla(obj.axesHandle(3));
+    cla(obj.axesHandle); cla(obj.traceHandle);
     obj.sweepOne = []; obj.sweepTwo = []; obj.sweepThree = []; obj.stimTrace = [];
     obj.sweepFour = [];
   end

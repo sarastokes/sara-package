@@ -1,8 +1,15 @@
 function [p, c] = getPlotColor(colorCall, fac)
   % optional: fac = lighten plot color by factor (usually 0.5 or 0.6)
+  % negative fac will be 1-fac (unless -1, that just stays at 1): for
+  % contrast parameter inputs
 
     if nargin < 2
       fac = 1;
+    end
+    if fac == -1
+        fac = 1;
+    elseif fac < 0
+        fac = 1+fac;
     end
 
     % Cone iso options

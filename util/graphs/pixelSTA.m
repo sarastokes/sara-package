@@ -1,4 +1,8 @@
 function pixelSTA(r, x, y, ax)
+  % get temporal RF for a single spatial noise pixel
+  % INPUTS: r = data structure
+  %         x y = pixel coordinates (x = y-axis, y = x-axis...)
+  % OPTIONAL: ax = plot to an existing figure
 
     if nargin < 4
       figure; ax = gca;
@@ -27,10 +31,15 @@ function pixelSTA(r, x, y, ax)
         plot(ax, 0:msec-1, squeeze(strf(x,y,:)), 'color', colors(ii,:), 'linewidth', 1); hold on;
         set(gca,'box', 'off', 'TickDir', 'out');
       end
-    else
+    else % achrom or cone iso
+      if isfield(r.params, 'chromaticClass')
+        c = getPlotColor(lower(r.params.chromaticClass(1)));
+      else
+        c = [0 0 0];
+      end
       strf = r.analysis.strf;
       msec = size(strf, 3);
-      plot(ax, 0:msec-1, squeeze(strf(x,y,:)), 'k', 'linewidth', 1); hold on;
+      plot(ax, 0:msec-1, squeeze(strf(x,y,:)), 'Color', c, 'LineWidth', 1); hold on;
       set(gca, 'box', 'off', 'TickDir', 'out');
     end
     zeroBar = zeros(1, msec);

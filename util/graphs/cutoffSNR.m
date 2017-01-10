@@ -1,18 +1,15 @@
 function newMap = cutoffSNR(oldMap, SNR, cutoff)
 	% zero out values under a certain SNR
+	% if unsure of cutoff, input only oldMap to get cutoff stats
+	% INPUT: oldMap = original spatial RF,
+	%					SNR = signal to noise for each pixel
+	%					cutoff = SNR cutoff
 
 	if nargin == 2
-		fprintf('SNR mean = %.2f, SNR range = %.2f-%.2f',... 
+		fprintf('SNR mean = %.2f, SNR range = %.2f-%.2f',...
 			mean(mean(SNR)), min(min(SNR)), max(max(SNR)));
+			return;
 	end
-
-	if isstruct(oldMap)
-		oldMap = r.analysis.spatialRF;
-	end
-	if isstruct(SNR)
-		SNR = r.analysis.SNR;
-	end
-
 
 	for ii = 1:size(SNR,1)
 		for jj = 1:size(SNR,2)

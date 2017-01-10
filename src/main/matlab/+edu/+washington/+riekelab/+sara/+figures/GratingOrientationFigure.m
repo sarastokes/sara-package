@@ -52,23 +52,23 @@ function obj = GratingOrientationFigure(device, onlineAnalysis, preTime, stimTim
 	obj.orientations = ip.Results.orientations;
 	obj.demoMode = ip.Results.demoMode;
 
-	[obj.cInd1,~] = getPlotColor(obj.chromaticClass, [1 0.5]);
+	obj.cInd1 = flipud(pmkmp(length(obj.spatialFrequencies), 'CubicL'));
 	obj.cInd2 = flipud(pmkmp(length(obj.orientations), 'CubicL'));
-	[obj.ornt, obj.ind] = sort(obj.orientations);
+	[obj.ornt, obj.ind] = sort(obj.orientation);
 
 	obj.F1amp.y = zeros(length(obj.orientations), length(obj.spatialFrequencies));
-  obj.F1phase.y = zeros(size(obj.F1amp.y));
+  	obj.F1phase.y = zeros(size(obj.F1amp.y));
 	obj.legendstr = cell(1,length(obj.orientations)+1);
 	obj.legendstr{2} = 'mean';
 
 	for ii = 1:length(obj.ornt)
-		deg = sprintf('deg%u', obj.ornt(ii));
+		deg = sprintf('deg%u', obj.orientations(ii));
 		obj.F1amp.(deg) = [];
 		obj.F1phase.(deg) = [];
 		if ii == 1
-			obj.legendstr{ii} = sprintf('%u%s', obj.ornt(ii), char(176));
+			obj.legendstr{ii} = sprintf('%u%s', obj.orientations(ii), char(176));
 		else
-			obj.legendstr{ii+1} = sprintf('%u%s', obj.ornt(ii), char(176));
+			obj.legendstr{ii+1} = sprintf('%u%s', obj.orientations(ii), char(176));
 		end
 	end
 	for ii = 1:length(obj.spatialFrequencies)
@@ -101,7 +101,8 @@ function createUi(obj)
 		'Parent', obj.figureHandle,...
 		'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
 		'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'),...
-		'XTickMode', 'auto', 'XScale', 'log', 'XColor', 'w');
+		'XTickMode', 'auto', 'XScale', 'log', 'XColor', 'w',...
+		'XLim', [min(obj.spatialFrequencies) max(obj.spatialFrequencies)]);
 	ylabel(obj.axesHandle(1), 'f1 amplitude');
 	obj.setTitle([obj.device.name ' ' obj.chromaticClass 'Grating Figure']);
 
@@ -109,7 +110,8 @@ function createUi(obj)
 		'Parent', obj.figureHandle,...
 		'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
 		'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'),...
-		'XTickMode', 'auto', 'XScale', 'log');
+		'XTickMode', 'auto', 'XScale', 'log',...
+		'XLim', [min(obj.spatialFrequencies) max(obj.spatialFrequencies)]);
 	ylabel(obj.axesHandle(2), 'f1 phase');
 	xlabel(obj.axesHandle(2), 'spatial frequency');
 
@@ -188,7 +190,6 @@ function handleEpoch(obj, epoch)
 	% increment the counts
 	obj.epochNum = obj.epochNum + 1;
 
-
 	if obj.epochNum == length(obj.spatialFrequencies)+1
 		obj.repNum = obj.repNum + 1;
 		obj.epochNum = 1;
@@ -217,7 +218,7 @@ function handleEpoch(obj, epoch)
 
 	if isempty(obj.os.(sf))
 		obj.os.(sf) = line(obj.ornt, obj.F1amp.y(:, obj.epochNum)', 'Parent', obj.osHandle,...
-		'Color', obj.cInd2(obj.epochNum,:), 'LineWidth', 1, 'Marker', 'o');
+		'Color', obj.cInd1(obj.epochNum,:), 'LineWidth', 0.9, 'Marker', 'o');
 	else
 		set(obj.os.(sf), 'YData', obj.F1amp.y(:, obj.epochNum)');
 	end
@@ -226,9 +227,9 @@ function handleEpoch(obj, epoch)
 	if obj.epochNum == length(obj.spatialFrequencies)
 		if isempty(obj.meanF1amp)
 			obj.meanF1amp = line(obj.spatialFrequencies, mean(obj.F1amp.y(1:obj.repNum,:), 1), 'Parent', obj.axesHandle(1),...
-				'Color', obj.cInd1(1,:), 'LineWidth', 1, 'Marker', 'o');
+				'Color', 'k', 'LineWidth', 1, 'Marker', 'o');
 			obj.meanF1phase = line(obj.spatialFrequencies, mean(obj.F1phase.y(1:obj.repNum, :), 1), 'Parent', obj.axesHandle(2),...
-				'Color', obj.cInd1(1,:), 'LineWidth', 1, 'Marker', 'o');
+				'Color', 'k', 'LineWidth', 1, 'Marker', 'o');
 			legend(obj.axesHandle(1), obj.legendstr{1:obj.repNum+1});
 		else
 			set(obj.meanF1amp, 'YData', mean(obj.F1amp.y(1:obj.repNum, :), 1));
@@ -244,9 +245,6 @@ methods (Access = private)
 function onSelectedStoreSweep(obj,~,~)
 	outputStruct.F1 = obj.F1amp.y;
 	outputStruct.P1 = obj.F1phase.y;
-	outputStruct.debug1 = obj.F1amp;
-	outputStruct.debug2 = obj.F1phase;
-	outputStruct.debug3 = obj.os;
 	answer = inputdlg('Save to workspace as:', 'save dialog', 1, {'r'});
 	fprintf('%s new grating named %s\n', datestr(now), answer{1});
 	assignin('base', sprintf('%s', answer{1}), outputStruct);

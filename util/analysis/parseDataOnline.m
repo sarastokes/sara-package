@@ -1,7 +1,7 @@
 function r = parseDataOnline(symphonyInput, recordingType, varargin)
   % INPUTS:
   %     symphonyInput: epochBlock (or epochGroup for ChromaticSpot)
-  %     recordingType: in case it isn't defined thru onlineAnalysis or epochGroup name. 
+  %     recordingType: in case it isn't defined thru onlineAnalysis or epochGroup name.
   %                   options are 'extracellular', 'voltage_clamp', 'current_clamp'
   %     ampNum: which amplifier to analyze. for paired recordings
   %     spikeDM: detection method for spikes, default = SpikeDetector, 'check', 'online'
@@ -64,7 +64,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     epoch = epochBlock.getEpochs{1}; % to grab params stored in epochs
     micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
     % parameters to display
-    r.data(eb).label = epochBlock.epochGroup.source.label(10:end);
+    r.data(eb).label = epochBlock.epochGroup.source.label;
     r.data(eb).chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.data(eb).contrast = epochBlock.protocolParameters('contrast');
     r.data(eb).ndf = epoch.protocolParameters('ndf');
@@ -114,13 +114,12 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       end
       r.data(eb).resp(ep,:) = resp;
       if ep == 1
-        r.data(eb).recordingType = recordingType;          
-      end
+        r.data(eb).recordingType = recordingType;
         % set analysisType
         if ~isempty(analysisType)
           r.data(eb).analysisType = analysisType;
         else
-          switch r.data(eb).recordingType 
+          switch r.data(eb).recordingType
           case 'extracellular'
             if length(epoch.getResponses) == 3
               r.data(eb).analysisType = sprintf('paired_amp%u', ampNum);
@@ -146,12 +145,17 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         end
         [r.data(eb).spikes(ep,:), r.data(eb).spikeData.times{ep}, r.data(eb).spikeData.amps{ep}] = getSpikes(resp, spikeDM);
         r.data(eb).spikeData.resp(ep, r.data(eb).spikeData.times{ep}) = r.data(eb).spikeData.amps{ep};
-      case 'voltage_clamp'        
+      case 'voltage_clamp'
         if ep == 1
           r.data(eb).analog = zeros(size(r.data(eb).resp));
         end
-        r.data(eb).analog(ep,:) = getAnalog(resp, r.data(eb).params.preTime, r.data(eb).params.sampleRate);
+        tmp = getAnalog(resp, r.data(eb).params.preTime, r.data(eb).params.sampleRate);
+        if isempty(nnz(tmp))
+          fprintf('block %u epoch %u - empty analog', eb,ep);
+        end
+        r.data(eb).analog(ep,:) = tmp;
       end
+    end
   end
 %%
   function r = parseEpochBlock(epochBlock)
@@ -169,7 +173,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.onlineAnalysis =epochBlock.protocolParameters('onlineAnalysis');
   end
   r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
-  r.params.sampleRate = 10000;
+  r.params.sampleRate = 10000; % fix at some point
 
   % init new monitoring params
   r.params.bathTemp = zeros(1, r.numEpochs);
@@ -181,10 +185,17 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     resp = epoch.getResponses{ampNum}.getData; % get response
     if ep == 1
       r.resp = zeros(r.numEpochs, length(resp));
-      % preallocate initial data analysis 
+      % preallocate initial data analysis
       switch r.params.recordingType
           case 'voltage_clamp'
-            r.analog = zeros(size(r.resp)); 
+            r.analog = zeros(size(r.resp));
+            if isKey(epoch.getStimuli{1}.parameters, 'offset')
+              r.holding = epoch.getStimuli{1}.parameters('offset');
+            else
+              r.holding = epoch.getStimuli{1}.parameters('mean');
+            end
+            r.holdingUnit = epoch.getStimuli{1}.parameters('units');
+            r.params.sampleRate = epoch.getStimuli{1}.parameters('sampleRate');
           case 'current_clamp'
             r.subthresh = zeros(r.numEpochs, length(r.resp));
             r.ICspikes = zeros(r.numEpochs, length(r.resp));
@@ -207,13 +218,13 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
           if mean(resp) > 0
             r.params.analysisType = 'inhibition';
           else
-            r.params.analysisType = 'excitation'; 
-          end  
+            r.params.analysisType = 'excitation';
+          end
         case 'current_clamp'
           r.params.analysisType = 'spikes&subthresh';
-        end 
+        end
       end
-      if isempty(strfind(r.protocol, 'Pulse')) && isempty(strfind(r.protocol, 'Inject'))
+      if isKey(epoch.protocolParameters, 'ndf')
         r.params.ndf = epoch.protocolParameters('ndf');
         r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
         r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
@@ -243,8 +254,14 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
 
   %% protocol specific data - could be condensed but keeping separate for now.
   switch r.protocol
-  case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',... 
+  case {'edu.washington.riekelab.sara.protocols.FullChromaticGrating',...
+    'edu.washington.riekelab.manookin.protocols.ChromaticGrating',...
     'edu.washington.riekelab.sara.protocols.TempChromaticGrating'}
+    if ~isempty(strfind(r.protocol, 'FullChromaticGrating'))
+      fullGrate = true;
+    else
+      fullGrate = false;
+    end
     epoch = epochBlock.getEpochs{1};
     r.params.waitTime = epochBlock.protocolParameters('waitTime');
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
@@ -252,21 +269,20 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.spatialClass = epochBlock.protocolParameters('spatialClass');
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     if isKey(epochBlock.protocolParameters, 'orientations')
-      r.params.orientation = epochBlock.protocolParameters('orientations');
+      if fullGrate
+        r.params.orientations = epochBlock.protocolParameters('orientations');
+      else
+        r.params.orientation = epochBlock.protocolParameters('orientations');
+      end
     else
       r.params.orientation = epochBlock.protocolParameters('orientation');
     end
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
-    % r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
-    % if r.numEpochs <= length(r.params.spatialFrequencies)
-    %   r.params.spatialFrequencies = r.params.spatialFrequencies(1:r.numEpochs);
-    % else
-    %   r.params.spatialFrequencies = [r.params.spatialFrequencies r.params.spatialFrequencies(1:(r.numEpochs-length(r.params.spatialFrequencies)))];
-    % end
-    r.params.spatialFrequencies = zeros(1, r.numEpochs);
-    for ii = 1:length(r.numEpochs)
-      r.params.spatialFrequencies(ii) = epoch.protocolParameters('spatialFreq');
+    r.params.spatialFrequencies = epochBlock.protocolParameters('spatialFreqs');
+    if fullGrate
+      r.params.spatialFrequencies = repmat(r.params.spatialFrequencies, [1 length(r.params.orientations)]);
     end
+    r.params.spatialFrequencies = r.params.spatialFrequencies(1:r.numEpochs);
     r.params.spatialPhase = epochBlock.protocolParameters('spatialPhase');
     r.params.randomOrder = epochBlock.protocolParameters('randomOrder');
     if isKey(epoch.protocolParameters,'sContrast')
@@ -279,6 +295,37 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.plotColor = getPlotColor(r.params.chromaticClass);
     r.params.stimStart = (r.params.preTime + r.params.waitTime) * 10 + 1;
     r.params.stimEnd = (r.params.preTime + r.params.stimTime) * 10;
+
+    if fullGrate
+      r.params.SFs = unique(r.params.spatialFrequencies);
+      if r.numEpochs < double(r.params.numberOfAverages)
+        fprintf('under epoch flag - %u of %u\n', r.numEpochs, double(r.params.numberOfAverages));
+        x = floor(r.numEpochs/length(r.params.SFs));
+        r.params.orientations = r.params.orientations(1:x);
+        if rem(r.numEpochs,length(r.params.SFs)) ~= 0
+          r.respOver = r.resp(x*length(r.params.SFs)+1, :);
+          r.resp(x*length(r.params.SFs)+1,:) = [];
+        end
+      end
+      r.respBlock = reshape(r.resp, length(r.params.orientations), length(r.params.SFs), size(r.resp,2));
+      switch r.params.recordingType
+      case 'extracellular'
+        r.spikeBlock = reshape(r.spikes, length(r.params.orientations), length(r.params.SFs), size(r.spikes,2));
+      case 'voltage_clamp'
+        r.analogBlock = reshape(r.analog, length(r.params.orientations), length(r.params.SFs), size(r.analog,2));
+      end
+
+      for ii = 1:length(r.params.orientations)
+        deg = sprintf('deg%u', r.params.orientations(ii));
+        r.(deg).resp = r.resp(ii,:,:);
+        switch r.params.recordingType
+        case 'extracellular'
+          r.(deg).spikes = r.spikes(ii,:);
+        case 'voltage_clamp'
+          r.(deg).analog = r.analog(ii,:);
+        end
+      end
+    end
 
   case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     r.params.stimulusClass = epochBlock.protocolParameters('stimulusClass');
@@ -303,8 +350,8 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
-    if isKey(epochBlock.protocolParameters, 'reverseOrder)')
-      r.params.reverseOrder = epochBlock.protocolParameters('reverseOrder');
+    if isKey(epochBlock.protocolParameters, 'maskRadius')
+      r.params.maskRadius = epochBlock.protocolParameters('maskRadius');
     end
     if isKey(epochBlock.protocolParameters, 'equalQuantalCatch')
       r.params.equalQuantalCatch = epochBlock.protocolParameters('equalQuantalCatch');
@@ -314,12 +361,16 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.respBlock = zeros(length(r.params.stimClass), ceil(r.numEpochs/length(r.params.stimClass)), size(r.resp, 2));
     if strcmp(r.params.recordingType, 'extracellular')
       r.spikeBlock = zeros(size(r.respBlock));
+    else
+      r.analogBlock = zeros(size(r.respBlock));
     end
     for ep = 1:r.numEpochs
       [ind1, ind2] = ind2sub([length(r.params.stimClass), size(r.respBlock, 2)], ep);
       r.respBlock(ind1, ind2, :) = r.resp(ep,:);
       if strcmp(r.params.recordingType, 'extracellular')
         r.spikeBlock(ind1, ind2, :) = r.spikes(ep,:);
+      else
+        r.analogBlock(ind1, ind2, :) = r.analog(ep,:);
       end
       epoch = epochBlock.getEpochs{ep}; % get epoch
       if ep <= length(r.params.stimClass) && isKey(epoch.protocolParameters, 'sweepColor')
@@ -375,22 +426,40 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.amplitude = epochBlock.protocolParameters('amplitude');
     % TODO: sample rate
 
-  case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
+  case {'edu.washington.riekelab.protocols.Pulse',... 
+    'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
     r.params.pulseAmplitude = epochBlock.protocolParameters('pulseAmplitude');
     r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
     r.params.interpulseInterval = epochBlock.protocolParameters('interpulseInterval');
-    r.params.amp2PulseAmplitude = epochBlock.protocolParameters('amp2PulseAmplitude');
-    r.params.onlineAnalysis = epochBlock.protocolParameters('onlineAnalysis');
+    if isKey(epochBlock.protocolParameters, 'amp2PulseAmplitude')
+      r.params.amp2PulseAmplitude = epochBlock.protocolParameters('amp2PulseAmplitude');
+    end
+    if isKey(epochBlock.protocolParameters, 'onlineAnalysis')
+      r.params.onlineAnalysis = epochBlock.protocolParameters('onlineAnalysis');
+    end
+
+    epoch = epochBlock.getEpochs{1};
+    k = epoch.getStimuli{1}.parameters.keys;
+    for ii = 1:length(k)
+      r.stim.(k{ii}) = epoch.getStimuli{1}.parameters(k{ii});
+    end
+    r.stim.trace = r.stim.mean*ones(1, r.stim.preTime+r.stim.stimTime+r.stim.tailTime);
+    r.stim.trace(1, r.stim.preTime+1:r.stim.preTime + r.stim.stimTime) = r.stim.amplitude + r.stim.trace(1, r.stim.preTime+1:r.stim.preTime+r.stim.stimTime);
+    r.stim.trace = repelem(r.stim.trace, 10);
 
     if ~isempty(strfind(r.protocol, 'Resistance'))
-      % get the online analysis properties attached to the last epoch
-      % lastEpoch = epochBlock.getEpochs{r.numEpochs};
-      r.oa.rInput = epochBlock.protocolParameters('rInput');
-      r.oa.rSeries = epochBlock.protocolParameters('rSeries');
-      r.oa.rMembrane = epochBlock.protocolParameters('rMembrane');
-      r.oa.rTau = epochBlock.protocolParameters('rTau');
-      r.oa.capacitance = epochBlock.protocolParamters('capacitance');
-      r.oa.tau_msec = epochBlock.protocolParameters('tau_msec');
+      for ii = 1:r.numEpochs
+        epoch = epochBlock.getEpochs{ii};
+        if length(epoch.protocolParameters) > 5
+          fprintf('found online analysis\n');
+          r.analysis.oa.rInput = epoch.protocolParameters('rInput');
+          r.analysis.oa.rSeries = epoch.protocolParameters('rSeries');
+          r.analysis.oa.rMembrane = epoch.protocolParameters('rMembrane');
+          r.analysis.oa.rTau = epoch.protocolParameters('rTau');
+          r.analysis.oa.capacitance = epoch.protocolParameters('capacitance');
+          r.analysis.oa.tau_msec = epoch.protocolParameters('tau_msec');
+        end
+      end
     end
 
   case 'edu.washington.riekelab.sara.protocols.IsoSTC'
@@ -446,13 +515,21 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.speed = epochBlock.protocolParameters('speed');
 
     r.respBlock = zeros(length(r.params.orientations), ceil(r.numEpochs/length(r.params.orientations)), size(r.resp,2));
-    r.instFt = zeros(size(r.respBlock));
+    if strcmp(r.params.recordingType, 'extracellular')
+      r.instFt = zeros(size(r.respBlock));
+    else
+      r.analog = zeros(size(r.respBlock));
+    end
     for ep = 1:r.numEpochs
       epoch = epochBlock.getEpochs{ep};
       r.params.orientation(1, ep) = epoch.protocolParameters('orientation');
       o = find(r.params.orientations == r.params.orientation(1, ep)); % for rand order
       r.respBlock(o, ceil(ep/length(r.params.orientations)), :) = r.resp(ep, :);
-      r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFiringRate(r.spikes(ep,:), r.params.sampleRate);
+      if strcmp(r.params.recordingType, 'extracellular')
+        r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFiringRate(r.spikes(ep,:), r.params.sampleRate);
+      else
+        r.analogBlock(o, ceil(ep/length(r.params.orientations)), :) = r.analog(ep, :);
+      end
     end
 
   case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
@@ -579,22 +656,20 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         case {'3-point converging positive', '3-point converging negative'}
           r.params.glider{ii} = [0 0 0; 1 0 0; 1 0 1];
       end
-      fprintf('epoch %u - parity = %u, stim = %s, glider = %u x %u\n',... 
-          ii, r.params.parity(ii), r.params.stimulusType{ii},... 
-          size(r.params.glider{ii},1), size(r.params.glider{ii},2));
       % get frames - either noise or glider
       if strcmp(r.params.stimulusType{ii}, 'uncorrelated')
         noiseStream = RandStream('mt19937ar', 'Seed', r.params.seed(ii));
-        r.params.frameSequence{ii} = (noiseStream.rand(r.params.numYChecks,... 
+        r.params.frameSequence{ii} = (noiseStream.rand(r.params.numYChecks,...
           r.params.numXChecks, r.params.numStimFrames) > 0.5);
       else
-        r.params.frameSequence{ii} = makeGlider(r.params.numYChecks, r.params.numXChecks,... 
+        r.params.frameSequence{ii} = makeGlider(r.params.numYChecks, r.params.numXChecks,...
           r.params.numStimFrames, r.params.glider{ii}, r.params.parity(ii), r.params.seed(ii));
       end
     end
 
-  case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',... 
-    'edu.washington.riekelab.sara.protocols.TempSpatialNoise'}
+  case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',...
+    'edu.washington.riekelab.sara.protocols.TempSpatialNoise',...
+    'edu.washington.riekelab.sara.protocols.SpatialReceptiveField'}
     r.params.chromaticClass = epochBlock.protocolParameters('chromaticClass');
     r.params.noiseClass =  epochBlock.protocolParameters('noiseClass');
     r.params.chromaticClass =  epochBlock.protocolParameters('chromaticClass');
@@ -646,7 +721,31 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     else
       r.seed(:) = 1;
     end
+
+  case 'edu.washington.riekelab.manookin.protocols.OrthographicAnnulus'
+    r.params.sequence = epochBlock.protocolParameters('sequence');
+    r.params.widthPix = epochBlock.protocolParameters('widthPix');
+    r.params.spatialClass = epochBlock.protocolParameters('spatialClass');
+    r.params.minRadius = epochBlock.protocolParameters('minRadius');
+    r.params.maxRadius = epochBlock.protocolParameters('maxRadius');
+    r.params.speed = epochBlock.protocolParameters('speed');
+    r.params.numberOfAverages = epochBlock.protocolParameters('numberOfAverages');
+    r.params.contrast = epochBlock.protocolParameters('contrast');
+    r.params.backgroundIntensity = epochBlock.protocolParameters('backgroundIntensity');
+    r.params.waitTime = epochBlock.protocolParameters('waitTime');
+    r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
+    r.params.onlineAnalysis = epochBlock.protocolParameters('onlineAnalysis');
+
+    r.params.intensity = zeros(1, r.numEpochs);
+    r.params.direction = cell(1, r.numEpochs);
+
+    for ep = 1:r.numEpochs
+      epoch = epochBlock.getEpochs{ep};
+      r.params.intensity(1, ep) = epoch.protocolParameters('intensity');
+      r.params.direction{1, ep} = epoch.protocolParameters('direction');
+    end
   end
+
 
   if isfield(r.params, 'chromaticClass')
     r.params.plotColor = getPlotColor(r.params.chromaticClass);
@@ -662,7 +761,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
   r.log = cell(2,1);
   r.log{1} = ['recorded at ' r.startTimes{1}];
   r.log{2} = ['parsed at ' datestr(now)];
-
+end % parseEpochBlock
 
 %% ANALYSIS FUNCTIONS------------------------------------------
   function [spikes, spikeTimes, spikeAmps, refViols] = getSpikes(response, detectionMethod)
@@ -722,7 +821,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     instFt = sampleRate*conv(response, newFilt, 'same');
   end
 
-  function timingFlag = checkFrames(epoch)  
+  function timingFlag = checkFrames(epoch)
     deviceNum = length(epoch.getResponses);
     if strcmp(epoch.getResponses{deviceNum}.device.name, 'Frame Monitor')
       frames = epoch.getResponses{deviceNum}.getData;
@@ -740,5 +839,4 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       fprintf('Frame monitor not found\n');
     end
   end
-  end % parseEpochBlock
 end % overall function

@@ -1,29 +1,29 @@
-function r = spatialReverseCorr(r)
+function [r, analysis] = spatialReverseCorr(r, analysis)
   % Mike's SpatialReverseCorr object with extra chromatic stuff added in
   % STRF should be in Y,X,T or Y,X,T,C format
   % Run after analyzeDataOnline.m
 
   if strcmp(r.params.chromaticClass, 'RGB')
     for ii = 1:3
-      [r, r.analysis.epochFilters(r.epochCount, ii,:)] = calculateTemporalRF(r, squeeze(r.analysis.strf(ii,:,:,:)));
+      [r, analysis.epochFilters(r.epochCount, ii,:)] = calculateTemporalRF(r, squeeze(analysis.strf(ii,:,:,:)));
     end
   else
-    % passing r.analysis.strf for ChromaticSpatialNoise.m
-    [r, r.analysis.temporalRF] = calculateTemporalRF(r, r.analysis.strf);
-    [r, r.analysis.normRF] = normalizeSpatialRF(r, r.analysis.strf);
-    [r, r.analysis.SRF] = calculateSpatialRF(r, r.analysis.strf);
-    r = calculateSNR(r, r.analysis.strf);
-    r = calculateTemporalProperties(r, r.analysis.strf);
+    % passing analysis.strf for ChromaticSpatialNoise.m
+    [r, analysis.temporalRF] = calculateTemporalRF(r, analysis.strf);
+    [r, analysis.normRF] = normalizeSpatialRF(r, analysis.strf);
+    [r, analysis.SRF] = calculateSpatialRF(r, analysis.strf);
+    r = calculateSNR(r, analysis.strf);
+    r = calculateTemporalProperties(r, analysis.strf);
   end
 
   % calculate the temporal receptive field
   function [r, tempRF] = calculateTemporalRF(r, strf)
-    r.analysis.stdev = std(strf(:));
+    analysis.stdev = std(strf(:));
     for a = 1:size(strf, 3) % size of time dimension
       pts = squeeze(strf(:,:,a));
       pts = pts(:);
       % find all the points > 2 SDs
-      index = find(abs(pts) > 2*r.analysis.stdev);
+      index = find(abs(pts) > 2*analysis.stdev);
       % only statistically significant stixels included in temporalRF
       if ~isempty(index)
         tempRF(a,:) = mean(pts(index));
@@ -35,10 +35,10 @@ function r = spatialReverseCorr(r)
   end
 
   function [r, srf] = calculateSpatialRF(r, strf)
-    srf = zeros(size(r.analysis.strf, 1), size(r.analysis.strf, 2));
-    for ii = 1:size(r.analysis.strf, 1)
-      for jj = 1:size(r.analysis.strf, 2)
-        srf(ii, jj) = squeeze(r.analysis.strf(ii, jj, :))' * r.analysis.temporalRF;
+    srf = zeros(size(analysis.strf, 1), size(analysis.strf, 2));
+    for ii = 1:size(analysis.strf, 1)
+      for jj = 1:size(analysis.strf, 2)
+        srf(ii, jj) = squeeze(analysis.strf(ii, jj, :))' * analysis.temporalRF;
       end
     end
   end
@@ -46,11 +46,11 @@ function r = spatialReverseCorr(r)
   % calculate signal to noise ratio
   function r = calculateSNR(r, strf)
     [rows, cols, ~] = size(strf)
-    r.analysis.SNR = zeros(rows, cols);
+    analysis.SNR = zeros(rows, cols);
 
     for ii = 1:rows
       for jj = 1:cols
-        r.analysis.SNR(ii, jj) = max(abs(strf(ii,jj,:))) / std(strf(ii, jj, :));
+        analysis.SNR(ii, jj) = max(abs(strf(ii,jj,:))) / std(strf(ii, jj, :));
       end
     end
   end
@@ -60,49 +60,49 @@ function r = spatialReverseCorr(r)
     filterDuration = 1; % in seconds
 
     [rows, cols, ~] = size(strf);
-    r.analysis.peakTime = zeros(rows, cols);
-    r.analysis.zeroCross = zeros(rows, cols);
-    r.analysis.biphasicIndex = zeros(rows, cols);
-    r.analysis.filterSign = zeros(rows, cols);
+    analysis.peakTime = zeros(rows, cols);
+    analysis.zeroCross = zeros(rows, cols);
+    analysis.biphasicIndex = zeros(rows, cols);
+    analysis.filterSign = zeros(rows, cols);
     for ii = 1:rows
       for jj = 1:cols
         tmp = squeeze(strf(ii, jj, :));
 
         % OFF filter
         if -min(tmp) > max(tmp)
-          r.analysis.filterSign(ii, jj) = -1;
+          analysis.filterSign(ii, jj) = -1;
 
           % find the filter peak
-          r.analysis.peakTime(ii, jj) = find(tmp == min(tmp), 1) / length(tmp) * 1000 * filterDuration;
+          analysis.peakTime(ii, jj) = find(tmp == min(tmp), 1) / length(tmp) * 1000 * filterDuration;
 
           % find the zero-cross
           t = (tmp > 0);
           t(1:find(tmp == min(tmp), 1)) = 0;
           t = find(t == 1, 1);
           if ~isempty(t)
-            r.analysis.zeroCross(ii, jj) = t / length(tmp) * 1000 * filterDuration;
+            analysis.zeroCross(ii, jj) = t / length(tmp) * 1000 * filterDuration;
           end
 
           % biphasic index
-          r.analysis.biphasicIndex(ii, jj) = abs(min(tmp)/max(tmp));
+          analysis.biphasicIndex(ii, jj) = abs(min(tmp)/max(tmp));
 
         else % on filter
 
-          r.analysis.filterSign(ii, jj) = 1;
+          analysis.filterSign(ii, jj) = 1;
 
           % filter peak
-          r.analysis.peakTime(ii, jj) = find(tmp == max(tmp), 1) / length(tmp) * 1000 * filterDuration;
+          analysis.peakTime(ii, jj) = find(tmp == max(tmp), 1) / length(tmp) * 1000 * filterDuration;
 
           % find the zero cross
           t = (tmp < 0);
           t(1:find(tmp == max(tmp), 1)) = 0;
           t = find(t == 1, 1);
           if ~isempty(t)
-            r.analysis.zeroCross(ii, jj) = t / length(tmp) * 1000 * filterDuration;
+            analysis.zeroCross(ii, jj) = t / length(tmp) * 1000 * filterDuration;
           end
 
           % biphasic index
-          r.analysis.biphasicIndex(ii, jj) = abs(min(tmp)/max(tmp));
+          analysis.biphasicIndex(ii, jj) = abs(min(tmp)/max(tmp));
         end
       end
     end
@@ -110,9 +110,10 @@ function r = spatialReverseCorr(r)
 
 %% this was working and now it's not (or sdev is too high??)
   function [r, normRF] = normalizeSpatialRF(r, strf)
+    stdev = std(strf(:))
     for x = 1:size(strf, 1)
       for y = 1:size(strf, 2)
-        stdev = std(squeeze(strf(x, y, :))); 
+        % stdev = std(squeeze(strf(x, y, :)));
         pts = squeeze(strf(x, y, :));
         pts = pts(:);
         % find all the points > 2 SDs

@@ -52,7 +52,7 @@ methods
 
   function createUi(obj)
     import appbox.*;
-    toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+    % toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
 
     if isempty(obj.epochColors)
       obj.epochColors = zeros(obj.epochCap, 3);
@@ -117,7 +117,7 @@ methods
       error(['Epoch does not contain a response for ' obj.device.name]);
     end
     response = epoch.getResponse(obj.device);
-    [quantities, units] = response.getData();
+    [quantities, ~] = response.getData();
     sampleRate = response.sampleRate.quantityInBaseUnits;
 
     obj.epochSort = obj.epochSort + 1;
@@ -129,7 +129,7 @@ methods
       x = (1:numel(quantities)) / sampleRate;
       y = quantities;
       y = getResponseByType(y, obj.onlineAnalysis);
-      ft = getInstFt(y, sampleRate);
+      y = getInstFt(y, sampleRate);
     else
       x = []; y = [];
     end
