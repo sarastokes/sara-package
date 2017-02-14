@@ -24,7 +24,7 @@ end
 properties (Hidden)
     ampType
     temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-    chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso', 'red', 'yellow', 'green', 'blue'})
+    chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso', 'LMS-iso', 'red', 'yellow', 'green', 'blue'})
     onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
     currentColorWeights
     plotColor

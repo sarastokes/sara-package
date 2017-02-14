@@ -1,4 +1,4 @@
-function r = statsOnline(r)
+function S = statsOnline(r)
   % get protocol stats
   if nargin < 2
     bestSF = [];
@@ -32,7 +32,7 @@ function r = statsOnline(r)
           [~, bestSF(ii)] = max(r.analysis.F1(ii,:));
           BPratio(ii) = max(r.analysis.F1(ii,:))/r.analysis.F1(ii,1);
         end
-        BPratio
+        S.BPratio = BPratio
         % average, max, min optimal vs low SF
         % fprintf('optimal:low SF = %.2f pm %.2f\n',... mean(r.analysis.F1(:, bestSF)/r.analysis.F1(:,1)),...
         %  sem(r.analysis.F1(:,bestSF)/r.analysis.F1(:,1)));

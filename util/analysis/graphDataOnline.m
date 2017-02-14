@@ -284,20 +284,25 @@ else
       end
 
       if plotAll
-        figure('Name', 'F1 Figure'); hold on;
+        fh1 = figure('Name', [r.cellName ' - f1 figure']);
+        fh1.Position(4) = fh1.Position(4) - 100;
+        fh1.Position(3) = fh1.Position(4);
         for ii = 1:length(r.params.stimClass)
-          c = getPlotColor(r.params.stimClass(ii), [1 0.5]);
-          plot(analysis.P1(ii,:), analysis.F1(ii,:), 'o',...
-            'MarkerFaceColor', c(2,:), 'MarkerEdgeColor', c(2,:));
-          plot(mean(analysis.P1(ii,:), 2), mean(analysis.F1(ii,:), 2), 'o',...
-            'MarkerFaceColor', c(1,:), 'MarkerEdgeColor', c(1,:));
-          if strcmp(r.params.temporalFrequency, 'squarewave')
-            plot(analysis.P2(ii,:), analysis.F2(ii,:), 's',...
-              'MarkerEdgeColor', c(2,:), 'MarkerFaceColor', c(2,:));
-            plot(mean(analysis.P2(ii,:), 2), mean(analysis.F2(ii,:), 2), 's',...
-              'MarkerEdgeColor', c(1,:), 'MarkerFaceColor', c(1, :));
-          end
+          bar(ii, mean(r.analysis.F1(ii,:), 2), 'FaceColor', getPlotColor(r.params.stimClass(ii), 0.5), 'LineStyle', 'none'); hold on;
+          plot(ii + zeros(size(r.analysis.F1(ii,:), 2)), r.analysis.F1(ii,:), 'o', 'Color', getPlotColor(r.params.stimClass(ii)), 'LineWidth', 1.5);
+          % c = getPlotColor(r.params.stimClass(ii), [1 0.5]);
+          % plot(analysis.P1(ii,:), analysis.F1(ii,:), 'o',...
+          %   'MarkerFaceColor', c(2,:), 'MarkerEdgeColor', c(2,:));
+          % plot(mean(analysis.P1(ii,:), 2), mean(analysis.F1(ii,:), 2), 'o',...
+          %   'MarkerFaceColor', c(1,:), 'MarkerEdgeColor', c(1,:));
+          % if strcmp(r.params.temporalFrequency, 'squarewave')
+          %   plot(analysis.P2(ii,:), analysis.F2(ii,:), 's',...
+          %     'MarkerEdgeColor', c(2,:), 'MarkerFaceColor', c(2,:));
+          %   plot(mean(analysis.P2(ii,:), 2), mean(analysis.F2(ii,:), 2), 's',...
+          %     'MarkerEdgeColor', c(1,:), 'MarkerFaceColor', c(1, :));
+          % end
         end
+        set(gca, 'XTick', 1:length(r.params.stimClass), 'XTickLabel', getNiceLabels(cellstr(r.params.stimClass'))', 'Box', 'off', 'TickDir', 'out');
         title(titlestr);xlabel('f1 phase'); ylabel('f1amp'); xlim([-180 180]);
       end
 
@@ -322,7 +327,7 @@ else
           end
           subtightplot((2*length(r.params.stimClass))+1, 1, [1 2], 0.05,[0.05 0.05], [0.1 0.06]);
           title(titlestr);
-          subtightplot((2*length(r.params.stimClass))+1, 1, (2*length(r.params.stimClass)+1), 0.05, [0.05 0.05], [0.1 0.06]);
+          subtightplot((2*length(r.params.stimClass))+3, 1, (2*length(r.params.stimClass)+3), 0.05, [0.05 0.05], [0.03 0.1]);
           plot(analysis.stimTrace, 'k', 'LineWidth', 1);
           set(gca, 'box', 'off', 'XColor', 'w', 'XTick', []);
           ylabel('contrast'); axis tight; ylim([0 1]);

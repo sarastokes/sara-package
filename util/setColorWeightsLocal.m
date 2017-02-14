@@ -31,6 +31,11 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
       w = obj.quantalCatch(:,1:3)' \ [1 0 1]';
       w = w / max(abs(w)); c = 'LS-iso';
       p = [0.64314, 0.011765, 0.43529];
+    case {'lms-iso', 'lms', 'k'}
+      w = obj.quantalCatch(:,1:3)'\[1 1 1]';
+      w = w / max(abs(w));
+      c = 'LMS-iso';
+      p = [0 0 0];
 
     % Chromatic options
     case 'red'
@@ -53,44 +58,41 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
       p = [0.64314, 0.011765, 0.43529];
 
     % hue basis
-    case 'sml'
+    case {'sml', 'g'}
       w = obj.quantalCatch(:, 1:3)' \ [-1 1 1]';
       w = w / max(abs(w));
       p = [0.14118, 0.20784, 0.84314];
       c = 'blue (S+M)-L';
-    case 'lsm'
+    case {'lsm', 'h'}
       w = obj.quantalCatch(:, 1:3)' \ [1 -1 -1]';
       w = w / max(abs(w));
       p = [0.90588, 0.43529, 0.31765];
       c = 'yellow L-(S+M)';
-    case 'slm'
+    case {'slm', 'i'}
       w = obj.quantalCatch(:, 1:3)' \ [1 -1 1]';
       w = w / max(abs(w));
       p = [0.82353, 0, 0];
       c = 'red (S+L)-M';
-    case 'msl'
+    case {'msl', 'j'}
       w = obj.quantalCatch(:,1:3)' \ [-1 1 -1];
       w = w / max(abs(w));
       p = [0, 0.52941, 0.21569];
       c = 'green M-(S+L)';
-    case {'custom', 'x'}
+    case {'custom', 'x', 'customS'}
       load csiso
-      fprintf('custom s-iso values loaded = %.3f, %.3f, %.3f\n',... 
-        csiso(1), csiso(2), csiso(3));
+      fprintf('custom s-iso values loaded = %.3f, %.3f, %.3f\n', csiso);
       w = csiso;
       p = [0.14118, 0.20784, 0.84314];
       c = 'custom s-iso';
     case {'w'}
       load cmiso
-      fprintf('custom s-iso values loaded = %.3f, %.3f, %.3f\n',... 
-        cmiso(1), cmiso(2), cmiso(3));  
+      fprintf('custom s-iso values loaded = %.3f, %.3f, %.3f\n', cmiso);
         w = cmiso;
-        p = [0, 0.52941, 0.21569]; 
+        p = [0, 0.52941, 0.21569];
         c = 'custom m-iso';
     case 'z'
       load cliso
-      fprintf('custom s-iso values loaded = %.3f, %.3f, %.3f\n',... 
-        cliso(1), cliso(2), cliso(3)); 
+      fprintf('custom s-iso values loaded = %.3f, %.3f, %.3f\n', cliso);
       w = cliso;
       p = [0.82353, 0, 0];
       c = 'custom l-iso';

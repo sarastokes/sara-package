@@ -16,6 +16,10 @@ function r = routine_GaussNoise(r, varargin)
   cones = ip.Results.cones;
   bpf = ip.Results.bpf;
   scaleLMS = ip.Results.scaleLMS;
+  groupPlot = ip.Results.groupPlot;
+
+  set(0, 'DefaultAxesBox', 'off',...
+    'DefaultBarLineStyle', 'none');
 
   if nnz(isfield(r, cones)) ~= length(cones)
     error('did not find all cone fields');
@@ -70,23 +74,50 @@ function r = routine_GaussNoise(r, varargin)
   xlabel('temporal frequency (hz)');
   xlim([0 60]);
 
-
+  colorMat = zeros(length(cones), 3);
   for ii = 1:length(cones)
     t2p(ii) = r.(cones{ii}).analysis.peakTime;
     zc(ii) = r.(cones{ii}).analysis.zeroCross;
     bi(ii) = r.(cones{ii}).analysis.biphasicIndex;
+    colorMat(ii,:) = getPlotColor(cones{ii}(1), 0.25);
   end
   if ~groupPlot
-    figure('Name', [r.cellName ' - time to peak']);
-    bar(1:length(cones), t2p,...
-      'LineStyle', 'none');
-    figure('Name', [r.cellName ' - biphasic index']);
-    bar(1:length(cones), bi,...
-      'LineStyle', 'none');
-    figure('Name', [r.cellName ' - zero cross']);
-    bar(1:length(cones), zc,...
-      'LineStyle', 'none');
+    fh1 = figure('Name', [r.(cones{1}).cellName ' - time to peak']); hold on;
+    fh1.Position(4) = fh1.Position(4)-100;
+    fh1.Position(3) = fh1.Position(4);
+    for ii = 1:length(cones)
+      bar(ii, t2p(ii), 'FaceColor', colorMat(ii,:), 'LineStyle', 'none');
+    end
+    set(gca, 'XTick',1:length(cones), 'XTickLabel', getNiceLabels(cones), 'Box', 'off');
+    title([r.(cones{1}).cellName ' - time to peak']); xlabel('time (ms)')
+
+    pos = fh1.Position; pos(1) = pos(1) - 200;
+    figure('Name', [r.(cones{1}).cellName ' - biphasic index'], 'Position', pos); hold on;
+    for ii = 1:length(cones)
+      bar(ii, bi(ii), 'FaceColor', colorMat(ii,:), 'LineStyle', 'none');
+    end
+    set(gca, 'XTick',1:length(cones), 'XTickLabel', getNiceLabels(cones), 'Box', 'off');
+    title([r.(cones{1}).cellName ' - biphasic index']);
+
+    pos(1) = pos(1) + 400;
+    figure('Name', [r.(cones{1}).cellName ' - zero cross'], 'Position', pos); hold on;
+    for ii = 1:length(cones)
+      bar(ii, zc(ii), 'FaceColor', colorMat(ii,:), 'LineStyle', 'none');
+    end
+    set(gca, 'XTick',1:length(cones), 'XTickLabel', getNiceLabels(cones), 'Box', 'off');
+    title([r.(cones{1}).cellName ' - zero cross']); ylabel('time (ms)');
   else
-    figure('Name', [r.cellName ' - gaussian noise stats']);
-    subplot(131); hold on;
-    
+    figure('Name', [r.(cones{1}).cellName ' - gaussian noise stats']);
+    for ii = 1:length(cones)
+      subplot(1,3,1); hold on;
+      bar(ii, t2p(ii), 'LineStyle', 'none', 'FaceColor', colorMat(ii,:));
+      subplot(1,3,2); hold on;
+      bar(ii, zc(ii), 'FaceColor', colorMat(ii,:), 'LineStyle', 'none');
+      subplot(1,3,3); hold on;
+      bar(ii, bi(ii), 'FaceColor', colorMat(ii,:), 'LineStyle', 'none');
+    end
+    subplot(131); title('time to peak'); ylabel('time (ms)');
+    subplot(132); title('zero cross'); ylabel('time (ms)');
+    subplot(133); title('biphasic index'); ylabel('peak:trough');
+    set(findobj(gcf, 'Type', 'Axes'),'XTickLabel', getNiceLabels(cones), 'Box', 'off', 'XTick', 1:length(cones));
+  end

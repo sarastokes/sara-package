@@ -15,7 +15,6 @@ function r = makeCompatible(r, src)
     src = false;
   end
 
-
   if ~isfield(r, 'log')
     r.log{1} = 'parsed before 10Dec2016 log update';
     if isfield(r, 'startTimes')
@@ -57,15 +56,15 @@ function r = makeCompatible(r, src)
   end
 
   if ~isfield(r.params, 'analysisType')
-    if isfield(r, 'secondary')
-      if neuron == 1
-        r.params.analysisType = 'dual_c1';
-      else
-        r.params.analysisType = 'dual_c2';
-      end
-    else
+    % if isfield(r, 'secondary')
+      % if neuron == 1
+      %   r.params.analysisType = 'dual_c1';
+      % else
+      %   r.params.analysisType = 'dual_c2';
+      % end
+    % else
       r.params.analysisType = 'single';
-    end
+    % end
     % not sure how to extract paired recordings at this stage
   end
 

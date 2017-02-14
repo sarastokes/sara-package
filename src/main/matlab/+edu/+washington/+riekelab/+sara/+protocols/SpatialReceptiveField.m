@@ -25,7 +25,7 @@ classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.Mano
         ampType
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         noiseClassType = symphonyui.core.PropertyType('char', 'row', {'binary', 'ternary', 'gaussian'})
-        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB','L-iso','M-iso','S-iso', 'custom'})
+        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB','L-iso','M-iso','S-iso', 'LM-iso', 'LMS-iso' 'custom'})
         noiseStream
         numXChecks
         numYChecks
@@ -291,7 +291,7 @@ classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.Mano
 
             if obj.apertureRadius > 0
               aperture = stage.builtin.stimuli.Rectangle();
-              aperture.position = obj.canvasSize/2;
+              aperture.position = obj.canvasSize/2 + obj.centerOffset;
               aperture.color = obj.backgroundIntensity;
               aperture.size = [max(obj.canvasSize) max(obj.canvasSize)];
               mask = stage.core.Mask.createCircularAperture(obj.apertureRadius*2/max(obj.canvasSize), 1024);

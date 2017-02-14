@@ -15,15 +15,15 @@ properties
 	centerOffset = [0, 0]
 	onlineAnalysis = 'extracellular'
 	backgroundIntensity = 0.5
-	numberOfAverages = uint16(13)
+	numberOfAverages = uint16(26)
 end
 
 properties (Hidden)
 	ampType
 	temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
 	onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-	coneOneType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B'})
-	coneTwoType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B'}) 
+	coneOneType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B', 'LMS'})
+	coneTwoType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B', 'LMS'})
 	stimulusClass
 	coneWeights
 	ledWeights
@@ -57,20 +57,20 @@ function prepareRun(obj)
     ind1 = strfind('LMS', obj.coneOne); ind2 = strfind('LMS', obj.coneTwo);
   end
   for ii = 1:double(obj.numberOfAverages)
-    obj.coneWeights(ii, ind1) = cos((ii-1)*pi/(double(obj.numberOfAverages)-1)) * obj.contrast;
-    obj.coneWeights(ii, ind2) = -sin((ii-1)*pi/(double(obj.numberOfAverages)-1)) * obj.contrast;
+    obj.coneWeights(ii, ind1) = cos((ii-1)*2*pi / (double(obj.numberOfAverages)-1)) * obj.contrast;
+    obj.coneWeights(ii, ind2) = -sin((ii-1)*2*pi / (double(obj.numberOfAverages)-1)) * obj.contrast;
   end
 
   % set up figures
   if numel(obj.rig.getDeviceNames('Amp')) < 2
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace,... 
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace,...
     	'stimColor', getPlotColor(lower(obj.coneOne)));
   else
     obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
   end
 
   if ~strcmp(obj.onlineAnalysis, 'none')
-  	obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.contrast, obj.onlineAnalysis,... 
+  	obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.contrast, obj.onlineAnalysis,...
   		obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency, 'plotColor', getPlotColor(lower(obj.coneOne)));
   end
 
@@ -88,7 +88,7 @@ function p = createPresentation(obj)
     spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
     spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
-    
+
     p.addStimulus(spot);
     p.addController(spotVisibleController);
     p.addController(spotColorController);
@@ -130,7 +130,7 @@ function prepareEpoch(obj, epoch)
     obj.ledWeights = obj.coneWeights(obj.numEpochsCompleted+1,ii);
   otherwise
     w = obj.quantalCatch(:, 1:3)' \ obj.coneWeights(obj.numEpochsCompleted+1,:)';
-    w = w/max(abs(w)); 
+    w = w/max(abs(w));
     obj.ledWeights = w(:)';
   end
 

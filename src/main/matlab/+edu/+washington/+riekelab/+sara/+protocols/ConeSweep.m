@@ -21,7 +21,7 @@ end
 
 properties (Hidden)
   ampType
-  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'alms', 'cpy', 'ysa', 'lmx', 'zwx', 'azwx' 'almx', 'yxa', 'rgb', 'rgby'})
+  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'alms', 'klms', 'cpy', 'ysa', 'lmx', 'zwx', 'azwx' 'almx', 'yxa', 'rgb', 'rgby', 'ghij'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'flash'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   chromaticClass
@@ -92,19 +92,17 @@ function prepareRun(obj)
   else
     obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
   end
-  
+
   obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
 
   if ~strcmp(obj.onlineAnalysis, 'none')
-    % if strcmp(obj.onlineAnalysis, 'extracellular') || strcmp(obj.onlineAnalysis, 'Spikes_CClamp')
-    %   obj.showFigure('edu.washington.riekelab.sara.figures.ConeFiringRateFigure',... 
-    %     obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace, 'onlineAnalysis', obj.onlineAnalysis);
-    % end
-    %obj.showFigure('edu.washington.riekelab.sara.figures.ConeTriangleFigure', obj.rig.getDevice(obj.amp),...
-    %  obj.stimClass, obj.temporalClass);
+    if strcmp(obj.onlineAnalysis, 'extracellular') || strcmp(obj.onlineAnalysis, 'Spikes_CClamp')
+       obj.showFigure('edu.washington.riekelab.sara.figures.ConeFiringRateFigure',...
+      obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace, 'onlineAnalysis', obj.onlineAnalysis);
+    end
   end
   if strcmp(obj.onlineAnalysis, 'extracellular') && obj.checkSpikes
-    obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',... 
+    obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',...
       obj.rig.getDevice(obj.amp));
   end
 end

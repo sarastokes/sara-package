@@ -36,7 +36,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         apertureClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
         spatialClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
         temporalClassType = symphonyui.core.PropertyType('char', 'row', {'drifting', 'reversing'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','S-iso','M-iso','L-iso', 'LM-iso', 'x', 'z', 'w'})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','S-iso','M-iso','L-iso', 'LM-iso', 'LMS-iso' 'x'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         rawImage
         params
@@ -44,6 +44,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         spatialFrequencies
         spatialFreq % The current spatial frequency for the epoch
         orientation % The current orientation
+        coneWeights
         coneContrasts
     end
 
@@ -71,7 +72,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             % trace for response figure
             stimTrace = getStimTrace(obj, 'modulation', obj.waitTime);
-            [obj.colorWeights, stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
+            [obj.coneWeights, stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp),...
                 stimTrace, 'stimColor', stimColor);
@@ -81,7 +82,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             % Calculate the cone contrasts.
             obj.coneContrasts = coneContrast(obj.backgroundIntensity*obj.quantalCatch, ...
-                obj.colorWeights, 'michaelson');
+                obj.coneWeights, 'michaelson');
 
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
@@ -157,7 +158,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
                 % Deal with chromatic gratings.
                 if ~strcmp(obj.chromaticClass, 'achromatic')
                     for m = 1 : 3
-                        g(:,:,m) = obj.colorWeights(m) * g(:,:,m);
+                        g(:,:,m) = obj.nTraces(m) * g(:,:,m);
                     end
                 end
                 g = uint8(255*(obj.backgroundIntensity * g + obj.backgroundIntensity));
@@ -182,7 +183,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
                 % Deal with chromatic gratings.
                 if ~strcmp(obj.chromaticClass, 'achromatic')
                     for m = 1 : 3
-                        g(:,:,m) = obj.colorWeights(m) * g(:,:,m);
+                        g(:,:,m) = obj.nTraces(m) * g(:,:,m);
                     end
                 end
                 g = uint8(255*(obj.backgroundIntensity * g + obj.backgroundIntensity));
@@ -260,7 +261,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             % Add the spatial frequency to the epoch.
             epoch.addParameter('spatialFreq', obj.spatialFreq);
             epoch.addParameter('orientation', obj.orientation);
-            % epoch.addParameter('contrast', obj.contrast);
+            epoch.addParameter('contrast', obj.contrast);
 
             % Save out the cone/rod contrasts.
             epoch.addParameter('lContrast', obj.coneContrasts(1));

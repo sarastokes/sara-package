@@ -98,7 +98,7 @@ function createUi(obj)
   else
     set(obj.axesHandle, 'XScale', 'log');
   end
-  
+
   set(obj.figureHandle, 'Color', 'w');
 end
 
@@ -168,7 +168,11 @@ function handleEpoch(obj, epoch)
     set(obj.fa, 'Color', obj.plotColor(1,:), 'linewidth', 1, 'marker', 'o');
   else
     set(obj.fa, 'XData', obj.xaxis, 'YData', obj.F1amp);
-    set(obj.axesHandle, 'XLim', [floor(min(obj.xaxis)) ceil(max(obj.xaxis))]);
+    try
+      set(obj.axesHandle(1), 'XLim', [floor(min(obj.xaxis)) ceil(max(obj.xaxis))]);
+    catch
+      set(obj.axesHandle(1), 'Xlim', [1 length(obj.F1amp)]);
+    end
   end
 
   if isempty(obj.pa)
@@ -176,6 +180,11 @@ function handleEpoch(obj, epoch)
     set(obj.pa, 'Color', obj.plotColor(1,:), 'linewidth', 1, 'marker', 'o');
   else
     set(obj.pa, 'XData', obj.xaxis, 'YData', obj.F1phase);
+  end
+  try
+    set(obj.axesHandle(2), 'XLim', [floor(min(obj.xaxis)) ceil(max(obj.xaxis))]);
+  catch
+    set(obj.axesHandle(2), 'XLim', [1 length(obj.F1amp)]);
   end
 
 end

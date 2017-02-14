@@ -102,8 +102,11 @@ methods
   end
 
   function clear(obj)
-    cla(obj.axesHandle); cla(obj.traceHandle); 
-    obj.sweepOne = []; obj.sweepTwo = []; obj.sweepThree = []; obj.stimTrace = [];
+    cla(obj.axesHandle(1)); cla(obj.axesHandle(2));
+    cla(obj.axesHandle(3)); cla(obj.axesHandle(4));
+    cla(obj.traceHandle);
+    obj.sweepOne = []; obj.sweepTwo = []; obj.sweepThree = [];
+    obj.stimTrace = [];
     obj.sweepFour = [];
   end
 
@@ -161,7 +164,7 @@ methods
     % plot trace
     if obj.plotStim
       if isempty(obj.trace)
-        obj.trace = line(1:length(obj.stimTrace), obj.stimTrace,... 
+        obj.trace = line(1:length(obj.stimTrace), obj.stimTrace,...
           'Parent', obj.traceHandle, 'Color', 'k', 'LineWidth', 1);
           set(obj.traceHandle, 'Box', 'off', 'XColor', 'w', 'XTickLabel', {},...
               'XLimMode', 'manual', 'XLim', [0 length(obj.stimTrace)]);

@@ -31,6 +31,9 @@ function [p, c] = getPlotColor(colorCall, fac)
     elseif strcmp(colorCall, 'LS-iso') || strcmp(colorCall, 'p')
       c = 'LS-iso';
       p = [0.64314, 0.011765, 0.43529];
+    elseif strcmp(colorCall, 'LMS-iso') || strcmp(colorCall, 'lms')
+      c = 'LMS-iso';
+      p = [0 0 0];
 
     % Chromatic options
   elseif strcmp(colorCall, 'red') || strcmp(colorCall, 'R')

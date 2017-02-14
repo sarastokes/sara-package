@@ -243,8 +243,8 @@ function r = analyzeOnline(r, varargin)
         if ~isempty(t)
           analysis.zeroCross = t/length(analysis.linearFilter) * 1000 * filterDuration;
         end
-        analysis.biphasicIndex = abs(min(analysis.linearFilter)/max(analysis.linearFilter));
       end
+      analysis.biphasicIndex = abs(min(analysis.linearFilter)/max(analysis.linearFilter));
 
       % normalize by the standard deviation
       analysis.linearFilter = analysis.linearFilter/std(analysis.linearFilter);
