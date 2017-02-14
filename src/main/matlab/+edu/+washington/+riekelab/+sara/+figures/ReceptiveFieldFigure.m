@@ -1,4 +1,5 @@
 classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
+% TODO - find peaks button
 
 % 20Dec2016 - added RGB analysis
     properties (SetAccess = private)
@@ -80,16 +81,12 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'Separator', 'on', ...
                 'ClickedCallback', @obj.onSelectedChangeCmap);
             setIconImage(changeCmapButton, symphonyui.app.App.getResource('icons', 'sweep_store.png'));
-<<<<<<< HEAD
-            
-=======
             sendToWorkspaceButton = uipushtool(...
-          		'Parent', toolbar,...
-          		'TooltipString', 'Send to workspace',...
-          		'Separator', 'on',...
-          		'ClickedCallback', @obj.onSelectedStoreSweep);
-          	setIconImage(sendToWorkspaceButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
->>>>>>> 5a7bd749f8c76057635db07bea0ec93aa891d21e
+                'Parent', toolbar,...
+                'TooltipString', 'Send to workspace',...
+                'Separator', 'on',...
+                'ClickedCallback', @obj.onSelectedStoreSweep);
+            setIconImage(sendToWorkspaceButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
 
             mainLayout = uix.VBox('Parent', obj.figureHandle, 'Padding', 10, 'Spacing', 5);
 
@@ -287,7 +284,6 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
 
     function onChangedTimeBin(obj,~,~)
         slider_value = get(obj.timeBinSlider, 'Value');
-        fprintf('slider_value is %u\n', slider_value);
 
         if slider_value > size(obj.strf,3)
             error('slider value exceeds strf time bins');
@@ -306,10 +302,10 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
     end
 
     function onSelectedStoreSweep(obj,~,~)
-    	strf = obj.strf;
-    	answer = inputdlg('Save to workspace as:', 'save dialog', 1, {'r'});
-    	fprintf('%s new grating named %s\n', datestr(now), answer{1});
-    	assignin('base', sprintf('%s', answer{1}), strf);
+        strf = obj.strf;
+        answer = inputdlg('Save to workspace as:', 'save dialog', 1, {'r'});
+        fprintf('%s new grating named %s\n', datestr(now), answer{1});
+        assignin('base', sprintf('%s', answer{1}), strf);
     end
 
 end % methods private

@@ -68,7 +68,7 @@ function nl = nonlinearity(r, resp)
     else
         seed = r.params.seed(ii);
     end
-    
+
     noiseStream = RandStream('mt19937ar', 'Seed', seed);
     frameValues = stdev * noiseStream.randn(1, numBins/binsPerFrame);
 

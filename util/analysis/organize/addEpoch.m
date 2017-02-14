@@ -1,9 +1,10 @@
-function r = addEpochs(r1, r2)
+function r = addEpoch(r1, r2)
 	% combines 2 epoch blocks
 	% runs faster if longer block is first
 
 	r = r1;
 	r.numEpochs = r.numEpochs + r2.numEpochs;
+	r.log{end+1} = sprintf('%s  - merged with %s', datestr(now), r2.uuid);
 
 	for ep = 1:r2.numEpochs
 		r.spikes(end+1,:) = r2.spikes(ep,:);
@@ -14,7 +15,7 @@ function r = addEpochs(r1, r2)
 		if isfield(r, 'seed')
 			r.seed(end+1) = r2.seed(ep);
 		elseif isfield(r.params, 'seed')
-			r.seed(end+1) = r2.params.seed(ep);
+			r.params.seed(end+1) = r2.params.seed(ep);
 		end
 		if isfield(r2, 'secondary')
 			if isfield(r1,'secondary')

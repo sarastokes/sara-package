@@ -1,5 +1,7 @@
 function [r, analysis] = getSTRFOnline(r, analysis, spikes, seed)
   % 24Sept - replaced parts with mike's new code which isn't working for RGB so use older version for those analyses.
+  % 21Jan2017 - passing intensity to slightly modified version of
+  % getSpatialNoiseFrames for gaussian noise analysis
 
   if ~isfield(r.params, 'preF')
     r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
@@ -14,10 +16,11 @@ function [r, analysis] = getSTRFOnline(r, analysis, spikes, seed)
     frameValues = noiseStream.rand(r.params.numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
     frameValues = 2*frameValues-1;
   else
-    frameValues = getSpatialNoiseFrames(r.params.numXChecks, r.params.numYChecks,... 
-      r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed);
+    frameValues = getSpatialNoiseFramesSara(r.params.numXChecks, r.params.numYChecks,...
+      r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed, r.params.intensity);
   end
 
+  % just for extracellular right now
   responseTrace = BinSpikeRate(spikes(prePts+1:end), r.params.frameRate, r.params.sampleRate);
 
   % make response trace same size as stim frames
@@ -42,6 +45,9 @@ function [r, analysis] = getSTRFOnline(r, analysis, spikes, seed)
 
   filterFrames = floor(r.params.frameRate*0.5/r.params.frameDwell);
   lobePts = round(0.05*filterFrames/0.5) : round(0.15*filterFrames/0.5);
+
+  %FilterFft = mean((fft(responseTrace,[],2) .* conj(fft(stimulus,[],2))),1)./mean(fft(stimulus,[],2) .* conj(fft(stimulus,[],2)),1) ;
+
 
   % Do the reverse correlation.
 %  if isempty(strfind(r.protocol, 'Chromatic'))

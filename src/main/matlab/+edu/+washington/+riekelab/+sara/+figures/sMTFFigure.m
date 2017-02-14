@@ -89,11 +89,7 @@ classdef sMTFFigure < symphonyui.core.FigureHandler
                 xlabel(obj.phaseAxesHandle, obj.xName);
                 ylabel(obj.phaseAxesHandle, 'phase');
             end
-<<<<<<< HEAD
-
-=======
             
->>>>>>> 5a7bd749f8c76057635db07bea0ec93aa891d21e
             set(obj.figureHandle, 'Color', 'w');
         end
         

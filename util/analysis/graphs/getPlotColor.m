@@ -33,11 +33,11 @@ function [p, c] = getPlotColor(colorCall, fac)
       p = [0.64314, 0.011765, 0.43529];
 
     % Chromatic options
-    elseif strcmp(colorCall, 'red')
+  elseif strcmp(colorCall, 'red') || strcmp(colorCall, 'R')
       p = [0.82353, 0, 0]; c = 'red';
-    elseif strcmp(colorCall, 'green')
+    elseif strcmp(colorCall, 'green') || strcmp(colorCall, 'G')
       p = [0, 0.52941, 0.21569]; c = 'green';
-    elseif strcmp(colorCall, 'blue')
+    elseif strcmp(colorCall, 'blue') || strcmp(colorCall, 'B')
       p = [0.14118, 0.20784, 0.84314]; c = 'blue';
     elseif strcmp(colorCall, 'yellow')
       p = [1, 0.83, 0.11]; c = 'yellow';

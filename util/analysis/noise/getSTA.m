@@ -25,7 +25,6 @@ function [sta, stimCov, stimMean] = getSTA(r, varargin)
 		sampleRate = ip.Results.sampleRate;
 		frameRate = ip.Results.frameRate;
 		numChecks = ip.Results.numChecks;
-		noiseClass = ip.Results.noiseClass;
 		chromaticClass = ip.Results.chromaticClass;
 	else % use response structure
 		ip = inputParser();

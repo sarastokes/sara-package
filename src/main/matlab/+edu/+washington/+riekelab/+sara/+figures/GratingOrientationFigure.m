@@ -54,17 +54,10 @@ function obj = GratingOrientationFigure(device, onlineAnalysis, preTime, stimTim
 
 	obj.cInd1 = flipud(pmkmp(length(obj.spatialFrequencies), 'CubicL'));
 	obj.cInd2 = flipud(pmkmp(length(obj.orientations), 'CubicL'));
-<<<<<<< HEAD
-	[obj.ornt, obj.ind] = sort(obj.orientation);
-
-	obj.F1amp.y = zeros(length(obj.orientations), length(obj.spatialFrequencies));
-  	obj.F1phase.y = zeros(size(obj.F1amp.y));
-=======
     [obj.ornt, obj.ind] = sort(obj.orientations);
 
 	obj.F1amp.y = zeros(length(obj.orientations), length(obj.spatialFrequencies));
     obj.F1phase.y = zeros(size(obj.F1amp.y));
->>>>>>> 5a7bd749f8c76057635db07bea0ec93aa891d21e
 	obj.legendstr = cell(1,length(obj.orientations)+1);
 	obj.legendstr{2} = 'mean';
 
@@ -109,11 +102,7 @@ function createUi(obj)
 		'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
 		'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'),...
 		'XTickMode', 'auto', 'XScale', 'log', 'XColor', 'w',...
-<<<<<<< HEAD
-		'XLim', [min(obj.spatialFrequencies) max(obj.spatialFrequencies)]);
-=======
         'XLim', [min(obj.spatialFrequencies) max(obj.spatialFrequencies)]);
->>>>>>> 5a7bd749f8c76057635db07bea0ec93aa891d21e
 	ylabel(obj.axesHandle(1), 'f1 amplitude');
 	obj.setTitle([obj.device.name ' ' obj.chromaticClass 'Grating Figure']);
 
@@ -122,11 +111,7 @@ function createUi(obj)
 		'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
 		'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'),...
 		'XTickMode', 'auto', 'XScale', 'log',...
-<<<<<<< HEAD
-		'XLim', [min(obj.spatialFrequencies) max(obj.spatialFrequencies)]);
-=======
         'XLim', [min(obj.spatialFrequencies) max(obj.spatialFrequencies)]);
->>>>>>> 5a7bd749f8c76057635db07bea0ec93aa891d21e
 	ylabel(obj.axesHandle(2), 'f1 phase');
 	xlabel(obj.axesHandle(2), 'spatial frequency');
 

@@ -24,6 +24,8 @@ properties
   epochNum
   fa
   pa
+  fitParams
+  fitHandle
 end
 
 methods
@@ -75,25 +77,28 @@ function createUi(obj)
         'ClickedCallback', @obj.onSelectedStoreSweep);
   setIconImage(storeSweepButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
 
-
   obj.axesHandle(1) = subplot(3,1,1:2,...
     'Parent', obj.figureHandle,...
     'FontName', 'roboto',...
     'FontSize', 10,...
-    'XTickMode', 'auto',...
-    'XScale', 'log');
+    'XTickMode', 'auto');
   ylabel(obj.axesHandle(1), 'f1 amp');
-
 % set title stuff
 
   obj.axesHandle(2) = subplot(4,1,4,...
     'Parent', obj.figureHandle,...
     'FontName', 'Roboto',...
     'FontSize', 10,...
-    'XTickMode', 'auto',...
-    'XScale', 'log');
+    'XTickMode', 'auto');
   ylabel(obj.axesHandle(2), 'f1 phase');
 
+  % for cone contrasts
+  if abs(max(obj.xvals)) + abs(min(obj.xvals)) <= 2
+    set(obj.axesHandle, 'XScale', 'linear');
+  else
+    set(obj.axesHandle, 'XScale', 'log');
+  end
+  
   set(obj.figureHandle, 'Color', 'w');
 end
 
@@ -172,6 +177,7 @@ function handleEpoch(obj, epoch)
   else
     set(obj.pa, 'XData', obj.xaxis, 'YData', obj.F1phase);
   end
+
 end
 end
 
@@ -183,5 +189,7 @@ function onSelectedStoreSweep(obj,~,~)
   fprintf('%s new grating named %s\n', datestr(now), answer{1});
   assignin('base', sprintf('%s', answer{1}), outputStruct);
 end
+
+
 end
 end

@@ -12,7 +12,6 @@ properties (Access = private)
   plotStim
   trace
   epochSort
-  epochCap
   epochColors
   epochNames
   sweepOne
@@ -31,8 +30,6 @@ methods
     ip.addParameter('stimTrace', [], @(x)isvector(x));
     ip.parse(varargin{:});
     obj.stimTrace = ip.Results.stimTrace;
-
-    obj.epochCap = length(obj.stimClass);
 
     if isempty(obj.stimTrace)
       obj.plotStim = false;
@@ -55,13 +52,13 @@ methods
     set(obj.figureHandle, 'Name', 'Cone Response Figure');
 
     if isempty(obj.epochColors)
-      obj.epochColors = zeros(obj.epochCap, 3);
+      obj.epochColors = zeros(length(obj.stimClass), 3);
     end
 
     if obj.plotStim
-      m = 2 * obj.epochCap + 1;
+      m = 2 * length(obj.stimClass) + 1;
     else
-      m = 2 * obj.epochCap; %n = 1:obj.epochCap;
+      m = 2 * length(obj.stimClass);
     end
 
     % create axes
@@ -80,7 +77,7 @@ methods
         'FontName', 'Roboto',...
         'FontSize',9,...
         'XTickMode', 'auto');
-    if obj.epochCap == 4
+    if length(obj.stimClass) == 4
       obj.axesHandle(4) = subplot(m,1,7:8,...
         'Parent', obj.figureHandle,...
         'FontName', 'Roboto',...
@@ -89,7 +86,7 @@ methods
     end
 
     if ~isempty(obj.epochNames)
-      for ii = 1:obj.epochCap
+      for ii = 1:length(obj.stimClass)
         title(obj.axesHandle(ii), obj.epochNames{ii});
       end
     end
@@ -105,11 +102,7 @@ methods
   end
 
   function clear(obj)
-<<<<<<< HEAD
-    cla(obj.axesHandle); cla(obj.traceHandle);
-=======
     cla(obj.axesHandle); cla(obj.traceHandle); 
->>>>>>> 5a7bd749f8c76057635db07bea0ec93aa891d21e
     obj.sweepOne = []; obj.sweepTwo = []; obj.sweepThree = []; obj.stimTrace = [];
     obj.sweepFour = [];
   end
@@ -123,7 +116,7 @@ methods
     sampleRate = response.sampleRate.quantityInBaseUnits;
 
     obj.epochSort = obj.epochSort + 1;
-    if obj.epochSort > obj.epochCap
+    if obj.epochSort > length(obj.stimClass)
       obj.epochSort = 1;
     end
 
@@ -156,7 +149,7 @@ methods
         set(obj.sweepThree, 'XData', x, 'YData', y);
       end
       % set(obj.axesHandle(3), 'Box', 'off', 'TickDir', 'out');
-    elseif obj.epochSort == 4 && obj.epochCap == 4
+    elseif obj.epochSort == 4 && length(obj.stimClass) == 4
       if isempty(obj.sweepFour)
         obj.sweepFour = line(x, y, 'Parent', obj.axesHandle(4), 'Color', obj.epochColors(4,:));
       else

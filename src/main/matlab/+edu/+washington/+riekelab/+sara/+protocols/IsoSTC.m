@@ -82,7 +82,7 @@ methods
     else
       obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
     end
-    
+
     if obj.checkSpikes
       obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
     end
@@ -99,7 +99,7 @@ methods
         else
           obj.linearFilter = zeros(1, floor(obj.frameRate));
         end
-        y = size(obj.linearFilter); fprintf('size of linearFilter is %u %u\n', y(1), y(2));
+        y = size(obj.linearFilter);
       elseif strcmp(obj.paradigmClass, 'ID')
         obj.xaxis = 1:obj.numberOfAverages;
         obj.F1 = zeros(1, obj.numberOfAverages);
@@ -165,10 +165,9 @@ methods
     else
       lf = zeros(size(obj.linearFilter));
       y = size(lf);
-      fprintf('size of lf = %u %u \n', y(1), y(2));
       for ii = 1:3
         tmp = real(ifft(fft([binData, zeros(1,60)]) .* conj(fft([squeeze(frameValues(ii,:)), zeros(1,60)]))));
-        x = size(tmp(1:floor(obj.frameRate))); fprintf('size of tmp = %u %u\n', x(1), x(2));
+        x = size(tmp(1:floor(obj.frameRate)));
         lf(ii,:) = tmp(1:floor(obj.frameRate));
       end
       obj.linearFilter = obj.linearFilter + lf;

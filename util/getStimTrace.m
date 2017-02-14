@@ -1,48 +1,43 @@
-function stimTrace = getStimTrace(r, stimType, waitTime)
+function stimTrace = getStimTrace(r, stimType, varargin)
   % if calling from onlineAnalysis, r = obj. if calling from offline structure, r = r.params
 
-  if nargin < 3
-    if isfield(r, 'waitTime')
-      waitTime = r.waitTime;
-    else
-      waitTime = 0;
-    end
+  ip=inputParser();
+  ip.addParameter('coneContrast', 1, @(x)isvector(x));
+  ip.parse(varargin{:});
+  coneContrast = ip.Results.coneContrast;
+
+  if ~isfield(r, 'stimTime') && isfield(r, 'params')
+      r = r.params;
+  end
+  if ~isfield(r, 'waitTime')
+      r.waitTime = 0;
   end
 
   if ~isfield(r, 'contrast')
     if isfield(r, 'intensity')
-      r.contrast = r.intensity;
+      c = r.intensity;
     else
-      r.contrast = 1;
+      c = 1;
     end
+  else
+    c = r.contrast;
   end
+  c = c*coneContrast;
 
   if strcmp(stimType, 'pulse')
     stimTrace = r.backgroundIntensity * ones(1, (r.preTime + r.stimTime + r.tailTime));
     if r.backgroundIntensity > 0
       stimTrace(r.preTime+1:r.preTime + r.stimTime) = r.backgroundIntensity + (r.contrast*r.backgroundIntensity);
     else
-      stimTrace(r.preTime+1:r.preTime + r.stimTime) = r.contrast;
+      stimTrace(r.preTime+1:r.preTime + r.stimTime) = c;
     end
 
   elseif strcmp(stimType, 'modulation')
-    x = 0:0.001:((r.stimTime - waitTime - 1) * 1e-3);
-    stimValues = zeros(1, length(x));
-    for ii = 1:length(x)
-      if isfield(r, 'temporalClass')
-        if strcmp(r.temporalClass, 'sinewave')
-          stimValues(1,ii) = r.contrast * sin(r.temporalFrequency * x(ii) * 2 * pi) * r.backgroundIntensity + r.backgroundIntensity;
-        elseif strcmp(r.temporalClass, 'squarewave')
-          stimValues(1,ii) = r.contrast * sign(sin(r.temporalFrequency * x(ii) * 2 * pi)) * r.backgroundIntensity + r.backgroundIntensity;
-        end
-      else
-        stimValues(1,ii) = r.contrast * sign(sin(r.temporalFrequency * x(ii) * 2 * pi)) * r.backgroundIntensity + r.backgroundIntensity;
-      end
+    % numCycles = (r.stimTime - r.waitTime) * r.temporalFrequency / 1000;
+    stimValues = sin(r.temporalFrequency * (1:r.stimTime)/1000 * 2 * pi);
+    if strcmp(r.temporalClass, 'squarewave')
+      stimValues = sign(stimValues);
     end
-
-    if waitTime ~= 0
-      stimTrace = [(r.backgroundIntensity*ones(1,r.preTime)) (stimValues(1) * ones(1, r.waitTime)) stimValues r.backgroundIntensity*ones(1, r.tailTime)];
-    else
-      stimTrace = [(r.backgroundIntensity * ones(1, r.preTime)) stimValues (r.backgroundIntensity * ones(1, r.tailTime))];
-    end
+    stimValues = c * stimValues * r.backgroundIntensity + r.backgroundIntensity;
+    stimTrace = [0.5+zeros(1, r.preTime + r.waitTime) stimValues 0.5+zeros(1, r.tailTime)];
   end

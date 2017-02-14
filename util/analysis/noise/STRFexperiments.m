@@ -38,7 +38,7 @@ function r = STRFexperiments(r, neuron)
 		stixMat(ii, :) = analysis.strf(stixInd(ii,1), stixInd(ii,2), :);
 	end
 
-	[u, d, v] = svd(stixMat);
+	[u, s, v] = svd(stixMat);
 
 	% first column of u contains 1 spatial component of STA
 	% individual frames of STA movie where RF was most clear

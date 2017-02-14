@@ -19,7 +19,7 @@ function S = blankRespFig(recordingType, stimType)
         'DefaultAxesBox', 'off');
 	
 
-	S.resp = subplot(10,1,1:7, 'Parent', S.fh); 
+	S.resp = subtightplot(10,1,1:7, 0.05, [0.05 0.08], [0.1 0.05], 'Parent', S.fh); 
     hold on;
     xlabel(S.resp, 'time (ms)');
 	switch recordingType
@@ -31,7 +31,7 @@ function S = blankRespFig(recordingType, stimType)
         ylabel(S.resp, 'spikes count');
     end
 
-    S.stim = subplot(5,1,5, 'Parent', S.fh); 
+    S.stim = subtightplot(5,1,5, 0.05, [0.05 0.09], [0.1 0.05], 'Parent', S.fh); 
     hold on;
     set(S.stim, 'XColor', 'w', 'XTickLabel', {}, 'XTick', []);
     if strcmp(stimType, 'contrast')

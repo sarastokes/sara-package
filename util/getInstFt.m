@@ -1,9 +1,9 @@
 function instFt = getInstFt(spikes, sampleRate, fac)
-	% instantaneous firing rate
+	% instantaneous firing rate - from max's protocols
     if nargin < 3
         fac = 20;
     end
-	if nargin <2 
+	if nargin <2
 		sampleRate = 10000;
 	end
 	filterSigma = (fac/1000)*sampleRate;
