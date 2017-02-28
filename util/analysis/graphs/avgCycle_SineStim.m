@@ -50,7 +50,12 @@ function [avgCycles, fh] = avgCycle_SineStim(r, varargin)
 			index(index > length(y)) = [];
 			ytmp = y(index);
 			% tmp = tmp + ytmp(:)';
-			tmp = [tmp; ytmp(:)'];
+            try 
+              tmp = [tmp; ytmp(:)'];
+            catch
+              fprintf('ep %u bin %u size tmp is %u%u and size ytmp is %u%u\n',ii,k,... 
+                  size(tmp,1), size(tmp,2), size(ytmp,1), size(ytmp,2));
+            end                       
 		end
 		tmp( ~any(tmp,2), : ) = [];
 		avgCycles.all.(sc) = [avgCycles.all.(sc); tmp];

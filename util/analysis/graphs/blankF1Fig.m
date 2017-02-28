@@ -1,10 +1,10 @@
-function [fh,S] = blankF1Fig(roomForLegend)
+function [S, fh] = blankF1Fig(roomForLegend)
 	% make blank F1 amplitude and phase figure
 	%
 	% OPTIONAL INPUT: 		roomForLegend (false)
 	% OPTIONAL OUTPUT:
-	%			fh 			figure handle (w/ S as appdata)
-	%			S				axes handes
+	%			S				structure with figure and axes handles
+	%			fh 			figure handle
 
 	if nargin < 1
 		roomForLegend = 0;
@@ -30,4 +30,5 @@ function [fh,S] = blankF1Fig(roomForLegend)
 	set(S.P1, 'Box', 'off', 'TickDir', 'out');
 	ylabel('f1 phase');
 	set(S.P1, 'YLim', [-180 180], 'YTick', -180:90:180);
-	setappdata(fh, 'GUIdata', S);
+
+	S.fh = fh;

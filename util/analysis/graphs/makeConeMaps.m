@@ -137,9 +137,13 @@ function makeConeMaps(varargin)
 		case {'L-iso','liso','l'}
 			subtightplot(graphNum, g1, 2 + g2, 0.07);
 			srf(2+g2,:,:) = OFFmap;
-			imagesc(OFFmap, [lims(1) 0]);
-			axis equal; axis tight; axis off;
+			try
+				imagesc(OFFmap, [lims(1) 0]);
+			catch
+				imagesc(OFFmap, [-1 0]);
+			end
 			colormap(rgbmap('green', 'black')); freezeColors;
+			axis equal; axis tight; axis off;
 			title(sprintf('L-OFF%s', b));
 
 			subtightplot(graphNum, g1, 1 + g2, 0.05);
@@ -159,7 +163,11 @@ function makeConeMaps(varargin)
 
 			subtightplot(graphNum, g1, 3 + g2, 0.07);
 			srf(3+g2, :, :) = ONmap;
-			imagesc(ONmap, [0 lims(2)]);
+			try
+				imagesc(ONmap, [0 lims(2)]);
+			catch
+				imagesc(ONmap, [0 1]);
+			end
 			axis equal; axis tight; axis off;
 			colormap(rgbmap('black', 'green')); freezeColors;
 			title(sprintf('M-ON%s', b));
@@ -167,7 +175,11 @@ function makeConeMaps(varargin)
 		case {'S-iso','siso','s'}
 			subtightplot(graphNum, g1, 6 + g2, 0.07);
 			srf(6+g2, :, :) = OFFmap;
-			imagesc(OFFmap, [lims(1) 0]);
+			try
+				imagesc(OFFmap, [lims(1) 0]);
+			catch
+				imagesc(OFFmap, [-1 0]);
+			end
 			axis equal; axis tight; axis off;
 			colormap(rgbmap('yellow', 'black')); freezeColors;
 			title(sprintf('S-OFF%s', b));
@@ -209,5 +221,19 @@ function makeConeMaps(varargin)
 		imagesc(shiftdim(OFFsrf,1), 'Parent', ax(2));
 		axis equal; axis tight; axis off;
 		title('OFF cone inputs');
+
+		fh3 = figure();
+		ax(3) = axes('Parent', fh3);
+		imagesc(shiftdim(ONsrf,1)+abs(shiftdim(OFFsrf,1)), 'Parent', ax(3));
+		axis equal; axis tight; axis off;
+		title('Cone Mosaic');
+		tightfig(fh3);
+
+		fh3 = figure();
+		ax(4) = axes('Parent', fh3);
+		imagesc(shiftdim(ONsrf,1), 'Parent', ax(4));
+		axis equal; axis tight; axis off;
+		title('Cone Mosaic');
+		tightfig(fh3);
 	end
 end

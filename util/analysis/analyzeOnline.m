@@ -57,7 +57,11 @@ function r = analyzeOnline(r, varargin)
       deg = char(f{ind(1)});
 
       % get all the fft data
-      analysis = sMTFanalysis(r, r.params, r.spikes);
+      if strcmp(r.params.recordingType, 'extracellular') || strcmp(ICmode, 'spikes')
+        analysis = sMTFanalysis(r, r.params, r.spikes);
+      else
+        analysis = sMTFanalysis(r, r.params, r.analog);
+      end
 
       % distribute data to each orientation
       res = {'F1', 'P1', 'F2', 'P2'};
@@ -170,14 +174,6 @@ function r = analyzeOnline(r, varargin)
             newResponse = r.spikes(ep,firstStimFrameFlip:end);
             filterLen = 800;
             freqCutoffFraction = 1;
-          %  noiseStream = RandStream('mt19937ar', 'Seed', r.params.seed(ep));
-          %  chunkLen = r.params.frameDwell * mean(diff(r.stim.frameTimes));
-          %  noise = zeros(1,floor(stimFrames/r.params.frameDwell));
-          %  response = zeros(1, floor(stimFrames/r.params.frameDwell));
-          %  for ii = 1:floor(stimFrames/r.params.frameDwell)
-          %    noise(ii) = r.params.stdev * noiseStream.randn;
-          %    response(ii) = mean(newResponse(round((ii-1)*chunkLen + 1) : round(ii*chunkLen)));
-          %  end
             allStimuli = cat(1, allStimuli, noise);
             allResponses = cat(1, allResponses, response);
 
@@ -279,7 +275,14 @@ function r = analyzeOnline(r, varargin)
       'edu.washington.riekelab.sara.protocols.SpatialReceptiveField'}
       r.epochCount = 0;
 
-      analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
+      % update to match binsPerFrame changes
+      r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
+      r.params.preF = floor(r.params.preTime/1000 * r.params.frameRate * binsPerFrame);
+      r.params.stimF = floor(r.params.stimTime/1000 * r.params.frameRate * binsPerFrame);
+
+      analysis.binsPerFrame = binsPerFrame;
+
+      analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * analysis.binsPerFrame * 0.5/r.params.frameDwell));
       analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
 
       % x/y axes in microns
@@ -291,7 +294,7 @@ function r = analyzeOnline(r, varargin)
         for ii = 1:r.numEpochs
           r.epochCount = r.epochCount + 1;
           if strcmp(r.params.chromaticClass, 'RGB')
-            analysis.strf = zeros(3,r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * 0.5/r.params.frameDwell));
+            analysis.strf = zeros(3,r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * analysis.binsPerFrame * 0.5/r.params.frameDwell));
             analysis.spatialRF = zeros(3,r.params.numYChecks, r.params.numXChecks);
             if isfield(r, 'ICspikes')
               [r, analysis] = getSTRFOnline(r, analysis, r.ICspikes(ii,:), r.seed(ii));
@@ -313,6 +316,7 @@ function r = analyzeOnline(r, varargin)
 
         % run additional analyses on temporal RF
         [r, analysis] = spatialReverseCorr(r, analysis);
+
         analysis.strf = analysis.strf/std(analysis.strf(:));
         analysis.spatialRF = squeeze(mean(analysis.strf, 3));
       end
@@ -452,6 +456,8 @@ function r = analyzeOnline(r, varargin)
       result.params.binRate = 60;
       result.params.allOrAvg = 'avg';
       result.params.discardCycles = [];
+      stimStart = (r.params.preTime + r.params.waitTime)*10 + 1;
+      stimEnd = (r.params.preTime + r.params.stimTime) * 10;
 
       sfNum = length(params.spatialFrequencies);
       result.F1 = zeros(1, sfNum); result.F2 = zeros(1, sfNum);
@@ -469,11 +475,11 @@ function r = analyzeOnline(r, varargin)
 
         % Bin the data according to type.
         switch params.recordingType
-          case 'extracellular'
-            bData = BinSpikeRate(data(params.stimStart:params.stimEnd), result.params.binRate, params.sampleRate);
+          case {'current_clamp','extracellular'}
+            bData = BinSpikeRate(data(stimStart:stimEnd), result.params.binRate, params.sampleRate);
           otherwise
-            bData = binData(data(params.stimStart:params.stimEnd), result.params.binRate, params.sampleRate);
-          end
+            bData = binData(data(stimStart:stimEnd), result.params.binRate, params.sampleRate);
+        end
 
           [f1, p1] = frequencyModulation(bData, result.params.binRate, params.temporalFrequency, result.params.allOrAvg, 1, result.params.discardCycles);
           [f2, p2] = frequencyModulation(bData, result.params.binRate, params.temporalFrequency, result.params.allOrAvg, 2, result.params.discardCycles);

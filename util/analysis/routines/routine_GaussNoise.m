@@ -5,6 +5,7 @@ function r = routine_GaussNoise(r, varargin)
   %           scaleLMS(true)    scale for LMS gain
   %           cones('liso', 'miso', 'siso')   structure fields
   %           groupPlot (false)     put all stats graphs in one figure
+  %           nSmooth (3)           number to smooth by
 
   ip = inputParser();
   ip.addRequired('r', @isstruct);
@@ -12,11 +13,13 @@ function r = routine_GaussNoise(r, varargin)
   ip.addParameter('bpf', 6, @isnumeric);
   ip.addParameter('scaleLMS', true, @islogical);
   ip.addParameter('groupPlot', false, @islogical);
+  ip.addParameter('nSmooth', 3, @isnumeric);
   ip.parse(r, varargin{:});
   cones = ip.Results.cones;
   bpf = ip.Results.bpf;
   scaleLMS = ip.Results.scaleLMS;
   groupPlot = ip.Results.groupPlot;
+  nSmooth = ip.Results.nSmooth;
 
   set(0, 'DefaultAxesBox', 'off',...
     'DefaultBarLineStyle', 'none');
@@ -51,7 +54,7 @@ function r = routine_GaussNoise(r, varargin)
   figure('Name', [r.(cones{1}).cellName ' - LMS gaussian noise']); hold on;
   legendstr = [];
   for ii = 1:length(cones)
-    lf = smooth(r.(cones{ii}).analysis.linearFilter, 3);
+    lf = smooth(r.(cones{ii}).analysis.linearFilter, nSmooth);
     % normalize filter and multiply by NL scaling factor
     plot(xpts, lf/max(abs(lf)) * fac(ii),...
     'Color', getPlotColor(cones{ii}(1)), 'LineWidth', 1);
@@ -65,7 +68,7 @@ function r = routine_GaussNoise(r, varargin)
 
   figure('Name', [r.(cones{1}).cellName ' - temporal tuning']); hold on;
   for ii = 1:length(cones)
-    tft = smooth(r.(cones{ii}).analysis.tempFT);
+    tft = smooth(r.(cones{ii}).analysis.tempFT, nSmooth);
     plot(xpts, tft, 'LineWidth', 1, 'Color', getPlotColor(cones{ii}(1)));
   end
   title(r.(cones{1}).cellName);

@@ -4,12 +4,15 @@ function r = makeCompatible(r, src)
   % INPUT: r  data structure
   % OPT:   src    true if calling from analyzeOnline
   %
-  % 28Jan2017 - created to go with analysis code 2.0
-  % 13Feb2017 - ColorExchange and IsoSTA protocol changes
   % previous major changes:
   %   5Oct2016 - 2nd neuron option
   %   11Nov2016 - added recordingType and analysisType
   %   5Dec2016 - added log
+  %
+  %
+  % 28Jan2017 - created to go with analysis code 2.0
+  % 13Feb2017 - ColorExchange and IsoSTA protocol changes
+  % 23Feb2017 - some current clamp stuff and old grating analysis
 
   if nargin < 2
     src = false;
@@ -49,23 +52,25 @@ function r = makeCompatible(r, src)
     end
   end
 
-  if ~isempty(strfind(r.protocol, 'GaussianNoise')) || ~isempty(strfind(r.protocol, 'IsoSTA'))
-      if ~isfield(r.params, 'frameDwell')
-          r.params.frameDwell = 1;
-      end
+  if ~isfield(r.params, 'analysisType')
+    switch r.params.recordingType
+    case 'extracellular'
+      r.params.analysisType = 'single';
+    case 'current_clamp'
+      r.params.analysisType = 'spikes&subthresh';
+    case 'voltage_clamp'
+      % TODO: improve
+      r.params.analysisType = 'exc';
+    end
   end
 
-  if ~isfield(r.params, 'analysisType')
-    % if isfield(r, 'secondary')
-      % if neuron == 1
-      %   r.params.analysisType = 'dual_c1';
-      % else
-      %   r.params.analysisType = 'dual_c2';
-      % end
-    % else
-      r.params.analysisType = 'single';
-    % end
-    % not sure how to extract paired recordings at this stage
+  if isfield(r, 'ICspikes')
+    r.spikes = r.ICspikes;
+    r = rmfield(r, 'ICspikes');
+  end
+  if isfield(r, 'subthresh')
+    r.analog = r.subthresh;
+    r = rmfield(r, 'subthresh');
   end
 
   switch r.protocol
@@ -77,4 +82,15 @@ function r = makeCompatible(r, src)
     r.protocol = 'edu.washington.riekelab.sara.protocols.SpatialReceptiveField';
   case 'edu.washington.riekelab.sara.protocols.CompareCones'
     r.protocol = 'edu.washington.riekelab.sara.protocols.ColorExchange';
+  case 'edu.washington.riekelab.manookin.protocols.ChromaticGrating'
+    if isfield(r.params, 'spatialFreqs')
+      r.params.spatialFrequencies = r.params.spatialFreqs;
+      r.params = rmfield(r.params, 'spatialFreqs')
+    end
+  end
+
+  if ~isempty(strfind(r.protocol, 'GaussianNoise')) || ~isempty(strfind(r.protocol, 'IsoSTA'))
+      if ~isfield(r.params, 'frameDwell')
+          r.params.frameDwell = 1;
+      end
   end

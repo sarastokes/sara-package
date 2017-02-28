@@ -70,8 +70,8 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
           r.holdingUnit = epoch.getStimuli{1}.parameters('units');
           r.params.sampleRate = epoch.getStimuli{1}.parameters('sampleRate');
         case 'current_clamp'
-          r.subthresh = zeros(r.numEpochs, length(r.resp));
-          r.ICspikes = zeros(r.numEpochs, length(r.resp));
+          r.analog = zeros(r.numEpochs, length(r.resp));
+          r.spikes = zeros(r.numEpochs, length(r.resp));
         case 'extracellular'
           r.spikes = zeros(size(r.resp));
           r.spikeData.resp = zeros(size(resp));
@@ -103,14 +103,24 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         r.params.ndf = epoch.protocolParameters('ndf');
         r.params.objectiveMag = epoch.protocolParameters('objectiveMag');
         r.params.micronsPerPixel = epoch.protocolParameters('micronsPerPixel');
+        % compare these two:
         r.params.frameRate = epoch.protocolParameters('frameRate');
+        if strcmp(epoch.getResponses{deviceNum}.device.name, 'Frame Monitor')
+          r.stim.frameTimes = cell(r.numEpochs,1);
+          r.stim.frameRate = zeros(r.numEpochs, 1);
+          frameFlag = true;
+          fprintf('found frame data\n');
+        end
         % check on frame tracker
         % r.params.timingFlag = checkFrames(epoch);
-
-        % get frame data
-        r.stim.frameTimes = getFrameTiming(epoch.getResponses{deviceNum}.getData, 1);
       end
       r.ampNum = ampNum;
+    end
+
+    % get frame data TODO: don't include in fast version
+    if frameFlag && strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.SpatialReceptiveField')
+      % TODO: speed up
+        [r.stim.frameTimes{ep,1}, r.stim.frameRate(ep)] = edu.washington.riekelab.sara.utils.getFrameTiming(epoch.getResponses{deviceNum}.getData);
     end
 
     % analyze by type
@@ -121,7 +131,7 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
     case 'voltage_clamp'
       r.analog(ep,:) = getAnalog(resp, r.params.preTime, r.params.sampleRate);
     case 'current_clamp'
-      [r.ICspikes(ep,:), r.ICstikeTimes{ep}, r.subthresh(ep,:)] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
+      [r.spikes(ep,:), r.spikeTimes{ep}, r.analog(ep,:)] = getSubthreshSpikes(resp, r.params.preTime, r.params.sampleRate);
     end
 
     % check on bath temp + flow
@@ -150,8 +160,6 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
       r.params.spatialFrequencies = r.params.spatialFrequencies(1:r.numEpochs);
 
       r.params.apertureRadiusMicrons = r.params.apertureRadius * r.params.micronsPerPixel;
-      r.params.stimStart = (r.params.preTime + r.params.waitTime)*10 + 1;
-      r.params.stimEnd = (r.params.preTime + r.params.stimTime) * 10;
 
       r.params.SFs = unique(r.params.spatialFrequencies);
       if r.numEpochs < double(r.params.numberOfAverages)
@@ -164,20 +172,21 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         end
       end
       r.respBlock = reshape(r.resp, length(r.params.orientations), length(r.params.SFs), size(r.resp,2));
-      switch r.params.recordingType
-      case 'extracellular'
+      % current clamp gets both
+      if ~strcmp(r.params.recordingType, 'voltage_clamp')
         r.spikeBlock = reshape(r.spikes, length(r.params.orientations), length(r.params.SFs), size(r.spikes,2));
-      case 'voltage_clamp'
+      end
+      if ~strcmp(r.params.recordingType, 'extracellular')
         r.analogBlock = reshape(r.analog, length(r.params.orientations), length(r.params.SFs), size(r.analog,2));
       end
 
       for ii = 1:length(r.params.orientations)
         deg = sprintf('deg%u', r.params.orientations(ii));
         r.(deg).resp = r.resp(ii,:,:);
-        switch r.params.recordingType
-        case 'extracellular'
+        if ~strcmp(r.params.recordingType, 'voltage_clamp')
           r.(deg).spikes = r.spikes(ii,:);
-        case 'voltage_clamp'
+        end
+        if ~strcmp(r.params.recordingType, 'extracellular')
           r.(deg).analog = r.analog(ii,:);
         end
       end

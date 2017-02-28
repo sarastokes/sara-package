@@ -10,7 +10,9 @@ function stimTrace = getStimTrace(r, stimType, varargin)
       r = r.params;
   end
   if ~isfield(r, 'waitTime')
-      r.waitTime = 0;
+      waitTime = 0;
+  else
+      waitTime = r.waitTime;
   end
 
   if ~isfield(r, 'contrast')
@@ -33,11 +35,11 @@ function stimTrace = getStimTrace(r, stimType, varargin)
     end
 
   elseif strcmp(stimType, 'modulation')
-    % numCycles = (r.stimTime - r.waitTime) * r.temporalFrequency / 1000;
+    % numCycles = (r.stimTime - waitTime) * r.temporalFrequency / 1000;
     stimValues = sin(r.temporalFrequency * (1:r.stimTime)/1000 * 2 * pi);
     if strcmp(r.temporalClass, 'squarewave')
       stimValues = sign(stimValues);
     end
     stimValues = c * stimValues * r.backgroundIntensity + r.backgroundIntensity;
-    stimTrace = [0.5+zeros(1, r.preTime + r.waitTime) stimValues 0.5+zeros(1, r.tailTime)];
+    stimTrace = [0.5+zeros(1, r.preTime + waitTime) stimValues 0.5+zeros(1, r.tailTime)];
   end

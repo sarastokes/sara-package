@@ -18,7 +18,7 @@ function spatialRF = svdSTRF(strf, n)
 		stixMat(ii, :) = strf(stixInd(ii,1), stixInd(ii,2), :);
 	end
 
-	[u, s, v] = svd(stixMat);
+	[u, s, ~] = svd(stixMat);
 
 	% first column of u contains 1 spatial component of STA
 	% individual frames of STA movie where RF was most clear
@@ -33,12 +33,23 @@ function spatialRF = svdSTRF(strf, n)
 		spatialRF2 = zeros(numYChecks, numXChecks);
 		for ii = 1:length(u)
 			spatialRF2(stixInd(ii,1), stixInd(ii,2)) = u(ii,2);
-		end
-		subtightplot(1,2,2, 0.05);
+        end
+        % TODO : clean later
+        if n == 3
+            spatialRF3 = zeros(numYChecks, numXChecks);
+            for ii = 1:length(u)
+                spatialRF3(stixInd(ii,1), stixInd(ii,2)) = u(ii,3);
+            end
+            subtightplot(n,1,n,0.05);
+            imagesc(spatialRF3);
+            axis equal; axis tight;
+        else
+            subtightplot(2,1,2, 0.05);
+        end
 		imagesc(spatialRF2);
 		axis equal; axis tight;
 
-		subtightplot(1,2,1, 0.05);
+		subtightplot(n,1,1, 0.05);
 	end
 	imagesc(spatialRF); colormap('bone');
 	axis equal; axis tight;
