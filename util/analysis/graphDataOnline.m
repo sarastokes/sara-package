@@ -3,24 +3,30 @@ function r = graphDataOnline(r, varargin)
   % OPTIONAL: neuron = which cell graph (for dual recs, default is 1)
   %           plotAll = run all plots. default = true, false for less figures
   %           bkgd = ([]) set to black for neitz lab figures
+  %           smooth = how much to smooth linear filters by (0)
+  %           fac = for firing rate (20)
+  %           numCycles = for cycle avg (1)
 
   ip = inputParser();
   ip.addParameter('neuron', 1, @isvector);
   ip.addParameter('plotAll', true, @islogical);
   ip.addParameter('smooth', 0, @isnumeric);
   ip.addParameter('bkgd', [], @ischar)
+  ip.addParameter('fac', 20, @isnumeric);
+  ip.addParameter('numCycles', 1, @isnumeric);
   ip.parse(varargin{:});
   neuron = ip.Results.neuron;
   plotAll = ip.Results.plotAll;
   nSmooth = ip.Results.smooth;
   bkgd = ip.Results.bkgd;
+  fac = ip.Results.fac;
+  numCycles = ip.Results.numCycles;
+
 
   if ~isempty(bkgd)
     colordef black;
     set(0, 'DefaultFigureColor', 'k');
   end
-
-
 
   if isfield(r, 'protocol') % not for ChromaticSpot yet
     r = makeCompatible(r);
@@ -38,20 +44,24 @@ function r = graphDataOnline(r, varargin)
     neuron = 1;
   end
 
-  set(groot, 'DefaultAxesFontName', 'Roboto',...
+  set(0, 'DefaultAxesFontName', 'Roboto',...
     'DefaultAxesTitleFontWeight', 'normal',...
     'DefaultFigureColor', 'w',...
     'DefaultAxesBox', 'off',...
     'DefaultLegendEdgeColor', 'w',...
     'DefaultAxesTickDir', 'out');
 
-
 if ~isfield(r, 'protocol')
     switch r(1).recordingType
     case 'extracellular'
-      units = 'amplitude (mV)';
+      units = 'response (pA)';
     case 'voltage_clamp'
       units = 'current (pA)';
+      if ~isfield(r(1).params, 'holding')
+        answer = inputdlg('Holding potential was:', 'set holding potential', 1, {'-60'});
+        r(1).params.holding = str2double(answer{1});
+        fprintf('holding potential set to %u\n', r(1).params.holding);
+      end
     end
     for ii = 1:length(r)
       params = r(ii).params;
@@ -77,56 +87,67 @@ if ~isfield(r, 'protocol')
       if plotAll
         for jj = 1:n
           if jj == 1 || strcmp(r(ii).recordingType, 'extracellular')
-            figure; hold on; % extracellular figure per trace, WC all on same figure
+            % extracellular figure per trace, WC all on same figure
+            S = blankRespFig;
+            figPos(gcf, 0.95, 0.8);
           end
-          subplot(4,1,1:3); hold on;
-          x = 1:length(data); x = x/10000;
-          [c1, ~] = getPlotColor(r(ii).params.chromaticClass);
-          plot(x, data(jj,:), 'color', co(jj,:));
-          set(gca,'box', 'off', 'tickdir', 'out'); axis tight;
-          ylabel(units);
-          title([r(ii).label ' - ' r(ii).chromaticClass ' spot (' num2str(r(ii).params.contrast *100) '%, ' spotName ', ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf)'])
-          subplot(8,1,8); hold on;
-          plot(r(ii).stimTrace, 'color', c1, 'linewidth', 2);
-          set(gca,'box', 'off', 'tickdir', 'out', 'XColor', 'w', 'XTick', []);
-          ylabel('contrast'); axis tight; ylim([0 1]);
+          plot(S.resp, getXpts(data), data(jj,:), 'Color', co(jj,:));
+          set(S.resp,'box', 'off', 'tickdir', 'out'); axis tight;
+          ylabel(S.resp, units); xlabel(S.resp, '');
+          title(S.resp, [r(ii).label ' - ' r(ii).chromaticClass ' spot (' num2str(r(ii).params.contrast *100) '%, ' spotName ', ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf)'])
+          plot(S.stim, r(ii).stimTrace,...
+          'Color', getPlotColor(r(ii).params.chromaticClass), 'LineWidth', 1);
+          axis tight; ylim([0 1]);
+        end
+        if strcmp(r(ii).recordingType, 'voltage_clamp')
+          if max(max(r(ii).analog))  > 1000 || min(min(r(ii).analog)) < 1000
+            ylabel(S.resp, 'current (nA)');
+            set(S.resp, 'YTickLabel', str2double(get(S.resp, 'YTickLabel'))/1000);
+          end
         end
       end
 
-      % average graphs (ptsh for extracellular, mean for voltage clamp)
+      % average graphs (instft for extracellular, mean for voltage clamp)
+      % 5Mar2017 - commented out ptsh, switched to instft
       if strcmp(r(ii).recordingType, 'extracellular')
-        % get PTSH without bothering with analyzeDataOnline
-        r(ii).ptsh = getPTSH(r, r(ii).spikes, 200);
+        % r(ii).ptsh = getPTSH(r, r(ii).spikes, 200);
+        r(ii).instFt = getInstFt(r(ii).spikes, fac);
         if n > 1
-          figure; hold on;
-          subplot(4,1,1:3); hold on;
-          bar(r(ii).ptsh.binCenters/10000, r(ii).ptsh.spikeCounts,...
-            'edgecolor', 'k', 'facecolor', c1, 'linestyle', 'none');
-          title([r(ii).label ' - ' r(ii).chromaticClass ' spot (' num2str(r(ii).params.contrast *100) '%, ' spotName ', ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf, ' num2str(n) ' trials)']);
-          set(gca,'box', 'off', 'tickdir', 'out'); axis tight;
-          ax=gca; ax.YLim(1) = 0; ax.YLim(2) = ceil(ax.YLim(2));
-          ylabel('current (mV)');
+          S = blankRespFig;
+          figPos(gcf, 0.95, 0.8);
+          plot(S.resp, linspace(0, length(r(ii).spikes), length(r(ii).instFt))/10000, mean(r(ii).instFt, 1),...
+          'Color', getPlotColor(r(ii).chromaticClass), 'LineWidth', 0.9);
+          % bar(S.resp, r(ii).ptsh.binCenters/10000, r(ii).ptsh.spikeCounts,...
+          %  'edgecolor', 'k', 'facecolor', c1, 'linestyle', 'none');
+          title(S.resp, [r(ii).label ' - ' r(ii).chromaticClass ' spot (' spotName ', ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf, ' num2str(n) ' trials)']);
+          set(S.resp,'box', 'off', 'tickdir', 'out'); axis tight;
+          ylabel(S.resp, 'spikes/sec');
 
-          subplot(8,1,8); hold on;
-          plot(r(ii).stimTrace, 'color', c1, 'linewidth', 2);
-          set(gca,'box', 'off', 'tickdir', 'out', 'XColor', 'w', 'XTick', []);
-          ylabel('contrast'); axis tight; ylim([0 1]);
+          plot(S.stim, r(ii).stimTrace,...
+          'Color', getPlotColor(r(ii).chromaticClass), 'LineWidth', 1);
+          set(S.stim, 'Box', 'off', 'TickDir', 'out', 'XColor', 'w');
+          axis tight; ylim([0 1]);
         end
       elseif strcmp(r(ii).recordingType, 'voltage_clamp')
         % just do the mean resp for whole cell
         r(ii).avgResp = mean(r(ii).analog, 1);
-        figure; hold on;
-        subplot(4, 1, 1:3);
+        S = blankRespFig;
+        figPos(gcf, 0.95, 0.8);
         xpts = 1:length(r(ii).avgResp); xpts = xpts/10000;
-        plot(xpts, r(ii).avgResp, 'color', 'k', 'LineWidth', 1);
-        set(gca, 'box', 'off', 'TickDir', 'out'); axis tight;
-        title([r(ii).label ' - ' r(ii).chromaticClass ' ' num2str(r(ii).params.contrast *100) '% spot mean (' r(ii).analysisType(1:3) ', ' spotName ', ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf)']);
-        ylabel('current (pA)');
+        plot(S.resp, xpts, r(ii).avgResp, 'Color', 'k', 'LineWidth', 1);
+        set(S.resp, 'Box', 'off', 'TickDir', 'out'); axis tight;
+        title(S.resp, [r(ii).label ' - ' r(ii).chromaticClass ' spot at ' num2str(r(1).params.holding) 'mV (' spotName ', ' num2str(r(ii).params.objectiveMag) 'x, ' num2str(ceil(r(ii).params.ndf)) ' ndf, ' num2str(n) ' trials)']);
+        if max(max(r(ii).analog)) > 1000 || min(min(r(ii).analog)) < -1000
+          set(S.resp, 'YTickLabel', str2double(get(S.resp, 'YTickLabel'))/1000);
+          ylabel(S.resp, 'current (nA)');
+        else
+          ylabel(S.resp, 'current (pA)');
+        end
+        xlabel(S.resp, '');
 
-        subplot(8, 1, 8); hold on;
-        plot(r(ii).stimTrace, 'color', c1, 'LineWidth', 2);
-        set(gca, 'Box', 'off', 'TickDir', 'out', 'XColor', 'w', 'XTick', []);
-        ylabel('contrast'); axis tight; ylim([0 1]);
+        plot(S.stim, r(ii).stimTrace,...
+        'Color', getPlotColor(r(ii).chromaticClass), 'LineWidth', 1);
+        axis tight; set(S.stim, 'YLim', [0 1]);
       end
     end
 else
@@ -135,28 +156,25 @@ else
       % strfViewer(r);
 
     case {'edu.washington.riekelab.sara.protocols.CompareCones', 'edu.washington.riekelab.sara.protocols.ColorExchange'}
-      figure();
-      subtightplot(3,1,1:2, 0.05, [0.05 0.05], [0.1 0.06]); hold on;
-      plot(1:r.numEpochs, r.analysis.F1, '-ok', 'LineWidth', 1);
+      S = blankF1Fig;
+      plot(S.F1, 1:r.numEpochs, r.analysis.F1, '-ok', 'LineWidth', 1);
       if strcmp(r.params.temporalClass, 'squarewave')
-        plot(1:r.numEpochs, r.analysis.F2, '-o', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
+        plot(S.F1, 1:r.numEpochs, r.analysis.F2, '-o', 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
       end
       legend('F1', 'F2');
-      title([r.cellName ' - ' r.params.coneOne ' vs ' r.params.coneTwo ' color exchange (' num2str(r.params.temporalFrequency) ' hz ' r.params.temporalClass ')']);
+      title(S.F1, [r.cellName ' - ' r.params.coneOne ' vs ' r.params.coneTwo ' color exchange (' num2str(r.params.temporalFrequency) ' hz ' r.params.temporalClass ')']);
 
-
-      subtightplot(3,1,3, 0.05, [0.05 0.05], [0.1 0.06]); hold on;
-      plot(1:r.numEpochs, r.analysis.P1, '-ok', 'LineWidth', 1);
+      plot(S.P1, 1:r.numEpochs, r.analysis.P1, '-ok', 'LineWidth', 1);
       if strcmp(r.params.temporalClass, 'squarewave')
-        plot(1:r.numEpochs, r.analysis.P2, '-o', 'LineWidth', 1, 'Color', [0.5 0.5 0.5]);
+        plot(S.P1, 1:r.numEpochs, r.analysis.P2, '-o', 'LineWidth', 1, 'Color', [0.5 0.5 0.5]);
       end
-      set(gca, 'YLim', [-180 180], 'YTick', -180:90:180);
+      set(S.P1, 'YLim', [-180 180], 'YTick', -180:90:180);
 
       % plot F1 amp with model neurons
       figure(); hold on;
-      pos = get(gcf, 'Position');
-      pos(4) = pos(4)+100; pos(2) = pos(2)-100;
-      set(gcf, 'Position', pos);
+      % pos = get(gcf, 'Position');
+      % pos(4) = pos(4)+100; pos(2) = pos(2)-100;
+      % set(gcf, 'Position', pos);
       if strcmp(r.params.stimSpace, 'cone')
         stim1 = r.params.(sprintf('%sWeights', r.params.stimSpace))(:, strfind('LMS', r.params.coneOne));
         stim2 = r.params.(sprintf('%sWeights', r.params.stimSpace))(:, strfind('LMS', r.params.coneTwo));
@@ -165,17 +183,17 @@ else
         stim2 = r.params.(sprintf('%sWeights', r.params.stimSpace))(:, strfind('RGB', r.params.coneTwo));
       end
 
-      subtightplot(5,1,[1 2], 0.05, [0.05 0.05], [0.1 0.06]); hold on;
-      plot(1:r.numEpochs, r.analysis.F1, '-ok', 'LineWidth', 1);
+      subtightplot(5,1,[1 3], 0.05, [0.05 0.05], [0.1 0.06]); hold on;
+      plot(1:r.numEpochs, (-1 * sign(r.analysis.P1)) .* r.analysis.F1, '-ok', 'LineWidth', 1);
+      plot([1 r.numEpochs], [0 0], 'Color', [0.5 0.5 0.5]);
       xlim([1 r.numEpochs]);
       ylabel('f1 amplitude');
       title([r.cellName ' - ' r.params.coneOne ' vs ' r.params.coneTwo ' color exchange (' num2str(r.params.temporalFrequency) ' hz ' r.params.temporalClass ')']);
-      subtightplot(5,1,3, 0.05, [0.05 0.05], [0.1 0.06]); hold on;
-      plot(1:r.numEpochs, r.analysis.P1, '-ok', 'LineWidth', 1);
-      set(gca, 'YLim', [-180 180], 'YTick', -180:180:180, 'XLim', [1 r.numEpochs]);
-      ylabel('f1 phase');
-      subtightplot(5,1,[4 5],0.05, [0.05 0.05], [0.1 0.06]); hold on;
-      size(stim1)
+      % subtightplot(5,1,3, 0.05, [0.05 0.05], [0.1 0.06]); hold on;
+      % plot(1:r.numEpochs, r.analysis.P1, '-ok', 'LineWidth', 1);
+      % set(gca, 'YLim', [-180 180], 'YTick', -180:180:180, 'XLim', [1 r.numEpochs]);
+      % ylabel('f1 phase');
+      subtightplot(5,1,[4 5],0.05, [0.05 0.05], [0.1 0.1]); hold on;
       plot(1:r.numEpochs, stim1', 'Color', getPlotColor(lower(r.params.coneOne)), 'LineWidth', 1);
       plot(1:r.numEpochs, stim2', 'Color', getPlotColor(lower(r.params.coneTwo)), 'LineWidth', 1);
       plot(1:r.numEpochs, (stim1-stim2)', '--', 'Color', getPlotColor(lower(r.params.coneOne), 0.5), 'LineWidth', 1);
@@ -183,6 +201,7 @@ else
       plot(1:r.numEpochs, (stim1+stim2)', '--', 'Color', [0.25 0.25 0.25], 'LineWidth', 1);
       plot([1 r.numEpochs], [0 0], 'Color', [0.5 0.5 0.5]);
       legend(sprintf('%s only', r.params.coneOne), sprintf('%s', r.params.coneTwo), sprintf('%s - %s', r.params.coneOne, r.params.coneTwo), sprintf('%s - %s', r.params.coneTwo, r.params.coneOne));
+      set(legend, 'Location', 'southoutside', 'FontSize', 10, 'Orientation', 'horizontal');
       xlim([1 r.numEpochs]);ylim([-1.5 1.5]);
       if strcmp(r.params.stimSpace, 'cone')
         ylabel('cone contrasts');
@@ -237,18 +256,17 @@ else
       if length(r.params.orientations) > 1
         blankF1Fig;
         subplot(3,1,1:2);
-        errorbar(r.params.SFs, mean(r.analysis.F1,1), sem(r.analysis.F1), '-o', 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+        errorbar(r.params.SFs, mean(r.analysis.F1,1), edu.washington.riekelab.sara.utils.sem(r.analysis.F1), '-o', 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
         title([r.cellName ' - ' num2str(100*r.params.contrast) '% ' r.params.chromaticClass ' ' r.params.temporalClass ' grating (average of ' num2str(length(r.params.orientations)) ' orientations)']);
         axis tight; ax = gca; ax.YLim(1) = 0;
         set(gca, 'XColor', 'w', 'XTickLabel', {});
 
         subplot(3,1,3);
-        errorbar(r.params.SFs, mean(r.analysis.P1, 1), sem(r.analysis.P1), '-o', 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+        errorbar(r.params.SFs, mean(r.analysis.P1, 1), edu.washington.riekelab.sara.utils.sem(r.analysis.P1), '-o', 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
         axis tight;
         set(gca, 'XScale', 'log', 'YLim', [-180 180], 'YTick', -180:90:180);
         set(findobj(gcf, 'Type', 'axes'), 'XScale', 'log');
       end
-
 
 
     case {'edu.washington.riekelab.manookin.protocols.ChromaticGrating',...
@@ -277,6 +295,101 @@ else
       ylabel('f1 phase'); axis tight; ax.YLim = [-180 180]; ax.YTick = -180:90:180;
       xlabel('spatial frequencies');
 
+    case 'edu.washington.riekelab.sara.protocols.ColorCircle'
+      figure('Name', [r.cellName ' Color Circle Figure']);
+      figPos(gcf, 0.8, 0.8)
+      tmpF1 = r.analysis.F1;
+      tmpF1([1 end]) = (r.analysis.F1(1) + r.analysis.F1(end))/2;
+
+      try
+        ax1 = polar(ax, deg2rad([r.params.orientations(1:end-1) 0]), tmpF1, '-o', 'Color', 'k', 'LineWidth', 1); hold on;
+        if strcmp(r.params.temporalClass, 'squarewave')
+          polar(deg2rad([r.params.orientations(1:end-1) 0]), r.analysis.F2, 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+        end
+      catch
+        ax1 = polar(deg2rad([r.params.orientations(1:end-1) 0]), tmpF1);
+        set(ax1, 'Color', 'k', 'LineWidth', 1); hold on;
+        if strcmp(r.params.temporalClass, 'squarewave')
+          ax2 = polar(deg2rad([r.params.orientations(1:end-1) 0]), r.analysis.F2);
+          set(ax2, 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+        end
+      end
+      view([90 -90]);
+      switch r.params.recordingType
+      case 'voltage_clamp'
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' at ' num2str(r.holding) r.holdingUnit ')']);
+      otherwise
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' ' r.params.stimulusClass ')']);
+      end
+      tightfig(gcf);
+
+      S = blankF1Fig;
+      set(S.fh, 'Name', [r.cellName ' Color Circle F1P1 Figure']); hold on;
+      figPos(gcf, 0.8, 0.8);
+      plot(S.F1, r.params.orientations, r.analysis.F1, '-ok', 'LineWidth', 1);
+      plot(S.P1, r.params.orientations, r.analysis.P1, '-ok', 'LineWidth', 1);
+      if strcmp(r.params.temporalClass, 'squarewave')
+        plot(S.F1, r.params.orientations, r.analysis.F2, '-o', 'LineWidth', 1, 'Color', [0.6 0.6 0.6]);
+        plot(S.P1, r.params.orientations, r.analysis.P2, '-o', 'LineWidth', 1, 'Color', [0.6 0.6 0.6]);
+      end
+      if strcmp(r.params.recordingType, 'voltage_clamp')
+        title(S.F1, [r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' at ' num2str(r.holding) r.holdingUnit ')']);
+      else
+        title(S.F1, [r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' ' r.params.stimulusClass ')']);
+      end
+      set(findobj(gcf, 'type', 'axes'), 'XLim', [0 360], 'XTick', 0:90:360);
+      if r.params.coneWeights(1,1) > r.params.coneWeights(1,2)
+        set(S.F1, 'XTickLabel', {'L-M', 'LM-S', 'M-L', 'LM-S'}, 'YLim', [0 S.F1.YLim(2)]);
+      else
+        set(S.F1, 'XTickLabel', {'M-L', 'S-LM', 'L-M', 'LM-S'}, 'YLim', [0 S.F1.YLim(2)]);
+      end
+      xlabel('Azimuth (degrees)');
+
+
+      figure('Name', [r.cellName ' Color Circle F1 Figure']); hold on;
+      figPos(gcf, 0.8, 0.8);
+      plot(r.params.orientations, -1*sign(r.analysis.P1).*r.analysis.F1, '-ok', 'LineWidth', 1);
+      if strcmp(r.params.temporalClass, 'squarewave')
+        plot(r.params.orientations, -1*sign(r.analysis.P2).*r.analysis.F2, '-o', 'Color', [0.6 0.6 0.6], 'LineWidth', 1);
+      end
+      plot([r.params.orientations(1) r.params.orientations(end)], [0 0], '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 0.8);
+      if strcmp(r.params.recordingType, 'voltage_clamp')
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' at ' num2str(r.holding) r.holdingUnit ')']);
+      else
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' ' r.params.stimulusClass ')']);
+      end
+      % NOTE: this is for old color circle setup!
+      set(gca, 'XLim', [0 360], 'XTick', 0:90:360, 'XTickLabel', {'L-M', 'S-LM', 'M-L', 'LM-S'});
+      xlabel('Azimuth (degrees)');
+      ylabel('F1 amplitude (spikes/sec)');
+      tightfig(gcf);
+
+      if strcmp(r.params.temporalClass, 'squarewave')
+        figure('Name', [r.cellName ' Color Circle F1F2 Ratio Figure']); hold on;
+        figPos(gcf, 0.6, 0.75);
+        plot(r.params.orientations, r.analysis.F2 ./ r.analysis.F1, '-ok', 'LineWidth', 1);
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' ' r.params.stimulusClass ')']);
+        set(gca, 'XLim', [0 360], 'XTick', 0:90:360, 'XTickLabel', {'L-M', 'S-LM', 'M-L', 'LM-S'});
+        xlabel('Azimuth (degrees)');
+        ylabel('F2/F1 ratio');
+      end
+
+      %% trace fig
+      cdata = cycleData(r, 'numCycles', numCycles);
+      figure('Name', [r.cellName ' - cycle average figure']); hold on;
+      co = pmkmp(r.numEpochs, 'cubicL');
+      for ii = 1:r.numEpochs
+        plot(cdata.xpts, cdata.ypts(ii,:), 'LineWidth', 1, 'Color', co(ii,:));
+      end
+      set(gca, 'Box', 'off');
+      if strcmp(r.params.recordingType, 'voltage_clamp')
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' at ' num2str(r.holding) r.holdingUnit ')']);
+      else
+        title([r.cellName ' - color circle (' num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' ' r.params.stimulusClass ')']);
+      end
+
+
+
     case 'edu.washington.riekelab.sara.protocols.ConeSweep'
       if r.params.radius < 1000
         titlestr = [r.cellName ' - ' num2str(r.params.contrast*100) '% '...
@@ -287,36 +400,12 @@ else
           num2str(r.params.temporalFrequency) 'hz ' r.params.temporalClass ' spot'];
       end
 
-%       if plotAll
-%         fh1 = figure('Name', [r.cellName ' - f1 figure']);
-%         fh1.Position(4) = fh1.Position(4) - 100;
-%         fh1.Position(3) = fh1.Position(4);
-%         for ii = 1:length(r.params.stimClass)
-%           bar(ii, mean(r.analysis.F1(ii,:), 2), 'FaceColor', getPlotColor(r.params.stimClass(ii), 0.5), 'LineStyle', 'none'); hold on;
-%           plot(ii + zeros(size(r.analysis.F1(ii,:), 2)), r.analysis.F1(ii,:), 'o', 'Color', getPlotColor(r.params.stimClass(ii)), 'LineWidth', 1.5);
-%           % c = getPlotColor(r.params.stimClass(ii), [1 0.5]);
-%           % plot(analysis.P1(ii,:), analysis.F1(ii,:), 'o',...
-%           %   'MarkerFaceColor', c(2,:), 'MarkerEdgeColor', c(2,:));
-%           % plot(mean(analysis.P1(ii,:), 2), mean(analysis.F1(ii,:), 2), 'o',...
-%           %   'MarkerFaceColor', c(1,:), 'MarkerEdgeColor', c(1,:));
-%           % if strcmp(r.params.temporalFrequency, 'squarewave')
-%           %   plot(analysis.P2(ii,:), analysis.F2(ii,:), 's',...
-%           %     'MarkerEdgeColor', c(2,:), 'MarkerFaceColor', c(2,:));
-%           %   plot(mean(analysis.P2(ii,:), 2), mean(analysis.F2(ii,:), 2), 's',...
-%           %     'MarkerEdgeColor', c(1,:), 'MarkerFaceColor', c(1, :));
-%           % end
-%         end
-%         set(gca, 'XTick', 1:length(r.params.stimClass), 'XTickLabel', getNiceLabels(cellstr(r.params.stimClass'))', 'Box', 'off', 'TickDir', 'out');
-%         title(titlestr);xlabel('f1 phase'); ylabel('f1amp'); xlim([-180 180]);
-%       end
-
       xpts = 1:(length(r.resp(1,:))); xpts = xpts / 10000;
       analysis.stimTrace = getStimTrace(r.params, 'modulation');
       if plotAll % plot each trial
         for jj = 1:(ceil(r.numEpochs/length(r.params.stimClass)))
           fig = figure('Name', sprintf('Trial %u Figure', jj)); hold on;
-          fig.Position(2) = fig.Position(2) - (50*length(r.params.stimClass));
-          fig.Position(4) = fig.Position(4) + (50*length(r.params.stimClass));
+          figPos(gcf, 0.85,1.15);
           for ii = 1:length(r.params.stimClass)
             [c1, n] = getPlotColor(r.params.stimClass(ii));
             subtightplot((2*length(r.params.stimClass))+1, 1, [1+(2*(ii-1)):2+(2*(ii-1))], 0.05, [0.05 0.05], [0.1 0.06]);
@@ -339,9 +428,7 @@ else
       end
 
       % graph PTSH for extracellular, mean resp for wholecell
-      figure();
-      fig.Position(2) = fig.Position(2) - (50*length(r.params.stimClass));
-      fig.Position(4) = fig.Position(4) + (50*length(r.params.stimClass));
+      fig = figure();
       for ii = 1:length(r.params.stimClass)
         subtightplot((2*length(r.params.stimClass))+1, 1, [1+(2*(ii-1)):2+(2*(ii-1))], 0.05, [0.05 0.05], [0.1 0.06]);
         c1 = getPlotColor(r.params.stimClass(ii));
@@ -372,75 +459,57 @@ else
       plot(analysis.stimTrace, 'k', 'LineWidth', 1); hold on;
       set(gca, 'box', 'off', 'XColor', 'w', 'XTick', []);
       ylabel('contrast'); axis tight; ylim([0 1]);
+      figPos(gcf, 0.85,1); tightfig(gcf);
 
-      % testing out instantaneous firing rate
-      if strcmp(r.params.recordingType, 'extracellular')
-        figure('Name', 'InstFt Figure');
-        for ii = 1:length(r.params.stimClass)
-          subtightplot((2*length(r.params.stimClass))+1, 1, [1+(2*(ii-1)):2+(2*(ii-1))], 0.05, [0.05 0.05], [0.1 0.06]);
-          hold on;
-          c = getPlotColor(r.params.stimClass(ii), [1 0.5]);
-          for jj = 1:size(r.instFt, 2)
-            plot(xpts, squeeze(r.instFt(ii,jj,:)), 'color', c(2,:), 'LineWidth', 1);
-          end
-          plot(xpts, mean(squeeze(r.instFt(ii,:,:))), 'color', c(1,:), 'LineWidth', 1.5);
-          axis tight; set(gca, 'box', 'off', 'TickDir', 'out');
-          ax = gca; ax.YLim(1) = 0;
-          if ii ~= length(r.params.stimClass)
-            set(gca, 'XColor', 'w', 'XTickLabel', []);
-          end
-          if ii == 1
-          title(titlestr);
-          end
-        end
-        subtightplot((2*length(r.params.stimClass))+3, 1, (2*length(r.params.stimClass)+3), 0.05, [0.05 0.05], [0.1 0.06]);
-        plot(analysis.stimTrace, 'k', 'LineWidth', 1);
-        set(gca, 'Box', 'off', 'XColor', 'w', 'XTick', []);
-        ylabel('contrast'); axis tight; ylim([0 1]);
-
-        figure('Name', 'Avg InstFt Figure');
-        for ii = 1:length(r.params.stimClass)
-          subplot(4,1,1:3); hold on;
-          c = getPlotColor(r.params.stimClass(ii), [1 0.5]);
-          plot(xpts, squeeze(r.instFt(ii,:,:)), 'Color', c(2,:));
-          plot(xpts, mean(squeeze(r.instFt(ii,:,:))), 'Color', c(1,:), 'LineWidth', 1.5);
-          axis tight; set(gca, 'Box', 'off', 'TickDir', 'out');
-          ax = gca; ax.YLim(1) = 0;
-          title(titlestr);
-          subplot(8,1,8);
-          plot(analysis.stimTrace, 'k', 'LineWidth', 1);
-          set(gca, 'Box', 'off', 'XColor', 'w', 'XTick', []);
-          ylabel('contrast'); axis tight; ylim([0 1]);
-        end
-      elseif strcmp(r.params.recordingType, 'voltage_clamp')
-        figure('Name', 'Average Response Figure');
-        subplot(8, 1, 1:6); hold on;
-        for ii = 1:length(r.params.stimClass);
-          [c,~] = getPlotColor(r.params.stimClass(ii));
-          plot(xpts, r.avgResp.(r.params.stimClass(ii)), 'Color', c, 'LineWidth', 1);
-        end
-        set(gca, 'XLim', [xpts(1) xpts(end)]);
-        title([titlestr ' (' num2str(ceil(size(r.resp,1)/length(r.params.stimClass)))...
-          ' trials at ' num2str(r.holding) 'mV)']);
-        ylabel('response (pA)'); xlabel('time (msec)');
-
-        subplot(8,1,8); hold on;
-        plot(analysis.stimTrace, 'k', 'LineWidth', 1);
-        set(gca, 'Box', 'off', 'XColor', 'w', 'XTick', []);
-        ylabel('contrast'); axis tight; ylim([0 1]);
+    switch r.params.recordingType
+    case {'extracellular', 'current_clamp'}
+      S = blankRespFig; figPos(S.fh, 0.85, 0.95);
+      set(gcf, 'Name', 'Avg InstFt Figure');
+      for ii = 1:length(r.params.stimClass)
+        c = getPlotColor(r.params.stimClass(ii), [1 0.5]);
+        % plot(xpts, squeeze(r.instFt(ii,:,:)), 'Color', c(2,:));
+        plot(S.resp, xpts, mean(squeeze(r.instFt(ii,:,:))), 'Color', c(1,:), 'LineWidth', 1.5);
       end
+      ylabel(S.resp, 'spikes/sec');
+      title(S.resp, titlestr);
+      plot(S.stim, analysis.stimTrace, 'k', 'LineWidth', 1);
+      tightfig(gcf);
+    case {'voltage_clamp'}
+      S = blankRespFig;
+      set(gcf, 'Name', 'Average Response Figure');
+      for ii = 1:length(r.params.stimClass);
+        plot(S.resp, xpts, r.avgResp.(r.params.stimClass(ii)),...
+        'Color', getPlotColor(r.params.stimClass(ii)), 'LineWidth', 1);
+      end
+      set(S.resp, 'XLim', [xpts(1) xpts(end)]);
+      title(S.resp, [titlestr ' (' num2str(ceil(size(r.resp,1)/length(r.params.stimClass)))...
+        ' trials at ' num2str(r.holding) 'mV)']);
+      plot(S.stim, analysis.stimTrace, 'k', 'LineWidth', 1);
+    end
 
     case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
       figure('DefaultAxesLineWidth', 1, 'DefaultLineMarkerSize', 5);
       subplot(4,2,[1 3 5]); hold on;
       r.params.plotColor(1,:) = getPlotColor('l'); r.params.plotColor(2,:) = getPlotColor('m');
       plot(r.params.searchValues, analysis.redF1, '-o', 'Color', r.params.plotColor(1,:));
+      if strcmp(r.params.temporalFrequency,'squarewave')
+        subplot(4,2,[1 3 5]); hold on;
+        plot(r.params.searchValues, analysis.redF2, '-o', 'Color', getPlotColor('l', 0.5));
+        subplot(4,2,[2 4 6]); hold on;
+        plot(r.params.searchValues, analysis.greenF2, '-o', 'Color', r.params.plotColor(2,:));
+      end
       title(sprintf('red min = %.3f', analysis.redMin)); ylabel('f1 amplitude'); xlabel('red contrast');
       subplot(4,2,[2 4 6]); hold on;
       plot(r.params.searchValues, analysis.greenF1, '-o', 'Color', r.params.plotColor(2,:));
       title(sprintf('green min = %.3f', analysis.greenMin)); xlabel('green contrast');
       subplot(4,2,7); hold on;
-      plot(r.params.searchValues, analysis.redP1, '-o', 'Color', r.params.plotColor(1,:));
+      plot(r.params.searchValues, analysis.redP1, '-o', 'Color', getPlotColor('l'));
+      if strcmp(r.params.temporalClass, 'squarewave')
+        subplot(4,2,7); hold on;
+        plot(r.params.searchValues, analysis.redP2, '-o', 'Color', r.params.plotColor(2,:));
+        subplot(4,2,8); hold on;
+        plot(r.params.searchValues, analysis.greenP2, '-o', 'Color', getPlotColor('m'));
+      end
       ylabel('f1 phase');
       set(gca, 'YTick', -180:90:180, 'YLim', [-180 180], 'XColor', 'w', 'XTick', []);
       subplot(4,2,8); hold on;
@@ -508,76 +577,58 @@ else
       ylim([(r.params.pulses(1) - r.params.incrementPerPulse) (r.params.pulses(end) + r.params.incrementPerPulse)]);
 
     case 'edu.washington.riekelab.manookin.protocols.GaussianNoise'
-      indivPlot = false;
       sc = getPlotColor(r.params.chromaticClass, [1 0.5]);
       xpts = linspace(0, 1000, analysis.binRate);
       if ~isfield(r.analysis, 'NL')
         r.analysis.NL = r.analysis.nonlinearity;
       end
-
-      % plot the linear filter
-      figure; hold on;
       if r.params.radius > 1000
         stimType = 'full field';
       else
         stimType = sprintf('%u radius', ceil(pix2micron(r.params.radius,r)));
       end
-      plot(xpts, analysis.linearFilter, 'color', sc(1,:), 'linewidth', 1); hold on;
-      plot([1 xpts(end)], zeros(1,2), 'color', [0.5 0.5 0.5]);
+
+      % plot the linear filter
+      figure('Name', [r.cellName ' - Linear Filter Figure']); hold on;
+      figPos(gcf, 0.9, 0.8);
+      plot(xpts, analysis.linearFilter/max(max(abs(analysis.linearFilter))), 'Color', sc(1,:), 'LineWidth', 1);
+      plot([1 xpts(end)], zeros(1,2), 'Color', [0.5 0.5 0.5]);
       if strcmp(r.params.recordingType, 'voltage_clamp')
         title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
       else
         title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
       end
-      set(gca,'box', 'off', 'TickDir', 'out');
-      xlabel('msec'); ylabel('filter units');
+      set(gca,'Box', 'off', 'TickDir', 'out');
+      xlabel('time (msec)'); tightfig(gcf);
 
-      % plot individual linear filters
-      if indivPlot
-        figure; hold on;
-        for ii = 1:r.numEpochs
-          plot(xpts, analysis.lf(ii,:), 'color', sc(1,:), 'linewidth', 0.8); hold on;
-        end
-        plot(xpts, analysis.linearFilter, 'color', sc(1,:), 'linewidth', 1);
-        if strcmp(r.params.recordingType, 'voltage_clamp')
-          title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-        else
-          title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-        end
-        set(gca,'box', 'off', 'TickDir', 'out');
-        xlabel('msec'); ylabel('filter units');
-      end
-
+      % plot individual linear filters - removed 9Mar2017
       % plot both - mike format
-      figure;
+      figure('Name', [r.cellName ' - LN model figure']);
       subplot(1,2,1); hold on;
-      if r.params.radius > 1000
-        stimType = 'full field';
-      else
-        stimType = sprintf('%u radius', ceil(pix2micron(r.params.radius, r)));
-      end
-      plot(xpts, analysis.linearFilter, 'color', sc(1,:), 'linewidth', 1); hold on;
-      plot([1 xpts(end)], zeros(1,2), 'color', [0.5 0.5 0.5]);
+      plot(xpts, analysis.linearFilter, 'Color', sc(1,:), 'LineWidth', 1);
+      plot([1 xpts(end)], zeros(1,2), 'Color', [0.5 0.5 0.5]);
       if strcmp(r.params.recordingType, 'voltage_clamp')
         title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' r.params.analysisType(1:3) ', ' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
       else
         title([r.cellName ' - ' r.params.chromaticClass ' gaussian noise (' num2str(r.params.stdev) ' sd, ' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
       end
-      set(gca,'box', 'off', 'TickDir', 'out');
-      xlabel('msec'); ylabel('filter units');
+      xlabel('time (msec)'); ylabel('filter units'); xlim([1 500]);
 
       subplot(1,2,2); hold on;
-      plot(analysis.NL.xBin, analysis.NL.yBin, '.', 'color', sc(2,:));
-      plot(analysis.NL.xBin, analysis.NL.fit, 'color', sc(1,:), 'linewidth', 1);
+      plot(analysis.NL.xBin, analysis.NL.yBin, '.', 'Color', sc(2,:));
+      plot(analysis.NL.xBin, analysis.NL.fit, 'Color', sc(1,:), 'LineWidth', 1);
       axis tight; axis square;
       xlabel('generator'); ylabel('spikes/sec');
-      set(gca,'tickdir', 'out', 'box', 'off');
+      set(findobj(gcf, 'Type', 'axes'), 'TickDir', 'out', 'Box', 'off');
 
       % temporal
-      figure; hold on;
+      figure('Name', [r.cellName ' - temporal tuning curve']); hold on;
+      figPos(gcf, 0.8, 0.8);
       plot(analysis.tempFT, 'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
       title([r.cellName ' - ' r.params.chromaticClass ' temporal tuning (' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-      set(gca, 'XLim', [0 40]);
+      set(gca, 'XLim', [0 r.params.frameRate]);
+      ylabel('spikes/sec'); xlabel('frequency (hz)');
+      tightfig(gcf);
 
     case 'edu.washington.riekelab.manookin.protocols.InjectNoise'
       % Plot the linear filter and nonlinearity
@@ -619,6 +670,10 @@ else
         num2str(r.stim.mean) ' ' r.stim.units ' (' num2str(size(r.resp,1)) ' trials)']);
       plot(r.stim.trace, 'k', 'LineWidth', 1, 'Parent', S.stim); axis tight;
       ylabel(S.stim, sprintf('stim (%s)', r.stim.units)); xlabel(S.resp, '')
+      if max(max(r.analog))  > 1000 || min(min(r.analog)) < 1000
+        ylabel(S.resp, 'current (nA)');
+        set(S.resp, 'YTickLabel', str2double(get(S.resp, 'YTickLabel'))/1000);
+      end
 
       % plot(xpts, r.resp(ii,:), 'Color', 'k');
 
@@ -632,8 +687,7 @@ else
               NL = analysis.NL;
             end
           end
-          xpts = 1:length(analysis.linearFilter);
-          xpts = xpts/r.analysis.binsPerFrame;
+          xpts = linspace(0, 1000, analysis.binRate);
           if r.params.radius > 1000
             stimType = sprintf('%ux full field', r.params.objectiveMag);
           else
@@ -683,7 +737,7 @@ else
             end
             title(titlestr);
             set(gca,'Box', 'off', 'TickDir', 'out');
-            xlabel('msec'); ylabel('filter units');
+            xlabel('msec'); ylabel('filter units'); xlim([0 500]);
 
             subplot(1,2,2); hold on;
             plot(NL.xBin, NL.yBin, '.', 'color', c(2,:));
@@ -693,17 +747,19 @@ else
             set(gca,'tickdir', 'out', 'box', 'off');
 
             figure('Name', 'Linear Filter');
-            plot(xpts, analysis.linearFilter, 'Color', c(1,:), 'LineWidth', 1); hold on;
+            figPos(gcf, 0.9,0.8); hold on;
+            plot(xpts, analysis.linearFilter/max(abs(analysis.linearFilter)), 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
             plot([0 xpts(end)], zeros(1,2), 'Color', [0.5 0.5 0.5]);
             set(gca, 'Box', 'off', 'TickDir', 'out');
-            xlabel('msec'); ylabel('filter units');
-            title(titlestr);
+            xlabel('msec'); title(titlestr); tightfig(gcf);
 
             % temporal
             figure ('Name', 'FFT of Linear Filter'); hold on;
+            figPos(gcf, 0.8,0.8);
             plot(analysis.tempFT, 'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
             title([r.cellName ' - ' r.params.chromaticClass ' temporal tuning (' stimType ', ' num2str(r.params.objectiveMag) 'x)']);
-            set(gca, 'XLim', [0 40]);
+            set(gca, 'XLim', [0 60]);
+            ylabel('spikes/sec'); xlabel('time (ms)');
           end
         case 'ID'
          if r.numEpochs > 1
@@ -763,14 +819,182 @@ else
       end
       title([r.cellName ' ' r.params.chromaticClass ' spatial receptive field']);
 
-    case 'edu.washington.riekelab.manookin.protocols.BarCentering'
+    case 'edu.washington.riekelab.sara.protocols.ConeTestGrating'
+      % plot by orientation
+      titlestr = [r.cellName ' - drifting gratings at ' num2str(r.params.spatialFrequency) 'hz'];
+      S = blankF1Fig;
+      tmpF1 = reshape(r.analysis.F1, 4, length(r.params.orientations));
+      tmpP1 = reshape(r.analysis.P1, 4, length(r.params.orientations));
+
+      for ii = 1:4
+        plot(S.F1, r.params.orientations, r.analysis.F1(ii:4:end), '-o',...
+          'Color', getPlotColor(r.params.chromInd(ii)), 'LineWidth', 1);
+        plot(S.P1, r.params.orientations, r.analysis.P1(ii:4:end), '-o',...
+          'Color', getPlotColor(r.params.chromInd(ii)), 'LineWidth', 1);
+      end
+      xlabel(S.P1, 'grating orientation');
+      title(S.F1, titlestr);
+      figPos(S.fh, 0.7,0.7); tightfig(gcf);
+
+      fh = figure; hold on; 
+      for ii = 1:4
+        plot(r.params.orientations, sign(r.analysis.P1(ii:4:end)).*r.analysis.F1(ii:4:end),... 
+          '-o', 'Color', getPlotColor(r.params.chromInd(ii)), 'LineWidth', 1);
+      end
+      plot(r.params.orientations, zeros(size(r.params.orientations)), '--', 'Color', [0.5 0.5 0.5]);
+      title(titlestr);
+      xlabel('grating orientation'); ylabel('f1 amplitude');
+      tightfig(fh); figPos(fh, 0.85, 0.9);
+
+      theta = deg2rad(r.params.orientations);
+      fH = figure('Color', 'w');
+      lh = mmpolar(theta, tmpF1);
+
+      mmpolar('TLim', [theta(1) theta(end)]);
+      mmpolar('RGridLineWidth', 0.2, 'TGridLineWidth', 0.2, 'FontSize', 11);
+      set(lh, 'LineWidth', 1.2, 'Marker', 'o');
+      for ii = 1:4
+        set(lh(ii), 'Color', getPlotColor(r.params.chromInd(ii)));
+      end
+
+      tmpF1 = repmat(tmpF1, [1 2]); tmpF1(:,end + 1) = tmpF1(:, 1);
+      theta = [theta theta+pi 0];
+
+      lh2 = mmpolar(theta, tmpF1); 
+      mmpolar('RTickOffset', 0.08, 'TTickOffset', 0.12,...
+        'RGridLineWidth', 0.2, 'TGridLineWidth', 0.2, 'FontSize', 11);
+      set(lh2, 'LineWidth', 1.2, 'Marker', 'o');
+      for ii = 1:4
+        set(lh2(ii), 'Color', getPlotColor(r.params.chromInd(ii)));
+      end
+
+    case 'edu.washington.riekelab.manookin.protocols.LMIsoSearch'
+      titlestr = [r.cellName ' - ' r.params.chromaticClass ' search test'];
+      if isfield(r.params, 'temporalFrequency')
+        cdata = cycleData(r);
+
+
+        if strcmp(lower(r.params.chromaticClass), 'l-iso')
+          co = rgbmap('grey', 'greenish', 'dark green', size(cdata.ypts,1));
+          xaxis = 'green led contrast'; led = 'm';
+          staticLED = 1; searchLED = 2; % TODO: clean this all up
+        else
+          co = rgbmap('grey', 'light red', 'dark red', size(cdata.ypts,1));
+          xaxis = 'red led contrast'; led = 'l';
+          staticLED = 2; searchLED = 1;
+        end
+        for ii = 1:40
+          r.analysis.phaseOne(ii) = sum(cdata.ypts(ii,1:length(cdata.ypts)/2));
+          r.analysis.phaseTwo(ii) = sum(cdata.ypts(ii,length(cdata.ypts)/2 + 1:end));
+        end
+        led = 'k';
+
+        fh = figure('Name', [r.cellName ' - firing rate area']); hold on;
+        plot(r.params.searchValues, r.analysis.phaseTwo, '-o',...
+          'Color', getPlotColor(led), 'LineWidth', 1);
+        plot(r.params.searchValues, r.analysis.phaseOne, '-o',...
+          'Color', getPlotColor(led, 0.5), 'LineWidth', 1);
+        legend('phase one', 'phase two');
+        set(legend, 'FontSize', 10, 'Location', 'northwest');
+        title(titlestr); xlabel(xaxis); ylabel('firing rate sum');
+        figPos(gcf, 0.81, 0.8); tightfig(gcf);
+
+        S = blankF1Fig;
+        plot(S.F1, r.params.searchValues, r.analysis.F1, '-o',...
+          'Color', getPlotColor(led), 'LineWidth', 1);
+        plot(S.F1, r.params.searchValues, r.analysis.F2, '-o',...
+          'Color', getPlotColor(led, 0.5), 'LineWidth', 1);
+        plot(S.P1, r.params.searchValues, r.analysis.P1, '-o',...
+          'Color', getPlotColor(led), 'LineWidth', 1);
+        plot(S.P1, r.params.searchValues, r.analysis.P2, '-o',...
+          'Color', getPlotColor(led, 0.5), 'LineWidth', 1);
+        title(S.F1, titlestr); xlabel(S.P1, xaxis);
+        leg = legend(S.F1, 'f1', 'f2'); 
+        set(leg, 'FontSize', 10, 'Location', 'northwest');
+        figPos(S.fh, 0.9, 0.95); tightfig(gcf);
+
+
+        S = blankRespFig;
+        for ii = 1:size(cdata.ypts,1)
+          plot(S.resp, cdata.xpts, cdata.ypts(ii,:),... 
+            'Color', co(ii,:), 'LineWidth', 1);
+        end
+
+        r.stim.searchLED = zeros(size(cdata.ypts));
+        r.stim.staticLED = zeros(1, size(cdata.ypts, 2));
+        r.stim.staticLED(1, floor(length(cdata.ypts)/2+1:end)) = -1 * r.params.ledWeights(1,staticLED);
+        r.stim.staticLED(1, 1:floor(length(cdata.ypts))/2) = r.params.ledWeights(1,staticLED);
+
+        for ii = 1:size(cdata.ypts, 1)
+          r.stim.searchLED(ii, 1:floor(length(cdata.ypts))/2) = r.params.ledWeights(ii,searchLED);
+          r.stim.searchLED(ii, floor(length(cdata.ypts)/2)+1:end) = -1 * r.params.ledWeights(ii,searchLED);
+          plot(S.stim, r.stim.searchLED(ii,:), 'Color', co(ii,:), 'LineWidth', 0.9);
+        end
+       
+        plot(S.stim, r.stim.staticLED,... 
+          'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+
+        set(S.stim, 'XLim', [0 length(r.stim.staticLED)], 'YLim', [-1 1]);
+        xlabel(S.resp, 'time (sec)'); ylabel(S.resp, 'spikes/sec');
+        xlabel(S.stim, ''); ylabel(S.stim, sprintf('%s\n%s', 'led', 'contrast'));
+        title(S.resp, titlestr);
+        figPos(S.fh, 0.85, 0.95); tightfig(S.fh);
+
+
+      else
+
+
+        figure('Name', [r.cellName ' - Spike Count Figure'] ,'Color', 'w'); hold on;
+        plot(r.params.searchValues, r.analysis.spikeNum(:,1), '-o', 'Color', [0.5 0.5 0.5]);
+        plot(r.params.searchValues, r.analysis.spikeNum(:,2), '-o', 'Color',  getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+        plot(r.params.searchValues, r.analysis.spikeNum(:,3), '-o', 'Color', getPlotColor(r.params.chromaticClass, 0.5), 'LineWidth', 1);
+
+        title(titlestr);
+        ylabel('spike count');
+        legend('baseline', 'onset', 'offset');
+        set(legend, 'FontSize', 10, 'EdgeColor', 'w');
+
+        if strcmp(r.params.chromaticClass, 'l-iso')
+          xlabel('red led values');
+        else
+          xlabel('green led values');
+        end
+        figPos(gcf, 0.95, 0.95); tightfig(gcf);
+
+        instBlock = squeeze(mean(getInstFt(r.spikeBlock), 2));
+        % co = pmkmp(size(instBlock,1), 'CubicL');
+        co = rgbmap('grey', 'green', 'dark red');
+
+        S = blankRespFig;
+        for ii = 1:size(instBlock,1)
+          plot(S.resp, linspace(0, length(r.resp), length(instBlock))/10000, instBlock(ii,:),... 
+            'Color', co(ii,:), 'LineWidth', 0.9);
+        end
+        r.params.contrast = 1;
+        plot(S.stim, getStimTrace(r.params, 'pulse'), 'k', 'LineWidth', 1);
+        r.params = rmfield(r.params, 'contrast'); % hack fix later
+        ylabel(S.resp, 'spikes/sec'); xlabel(S.resp, 'time (sec)'); xlabel(S.stim, '');
+        title(S.resp, titlestr);
+        figPos(S.fh, 0.85, 0.95); tightfig(S.fh);
+      end
+
+    case {'edu.washington.riekelab.manookin.protocols.BarCentering',...
+            'edu.washington.riekelab.sara.protocols.BarCentering'}
       if ~isfield(analysis, 'F1')
         analysis = makeCompatible(analysis, 'f1');
       end
-      figure;
+
+      figure('Name', [r.cellName ' - Bar Centering F1F2 Figure']);
+      figPos(gcf, 0.8, 0.8);
       c2 = getPlotColor(r.params.chromaticClass, 0.6);
       posMicron = r.params.positions * r.params.micronsPerPixel;
-      titlestr = [r.cellName ' - ' r.params.chromaticClass ' ' r.params.searchAxis(1)...
+      posMicron = posMicron(1:r.numEpochs);
+      if ~strcmp(r.params.chromaticClass, 'achromatic')
+        tmp = [r.params.chromaticClass ' '];
+      else
+        tmp = [];
+      end
+      titlestr = [r.cellName ' - ' tmp r.params.searchAxis(1) '-axis',...
         ' bar (' num2str(r.params.temporalFrequency) 'hz '];
       subplot(3,1,1:2); hold on;
       if ~strcmp(r.params.temporalClass, 'squarewave')
@@ -787,7 +1011,7 @@ else
         num2str(ceil(pix2micron(r.params.barSize(2),r))) 'um)'];
       end
       title(titlestr);
-      xlabel('bar position (microns)');
+      tmp = xlabel('bar position (microns)'); set(tmp, 'FontSize', 10);
       ax = gca; axis tight; ax.YLim(1) = 0;
       set(gca, 'Box', 'off', 'TickDir', 'out');
 
@@ -797,71 +1021,97 @@ else
       set(gca,'box', 'off','YTick', -180:90:180, 'TickDir', 'out', 'XColor', 'w', 'XTick', [], 'XTickLabel', {});
 
       if strcmp(r.params.temporalClass, 'squarewave')
-        fh = gcf; fh2 = figure();
-        subplot(3,1,1:2); hold on;
-        plot(posMicron, analysis.F1, '-o', 'LineWidth', 1, 'Color', getPlotColor(r.params.chromaticClass));
-        plot(posMicron, analysis.F2, '-o', 'Linewidth', 1, 'Color', c2);
-        legend('f1', 'f2'); set(legend, 'EdgeColor', 'w'); axis tight;
-        title(titlestr);
-        xlabel('bar position (microns)'); ylabel('f1 amplitude');
-        ax = gca; axis tight; ax.YLim(1) = 0;
-        set(gca, 'Box', 'off', 'TickDir', 'out');
+        S2 = blankF1Fig;
+        set(S2.fh, 'Name',[r.cellName ' - Bar Centering Figure']);
+        plot(S2.F1, posMicron, analysis.F1, '-o',... 
+          'LineWidth', 1, 'Color', getPlotColor(r.params.chromaticClass));
+        plot(S2.F1, posMicron, analysis.F2, '-o',... 
+          'Linewidth', 1, 'Color', getPlotColor(r.params.chromaticClass, 0.5));
+        legend('f1', 'f2'); set(legend, 'EdgeColor', 'w');
+        tmp = xlabel('bar position (microns)'); set(tmp, 'FontSize', 10);
+        title(S2.F1, titlestr);
 
-        ax2=copyobj(fh.Children(1), fh2); hold on;
-        plot(ax2, posMicron, analysis.P2, '-o', 'LineWidth', 1, 'Color', c2);
+        plot(S2.P1, posMicron, analysis.P1, '-o',... 
+          'LineWidth', 1, 'Color', getPlotColor(r.params.chromaticClass));
+        plot(S2.P1, posMicron, analysis.P2, '-o',... 
+          'LineWidth', 1, 'Color', getPlotColor(r.params.chromaticClass, 0.5));
+        figPos(gcf, 0.85, 0.85);
       end
+
+      S = blankF1Fig;
+      plot(S.F1, posMicron, r.analysis.F1 ./ r.analysis.F2, '-o',... 
+        'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+      plot(S.P1, posMicron, r.analysis.P1, '-o',...
+        'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+      title(S.F1, titlestr);
+      ylabel(S.F1, 'F1/F2 amplitude'); 
+      tmp = xlabel(S.F1, 'bar position (microns)');
+      set(tmp, 'FontSize', 10);
+      figPos(gcf, 0.85, 0.85); tightfig(gcf);
 
     case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
       xaxis = unique(r.params.contrasts);
-      figure('Name', [r.cellName ' - contrast response spot']);
-      subplot(3, 1, 1:2); hold on;
+      S = blankF1Fig;
+      set(S.fh, 'Name', [r.cellName ' - contrast response spot']);
       for ii = 1:r.numEpochs
-        plot(r.params.contrasts(ii), analysis.F1(ii), 'o', 'MarkerFaceColor', getPlotColor(r.params.chromaticClass, 0.5), 'MarkerEdgeColor', getPlotColor(r.params.chromaticClass, 0.5));
+        plot(S.F1, r.params.contrasts(ii), analysis.F1(ii), 'o',... 
+          'MarkerFaceColor', getPlotColor(r.params.chromaticClass, 0.5),... 
+          'MarkerEdgeColor', getPlotColor(r.params.chromaticClass, 0.5));
       end
-      plot(xaxis, analysis.avgF1, '-o', 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
-      ax = gca; axis tight; ax.YLim(1) = 0;
-      set(gca, 'Box', 'off', 'TickDir', 'out');
-      ylabel('f1 amplitude');
-      if r.params.radius >= 1000
-        title([r.cellName ' - ' r.params.chromaticClass ' contrast response spot (' num2str(r.params.objectiveMag) 'x full-field)']);
+      plot(S.F1, xaxis, analysis.avgF1, '-o',... 
+        'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+      S.F1.YLim(1) = 0; 
+      S.F1.XLim = [0 max(xaxis)];
+
+      if strcmp(r.params.chromaticClass, 'achromatic')
+        cone = [];
       else
-        title([r.cellName ' - ' r.params.chromaticClass ' contrast response spot (' num2str(round(pix2micron(r.params.radius,r))) ' radius)']);
+        cone = [r.params.chromaticClass ' '];
+      end
+      titlestr = [r.cellName ' - ' cone 'contrast response spot ('];
+      if r.params.radius >= 1000
+        title(S.F1, [titlestr num2str(r.params.objectiveMag) 'x full-field)']);
+      else
+        title(S.F1, [titlestr num2str(round(pix2micron(r.params.radius,r))) ' radius)']);
       end
 
-      subplot(9, 1, 8:9); hold on;
       for ii = 1:r.numEpochs
-        plot(r.params.contrasts(ii), analysis.P1(ii), 'o', 'MarkerFaceColor', getPlotColor(r.params.chromaticClass, 0.5), 'MarkerEdgeColor', getPlotColor(r.params.chromaticClass, 0.5));
+        plot(S.P1, r.params.contrasts(ii), analysis.P1(ii), 'o',... 
+          'MarkerFaceColor', getPlotColor(r.params.chromaticClass, 0.5),... 
+          'MarkerEdgeColor', getPlotColor(r.params.chromaticClass, 0.5));
       end
-      plot(xaxis, analysis.avgP1, '-o', 'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
-      set(gca, 'Box', 'off', 'YTick', -180:90:180);
-      ylabel('f1 phase'); ylim([-180 180]);
+      plot(S.P1, xaxis, analysis.avgP1, '-o',... 
+        'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+      S.P1.XLim =S.F1.XLim;
+      figPos(S.fh, 0.85, 0.85);
 
-    case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
-      fh1 = figure('Name', 'F1 plot');
-      subplot(3,1,1:2); hold on;
-      [c, ~] = getPlotColor(r.params.chromaticClass, [1 0.5]);
-      semilogx(r.params.radii, analysis.F1, 'o-','color', c(1,:), 'linewidth', 1);
-      title([r.cellName ' - ' num2str(100*r.params.contrast) '% ' r.params.chromaticClass ' ' r.params.stimulusClass ' ' r.params.temporalClass ' sMTF']);
-      set(gca,'box', 'off'); ylabel('f1 amplitude'); axis tight;
-      ax=gca; ax.YLim(1) = 0;
+    case {'edu.washington.riekelab.manookin.protocols.sMTFspot',...
+            'edu.washington.riekelab.sara.protocols.sMTFspot'}
+      S = blankF1Fig;
 
-      subplot(3,1,3); hold on;
-      semilogx(r.params.radii, analysis.P1, 'o-', 'color', c(1,:), 'linewidth', 1);
-      set(gca,'box', 'off'); ylabel('f1 phase'); axis tight; ylim([-180 180]);
-      set(gca, 'YTick', -180:90:180);
+      semilogx(S.F1, pix2micron(r.params.radii,r), analysis.F1, 'o-',...
+        'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
+      title(S.F1, [r.cellName ' - ' num2str(100*r.params.contrast) '% ',... 
+        r.params.chromaticClass ' ' r.params.stimulusClass ' ' r.params.temporalClass ' sMTF']);
+
+      semilogx(S.P1, pix2micron(r.params.radii,r), analysis.P1, 'o-',... 
+        'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
 
       if strcmp(r.params.temporalClass, 'squarewave')
-        fh2 = figure('Name', 'F1F2 plot');
-        ax1 = copyobj(fh1.Children(2), fh2);
-        semilogx(ax1, r.params.radii, analysis.F2, 'o-', 'color', c(2,:), 'linewidth', 1);
-        title([r.cellName ' - ' num2str(100*r.params.contrast) '% ' r.params.chromaticClass ' squarewave ' r.params.stimulusClass ' sMTF']);
-        legend('onset', 'offset');
-        set(legend, 'EdgeColor', 'w', 'FontSize', 10);
-        set(gca,'box', 'off'); ylabel('response amplitude'); axis tight;
-        ax1.YLim(1) = 0;
-
-        ax2 = copyobj(fh1.Children(1), fh2);
-        semilogx(ax2, r.params.radii, analysis.P2, 'o-', 'color', c(2,:), 'linewidth', 1);
+        S2 = blankF1Fig;
+        semilogx(S2.F1, pix2micron(r.params.radii,r), analysis.F1, 'o-',... 
+          'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
+        semilogx(S2.F1, pix2micron(r.params.radii,r), analysis.F2, 'o-',... 
+          'Color', getPlotColor(r.params.chromaticClass,0.5), 'LineWidth', 1);
+        title(S2.F1, [r.cellName ' - ' num2str(100*r.params.contrast) '% ' r.params.chromaticClass,... 
+          'squarewave ' r.params.stimulusClass ' sMTF']);
+        leg2 = legend(S2.F1, 'f1', 'f2');
+        set(leg2, 'EdgeColor', 'w', 'FontSize', 10);
+        semilogx(S2.P1, pix2micron(r.params.radii,r), analysis.P1, 'o-',... 
+          'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
+        semilogx(S2.P1, pix2micron(r.params.radii,r), analysis.P2, 'o-',... 
+          'color', getPlotColor(r.params.chromaticClass, 0.5), 'linewidth', 1);
+        
       end
 
       % add in the fit
@@ -871,9 +1121,14 @@ else
         else
           c2 = 'k';
         end
-          semilogx(fh1.Children(2), r.params.radii, analysis.f1Fit.fit,...
+        semilogx(S.F1, pix2micron(r.params.radii,r), analysis.f1Fit.fit, '--',...
             'Color', c2, 'LineWidth', 1);
+        if strcmp(r.params.stimulusClass, 'spot')
+          semilogx(S.F1, pix2micron(r.params.radii,r), analysis.f1Fit.offset.fit,... 
+              '.-', 'Color', c2, 'LineWidth', 1);
+        end
       end
+      figPos(gcf, 0.85, 0.85);
 
     case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
       figure(); hold on;
@@ -902,8 +1157,6 @@ else
       fig.Position(2) = fig.Position(2) - 300; fig.Position(4) = fig.Position(4) + 300;
       fig.Units = 'normalized';
       for ii = 1:size(r.analysis.binAvg, 1)
-        % tsubplot(size(r.analysis.binAvg,1), 1, ii); hold on;
-        %subtightplot(size(r.analysis.binAvg,1), 1, ii, [0.1 0.01], [0.1 0.01], [0.1 0.01]);
         subtightplot(size(r.analysis.binAvg, 1), 1, ii, 0.03, [0.05 0.05], [0.1 0.06]);
         plot(r.analysis.binAvg(ii,:), 'Color', co(ii,:), 'LineWidth', 1);
         legend(r.params.stimuli{ii});
@@ -943,8 +1196,8 @@ else
             xlabel('time (sec)');
           end
           if ii == 1
-            title(sprintf('%s - moving bar stimulus %u% contrast at %.1f mean',...
-              r.cellName, 100*r.params.intensity, r.params.backgroundIntensity));
+            title(sprintf('%s - moving bar stimulus %u%s contrast at %.1f mean',...
+              r.cellName, 100*r.params.intensity, '%', r.params.backgroundIntensity));
           end
         end
       end
@@ -965,8 +1218,8 @@ else
       end
       legend(legendstr);
       set(legend, 'EdgeColor', 'w', 'FontSize', 10);
-      title([r.cellName sprintf(' moving bar avg firing rate (%u % at %.1f mean)',...
-        100*r.params.intensity, r.params.backgroundIntensity)]);
+      title([r.cellName sprintf(' moving bar avg firing rate (%u% at %.1f mean)',...
+        round(100*r.params.intensity), r.params.backgroundIntensity)]);
 
       figure;
       for jj = 1:size(r.respBlock, 1)
@@ -984,26 +1237,41 @@ else
           set(gca, 'XColor', 'w', 'XTick', []);
         end
       end
+      set(findobj(gcf, 'Type', 'axes'), 'YTickLabel', []);
       subplot(size(r.respBlock, 1), 1, 1);
-      title(sprintf('%s - moving bar (%u% on %.1f mean)', r.cellName, 100*r.params.intensity, r.params.backgroundIntensity))
+      title(sprintf('%s - moving bar (%u%s on %.1f mean)', r.cellName, round(100*r.params.intensity), '%', r.params.backgroundIntensity));
+
+      % NOTE temporary
+      prePts = r.params.preTime*1e-3*r.params.sampleRate;
+      stimPts = r.params.stimTime*1e-3*r.params.sampleRate;
+      r.analysis.DI = zeros(1,size(r.spikeBlock,1));
+      for ii = 1:size(r.spikeBlock, 1)
+        r.analysis.DI(ii) = mean(squeeze(sum(r.spikeBlock(ii, :, prePts : prePts+stimPts))));
+      end
+      polarloop(r.params.orientations, r.analysis.DI, '-ok');
+      title(sprintf('%s - moving bar (%u%s on %.1f mean)', r.cellName, round(100*r.params.intensity), '%', r.params.backgroundIntensity));
+      set(gcf,'Name', [r.cellName ' Direction Figure']);
+      figPos(gcf,0.8,0.8); tightfig(gcf);
 
 
-      for jj = 1:size(r.respBlock, 2)
-        figure('Color', 'w', 'Name', sprintf('moving bar trial %u (%u% at %.1f mean)',...
-          jj, r.params.intensity, r.params.backgroundIntensity));
-        for ii = 1:size(r.respBlock, 1)
-          subplot(size(r.respBlock, 1), 1, ii); hold on;
-          plot(xpts, squeeze(r.respBlock(ii, jj, :)), 'Color', co(jj*2, :));
-          set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []); axis tight;
-          ylabel(sprintf('%u%s     ', (30*ii) - 30, char(176)),...
-            'Rotation', 0, 'VerticalAlignment', 'middle');
-          if ii ~= size(r.respBlock, 1)
-            set(gca, 'XColor', 'w', 'XTickLabel', {}, 'XTick', []);
-          else
-            xlabel('time (sec)');
-          end
-          if ii == 1
-            title([r.cellName ' - moving bar stimulus (trial ' num2str(jj) ')']);
+      if plotAll
+        for jj = 1:size(r.respBlock, 2)
+          figure('Color', 'w', 'Name', sprintf('moving bar trial %u (%u% at %.1f mean)',...
+          jj, round(100*r.params.intensity), r.params.backgroundIntensity));
+          for ii = 1:size(r.respBlock, 1)
+            subplot(size(r.respBlock, 1), 1, ii); hold on;
+            plot(xpts, squeeze(r.respBlock(ii, jj, :)), 'Color', co(jj*2, :));
+            set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []); axis tight;
+            ylabel(sprintf('%u%s     ', (30*ii) - 30, char(176)),...
+              'Rotation', 0, 'VerticalAlignment', 'middle');
+            if ii ~= size(r.respBlock, 1)
+              set(gca, 'XColor', 'w', 'XTickLabel', {}, 'XTick', []);
+            else
+              xlabel('time (sec)');
+            end
+            if ii == 1
+              title([r.cellName ' - moving bar stimulus (trial ' num2str(jj) ')']);
+            end
           end
         end
       end
@@ -1018,15 +1286,18 @@ else
       title([r.cellName ' - ' num2str(r.params.intensity(1)) '% ' r.params.direction{1} ' orthographic annulus']);
       ylabel('current (pA)'); xlabel('time (msec)');
       set(gca, 'XLim', [1 length(r.analysis.binAvg)]);
+
 end % protocol switch
 
   if ~isempty(bkgd)
     colordef white;
     set(0, 'DefaultFigureColor', 'w');
   end
+
   if nargout == 1
     r.log{end+1} = ['graphDataOnline at ' datestr(now)];
   end
+
   if neuron == 2
     r.cellName = r.cellName(1:end-1);
   end

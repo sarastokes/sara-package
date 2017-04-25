@@ -58,26 +58,62 @@ function r = analyzeOnline(r, varargin)
 
       % get all the fft data
       if strcmp(r.params.recordingType, 'extracellular') || strcmp(ICmode, 'spikes')
-        analysis = sMTFanalysis(r, r.params, r.spikes);
+        analysis = sMTFanalysis(r, r.spikes);
       else
-        analysis = sMTFanalysis(r, r.params, r.analog);
+        analysis = sMTFanalysis(r, r.analog);
       end
 
       % distribute data to each orientation
-      res = {'F1', 'P1', 'F2', 'P2'};
-      for ii = 1:length(res)
-        analysis.(res{ii}) = reshape(analysis.(res{ii}), [length(unique(r.params.spatialFrequencies)) length(r.params.orientations)]);
-         analysis.(res{ii}) = analysis.(res{ii})';
-        for jj = 1:length(r.params.orientations)
-          deg = sprintf('deg%u', r.params.orientations(jj));
-          analysis.(deg).(res{ii}) = analysis.(res{ii})(jj,:);
+      if r.numEpochs >= r.params.spatialFreqs
+        res = {'F0', 'F1', 'P1', 'F2', 'P2'};
+        for ii = 1:length(res)
+          % if analysis.(res{ii}) > r.numEpochs
+          %   analysis.(res{ii})(1, r.numEpochs+1:end) = [];
+          % end
+          analysis.(res{ii}) = reshape(analysis.(res{ii}), [length(unique(r.params.spatialFrequencies)) length(r.params.orientations)]);
+           analysis.(res{ii}) = analysis.(res{ii})';
+          for jj = 1:length(r.params.orientations)
+            deg = sprintf('deg%u', r.params.orientations(jj));
+            analysis.(deg).(res{ii}) = analysis.(res{ii})(jj,:);
+          end
         end
       end
 
       Log{end+1} = ['sMTFanalysis for ' length(ind) ' orientations at ' datestr(now)];
+
     case {'edu.washington.riekelab.sara.protocols.TempChromaticGrating', 'edu.washington.riekelab.manookin.protocols.ChromaticGrating'}
-      analysis = sMTFanalysis(r, r.params, r.spikes);
+      analysis = sMTFanalysis(r, r.spikes);
       analysis.bins = (analysis.bins)';
+      Log{end+1} = ['sMTFanalysis at ' datestr(now)];
+
+    case {'edu.washington.riekelab.sara.protocols.ConeTestGrating'}
+      analysis = sMTFanalysis(r, r.spikes, r.params.orientations);
+      coneOrnt = reshape(analysis.F1, 4, length(r.params.orientations));
+      % analysis.bins = (analysis.bins)';
+      Log{end+1} = ['sMTFanalysis at ' datestr(now)];
+
+    case {'edu.washington.riekelab.manookin.protocols.LMIsoSearch'}
+      if isfield(r.params, 'temporalFrequency')
+        for ep = 1:r.numEpochs
+          r = CTRanalysis(r, ep);
+        end
+
+        cdata = cycleData(r);
+        for ii = 1:40
+          r.analysis.phaseOne(ii) = sum(cdata.ypts(ii,1:length(cdata.ypts)/2));
+          r.analysis.phaseTwo(ii) = sum(cdata.ypts(ii,length(cdata.ypts)/2 + 1:end));
+        end
+
+      else
+        analysis.spikeNum = zeros(length(unique(r.params.searchValues)), 3);
+        tmp = squeeze(mean(r.spikeBlock,2));
+
+        for ii = 1:length(unique(r.params.searchValues))
+          analysis.spikeNum(ii,:) = [nnz(tmp(ii, 1:r.params.preTime*10)),... 
+          nnz(tmp(ii,r.params.preTime*10+1:(r.params.preTime+r.params.stimTime)*10)),... 
+          nnz(tmp(ii,10*(r.params.preTime+r.params.stimTime)+1:end))];
+        end
+      end
 
     case 'edu.washington.riekelab.sara.protocols.ConeSweep'
       if strcmp(r.params.recordingType, 'extracellular')
@@ -111,13 +147,22 @@ function r = analyzeOnline(r, varargin)
             for ii = 1:length(rs)
               analysis.(rs{ii}) = reshape(analysis.(rs{ii}), [length(r.params.stimClass) size(r.respBlock, 2)]);
             end
+
             Log{end+1} = ['CTRanalysis at ' datestr(now)];
 
-    case 'edu.washington.riekelab.sara.protocols.CompareCones'
+    case {'edu.washington.riekelab.sara.protocols.ColorExchange', 'edu.washington.riekelab.sara.protocols.ColorCircle'}
       for ep = 1:r.numEpochs
         r = CTRanalysis(r, ep);
       end
       Log{end+1} = [datestr(now) ' - CTRanalysis'];
+
+    case 'edu.washington.riekelab.manookin.protocols.MovingBar'
+      if strcmp(r.params.recordingType, 'extracellular')
+        for ep = 1:r.numEpochs
+          o = find(r.params.orientations == r.params.orientation(1,ep));
+          r.instFt(o, ceil(ep/length(r.params.orientations)),:) = getInstFiringRate(r.spikes(ep,:), r.params.sampleRate);
+        end
+      end
 
     case 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'
 
@@ -149,8 +194,10 @@ function r = analyzeOnline(r, varargin)
 
        analysis.greenMin = r.params.searchValues(find(analysis.greenF1 == min(analysis.greenF1), 1));
        fprintf('greenMin is %.3f\n', analysis.greenMin);
+
        analysis.redMin = r.params.searchValues(find(analysis.redF1 == min(analysis.redF1)));
        fprintf('redMin is %.3f\n', analysis.redMin);
+
        for ii = 1:length(r.params.searchValues)
          r.params.ledWeights(ii,:) = [1 r.params.searchValues(ii) 0];
          r.params.ledWeights(ii+length(r.params.searchValues),:) = [r.params.searchValues(ii) analysis.greenMin 0];
@@ -190,7 +237,11 @@ function r = analyzeOnline(r, varargin)
             end
           else
             analysis.binRate = binRate * binsPerFrame;
-            [analysis.lf(ep,:), analysis.linearFilter, r.stim.stimuli, r.allResponses] = MTFanalysis(r, analysis, spikes(ep,:), r.params.seed(1,ep));
+            if iscell(r.params.seed) % TODO: clean
+              [analysis.lf(ep,:), analysis.linearFilter, r.stim.stimuli, r.allResponses] = MTFanalysis(r, analysis, spikes(ep,:), r.params.seed{ep});
+            else
+              [analysis.lf(ep,:), analysis.linearFilter, r.stim.stimuli, r.allResponses] = MTFanalysis(r, analysis, spikes(ep,:), r.params.seed(1,ep));
+            end
             if ep == r.numEpochs
               analysis.linearFilter = analysis.linearFilter/r.numEpochs;
             end
@@ -242,6 +293,12 @@ function r = analyzeOnline(r, varargin)
       end
       analysis.biphasicIndex = abs(min(analysis.linearFilter)/max(analysis.linearFilter));
 
+      % peak times from mike's code are off - method 2:
+      [loc, pk] = peakfinder(analysis.linearFilter, [], [], analysis.filterSign);
+      [~, ind] = max(abs(pk));
+      analysis.xpts = linspace(0, 1000,analysis.binRate);
+      analysis.peakTime = analysis.xpts(loc(ind));
+
       % normalize by the standard deviation
       analysis.linearFilter = analysis.linearFilter/std(analysis.linearFilter);
 
@@ -250,6 +307,8 @@ function r = analyzeOnline(r, varargin)
 
       % get the nonlinearity
       analysis.NL = nonlinearity(r);
+
+      fprintf('time to peak = %.2f\n zero cross = %.2f\n biphasic index = %.2f\n', analysis.peakTime, analysis.zeroCross, analysis.biphasicIndex);
 
       Log{end+1} = ['MTFanalysis at ' datestr(now)];
       Log{end+1} = ['nonlinearity at ' datestr(now)];
@@ -262,12 +321,12 @@ function r = analyzeOnline(r, varargin)
         r.log{end+1} = 'SLU comp: did not run biophys';
       end
 
-      outputStr = {['Rin = ' num2str(mean(analysis.oa.rInput)) ' MOhm']; ...
-        ['Rs = ' num2str(mean(analysis.oa.rSeries)) ' MOhm']; ...
-        ['Rm = ' num2str(mean(analysis.oa.rMembrane)) ' MOhm']; ...
-        ['Rtau = ' num2str(mean(analysis.oa.rTau)) ' MOhm']; ...
-        ['Cm = ' num2str(mean(analysis.oa.capacitance)) ' pF']; ...
-        ['tau = ' num2str(mean(analysis.oa.tau_msec)) ' ms']};
+      outputStr = {['Rin = ' num2str(mean(r.oa.rInput)) ' MOhm']; ...
+        ['Rs = ' num2str(mean(r.oa.rSeries)) ' MOhm']; ...
+        ['Rm = ' num2str(mean(r.oa.rMembrane)) ' MOhm']; ...
+        ['Rtau = ' num2str(mean(r.oa.rTau)) ' MOhm']; ...
+        ['Cm = ' num2str(mean(r.oa.capacitance)) ' pF']; ...
+        ['tau = ' num2str(mean(r.oa.tau_msec)) ' ms']};
       fprintf('%s\n', outputStr{:});
 
     case {'edu.washington.riekelab.manookin.protocols.SpatialNoise',...
@@ -335,7 +394,16 @@ function r = analyzeOnline(r, varargin)
         analysis.spatialRF = shiftdim(analysis.spatialRF, 1);
       end
 
-    case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
+    case 'edu.washington.riekelab.manookin.protocols.MovingBar'
+      prePts = r.params.preTime*1e-3*r.params.sampleRate;
+      stimPts = r.params.stimTime*1e-3*r.params.sampleRate;
+      analysis.DI = zeros(1,size(r.spikeBlock,1));
+      for ii = 1:size(r.spikeBlock, 1)
+        analysis.DI(ii) = mean(squeeze(sum(r.spikeBlock(ii, :, prePts : prePts+stimPts))));
+      end
+
+    case {'edu.washington.riekelab.sara.protocols.sMTFspot',...
+            'edu.washington.riekelab.manookin.protocols.sMTFspot'}
       for ep = 1:r.numEpochs
         r = CTRanalysis(r, ep);
       end
@@ -344,12 +412,20 @@ function r = analyzeOnline(r, varargin)
       analysis.f1Fit = struct();
       analysis.f1Fit = FTAmpFit(r, analysis.F1);
       if strcmp(r.params.temporalClass, 'squarewave')
+        fprintf('FROM F2 AMP:\n');
         analysis.f2Fit = FTAmpFit(r, analysis.F2);
+      end
+      switch r.params.stimulusClass
+        case 'spot'
+          analysis.f1Fit.params = [analysis.f1Fit.Kc analysis.f1Fit.sigmaC analysis.f1Fit.Ks analysis.f1Fit.sigmaS];
+        case 'annulus'
+          analysis.f1Fit.params = [analysis.f1Fit.sigmaC analysis.f1Fit.sigmaS];
       end
 
       Log{end+1} = ['CTRanalysis + fits at ' datestr(now)];
 
-    case {'edu.washington.riekelab.manookin.protocols.BarCentering', 'edu.washington.riekelab.manookin.protocols.ContrastResponseSpot'}
+    case {'edu.washington.riekelab.manookin.protocols.BarCentering',... 
+            'edu.washington.riekelab.sara.protocols.BarCentering'}
       for ep = 1:r.numEpochs
         r = CTRanalysis(r, ep);
       end
@@ -360,12 +436,23 @@ function r = analyzeOnline(r, varargin)
   if neuron == 2
     r.secondary.analysis = analysis;
   else
-    r.analysis = analysis;
+    try
+      r.analysis = analysis;
+    catch
+      fprintf('no analysis field detected\n');
+    end
   end
   r.log = Log;
 
 
 %% SUPPORT FUNCTIONS
+
+    function cw = getConeWeights(r)
+      % cw.f1 = getConeF1(r, true);
+      % if strcmp(r.params.recordingType, 'extracellular')
+      %   cw.ft = getConeFt(r);
+      % end
+    end
 
     function s = FTAmpFit(r, amp)
       yd = abs(amp(:)');
@@ -374,8 +461,9 @@ function r = analyzeOnline(r, varargin)
       case 'spot'
         [s.Kc, s.sigmaC, s.Ks, s.sigmaS] = fitDoGAreaSummation(2*r.params.radii(:)', yd, s.params0);
         s.fit = DoGAreaSummation([s.Kc, s.sigmaC, s.Ks, s.sigmaS], 2*r.params.radii(:)');
-        fprintf('Kc = %.2f, sigmaC = %.2f, Ks = %.2f, sigmaS = %.2f\n',...
-          s.Kc, s.sigmaC, s.Ks, s.sigmaS);
+        fprintf('fcn1 --> Kc = %.2f, sigmaC = %.2f, Ks = %.2f, sigmaS = %.2f\n',...
+          s.Kc, pix2micron(s.sigmaC,10), s.Ks, pix2micron(s.sigmaS,10));
+        [s.offset.params s.offset.fit] = fitOffsetDoG(r.params.radii, yd, [s.params0 0], true);
       case 'annulus'
         s.params = fitAnnulusAreaSum([r.params.radii(:)' 456], yd, s.params0);
         s.fit = annulusAreaSummation(s.params, [r.params.radii(:)' 456]);
@@ -446,50 +534,63 @@ function r = analyzeOnline(r, varargin)
       end
     end
 
-    function result = sMTFanalysis(r, params, spikes)
+    function result = sMTFanalysis(r, resp, xvals)
+
       if nargin < 3
-        spikes = r.spikes;
+        xvals = r.params.spatialFrequencies;
       end
-      if nargin < 2
-        params = r.params;
-      end
+
       result.params.binRate = 60;
       result.params.allOrAvg = 'avg';
       result.params.discardCycles = [];
-      stimStart = (r.params.preTime + r.params.waitTime)*10 + 1;
+
+      if ~isfield(r.params, 'waitTime')
+        stimStart = r.params.preTime*10 + 1;
+      else
+        stimStart = (r.params.preTime + r.params.waitTime)*10 + 1;
+      end
+
       stimEnd = (r.params.preTime + r.params.stimTime) * 10;
 
-      sfNum = length(params.spatialFrequencies);
-      result.F1 = zeros(1, sfNum); result.F2 = zeros(1, sfNum);
-      result.ph1 = zeros(1, sfNum); result.ph2 = zeros(1, sfNum);
+      xNum = length(xvals);
+      if isfield(r, 'omitEpochs')
+        xNum = xNum - length(r.omitEpochs);
+      end
+      result.F0 = zeros(1, xNum); result.ph0 = zeros(1, xNum);
+      result.F1 = zeros(1, xNum); result.F2 = zeros(1, xNum);
+      result.ph1 = zeros(1, xNum); result.ph2 = zeros(1, xNum);
 
       if isfield(r, 'numEpochs')
         n = r.numEpochs;
       else
-        n = length(params.spatialFrequencies);
+        n = length(xvals);
       end
       result.bins = [];
 
       for ee = 1:n
-        data = spikes(ee,:);
+        data = resp(ee,:);
 
         % Bin the data according to type.
-        switch params.recordingType
+        switch r.params.recordingType
           case {'current_clamp','extracellular'}
-            bData = BinSpikeRate(data(stimStart:stimEnd), result.params.binRate, params.sampleRate);
+            bData = BinSpikeRate(data(stimStart:stimEnd), result.params.binRate, r.params.sampleRate);
           otherwise
-            bData = binData(data(stimStart:stimEnd), result.params.binRate, params.sampleRate);
+            bData = binData(data(stimStart:stimEnd), result.params.binRate, r.params.sampleRate);
         end
 
-          [f1, p1] = frequencyModulation(bData, result.params.binRate, params.temporalFrequency, result.params.allOrAvg, 1, result.params.discardCycles);
-          [f2, p2] = frequencyModulation(bData, result.params.binRate, params.temporalFrequency, result.params.allOrAvg, 2, result.params.discardCycles);
+          [f0, p0] = frequencyModulation(bData, result.params.binRate, r.params.temporalFrequency, result.params.allOrAvg, 0, result.params.discardCycles);
+          [f1, p1] = frequencyModulation(bData, result.params.binRate, r.params.temporalFrequency, result.params.allOrAvg, 1, result.params.discardCycles);
+          [f2, p2] = frequencyModulation(bData, result.params.binRate, r.params.temporalFrequency, result.params.allOrAvg, 2, result.params.discardCycles);
 
+          result.F0(ee) = f0;
           result.F1(ee) = f1;
           result.F2(ee) = f2;
+          results.ph0(ee) = p0;
           result.ph1(ee) = p1;
           result.ph2(ee) = p2;
           result.bins = [bData, result.bins];
        end
+        result.P0 = result.ph0 * 180/pi;
         result.P1 = result.ph1 * 180/pi;
         result.P2 = result.ph2 * 180/pi;
     end

@@ -1,4 +1,4 @@
-function [sta,stc, totalStim] = getSTAgauss(r, varargin)
+function [sta,stc, totalStim, numSpikes] = getSTAgauss(r, varargin)
   %
 
 
@@ -42,7 +42,8 @@ function [sta,stc, totalStim] = getSTAgauss(r, varargin)
 
   for ii = 1:r.numEpochs
     resp = r.spikes(ii,:);
-    seed = seeds{ii};
+
+    seed = seeds(ii);
 
     noiseStream = RandStream('mt19937ar', 'Seed', seed);
 

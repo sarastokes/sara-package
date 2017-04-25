@@ -149,6 +149,12 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
         if ep == 1
           r.data(eb).analog = zeros(size(r.data(eb).resp));
         end
+        if isKey(epoch.getStimuli{1}.parameters, 'offset')
+          r.data(eb).params.holding = epoch.getStimuli{1}.parameters('offset');
+        else
+          r.data(eb).params.holding = epoch.getStimuli{1}.parameters('mean');
+        end
+        r.data(eb).params.holdingUnit = epoch.getStimuli{1}.parameters('units');
         tmp = getAnalog(resp, r.data(eb).params.preTime, r.data(eb).params.sampleRate);
         if isempty(nnz(tmp))
           fprintf('block %u epoch %u - empty analog', eb,ep);
@@ -331,7 +337,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.coneOne = epochBlock.protocolParameters('coneOne');
     r.params.coneTwo = epochBlock.protocolParameters('coneTwo');
     r.params.contrast = epochBlock.protocolParameters('contrast');
-    
+
 
   case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
     r.params.stimulusClass = epochBlock.protocolParameters('stimulusClass');
@@ -532,7 +538,7 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
       o = find(r.params.orientations == r.params.orientation(1, ep)); % for rand order
       r.respBlock(o, ceil(ep/length(r.params.orientations)), :) = r.resp(ep, :);
       if strcmp(r.params.recordingType, 'extracellular')
-        r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFiringRate(r.spikes(ep,:), r.params.sampleRate);
+        % r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFiringRate(r.spikes(ep,:), r.params.sampleRate);
       else
         r.analogBlock(o, ceil(ep/length(r.params.orientations)), :) = r.analog(ep, :);
       end

@@ -1,12 +1,13 @@
 function nl = nonlinearity(r, resp)
   % for now, run thru spike detection protocols before function
   % 19Dec2016 - works with 2nd neuron analysis
+  % 10Mar2017 - upped MaxIter for nl fit
 
   if nargin < 2
     switch r.params.recordingType
     case 'extracellular'
       resp = r.spikes;
-    case 'analog'
+    case 'voltage_clamp'
       resp = r.analog;
     case 'current_clamp'
       warndlg('nonlinearity.m not ready for current clamp yet');
@@ -34,7 +35,6 @@ function nl = nonlinearity(r, resp)
 
     if strcmp(r.params.recordingType, 'extracellular')
       data = resp(ii,:);
-      % subtract the leak and clip the preTime
       if r.params.preTime > 0
         data(1:round(sampleRate * (preTime - 16.7) * 1e-3)) = [];
       end
@@ -125,16 +125,18 @@ function nl = nonlinearity(r, resp)
   % there is something weird going on, make sure the negative xbins translate to negative ybins
   % yBin(xBin<0) = -abs(yBin(xBin < 0));
 
+  options = statset('Display', 'final', 'MaxIter', 1500);
+
   % fit the output nonlinearity
   if strcmp(r.params.recordingType, 'extracellular')
     % don't need a(4) for spikes because you can't have a negative spike count
     modelfun = @(a,x) (a(1) * normcdf(x, a(2), a(3)));
-    p = nlinfit(xBin, yBin, modelfun, [173 21 8]);
+    p = nlinfit(xBin, yBin, modelfun, [173 21 8], options);
   else % a(4) is essentially the baseline activity of a synapse
     modelfun = @(a,x) (a(1) * normcdf(x, a(2), a(3) + a(4)));
-    p = nlinfit(xBin, yBin, modelfun, [173 21 8 -0.1]);
+    p = nlinfit(xBin, yBin, modelfun, [173 21 8 -0.1], options);
+    fprintf('fit fcn 2 params: %.2f, %.2f, %.2f, %.2f\n', p);
   end
-
 
   % save to data structure
   nl.fit = modelfun(p, xBin);

@@ -96,6 +96,10 @@ function [w, p, c] = setColorWeightsLocal(obj, colorCall)
       w = cliso;
       p = [0.82353, 0, 0];
       c = 'custom l-iso';
+    case {'o','achrom2'} % same as yellow but called under diff conditions
+        w = [1 1 0];
+        c = 'RealAchromatic';
+        p = [0 0 0];
     otherwise
       w = [1 1 1];
       p = [0 0 0];

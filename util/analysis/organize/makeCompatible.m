@@ -1,4 +1,4 @@
-function r = makeCompatible(r, src)
+function r = makeCompatible(r, ao)
   % keep up with all the random improvements to data workflow
   % to be called by other functions
   % INPUT: r  data structure
@@ -15,7 +15,7 @@ function r = makeCompatible(r, src)
   % 23Feb2017 - some current clamp stuff and old grating analysis
 
   if nargin < 2
-    src = false;
+    ao = false;
   end
 
   if ~isfield(r, 'log')
@@ -37,7 +37,7 @@ function r = makeCompatible(r, src)
       r.analysis = rmfield(r.analysis, 'nonlinearity');
     end
     if isfield(r.analysis, 'f1amp')
-      if src
+      if ao
         r.analysis.F1 = r.analysis.f1amp;
         r.analysis.P1 = r.analysis.f1phase;
         r.analysis = rmfield(r.analysis, 'f1amp');
@@ -86,6 +86,11 @@ function r = makeCompatible(r, src)
     if isfield(r.params, 'spatialFreqs')
       r.params.spatialFrequencies = r.params.spatialFreqs;
       r.params = rmfield(r.params, 'spatialFreqs')
+    end
+  case 'edu.washington.riekelab.sara.protocols.ColorCircle'
+    if isfield(r.params, 'orientation')
+      r.params.orientations = r.params.orientation;
+      r.params = rmfield(r.params, 'orientation');
     end
   end
 

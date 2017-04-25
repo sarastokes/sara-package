@@ -18,7 +18,6 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
     recordingType = 'extracellular';
   end
 
-
   ip = inputParser();
   ip.addParameter('ampNum', 1, @(x)isvector(x));
   ip.addParameter('spikeDM', 'SpikeDetector', @(x)ischar(x));
@@ -113,15 +112,17 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         end
         % check on frame tracker
         % r.params.timingFlag = checkFrames(epoch);
+      else
+        frameFlag = false;
       end
       r.ampNum = ampNum;
     end
 
     % get frame data TODO: don't include in fast version
-    if frameFlag && strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.SpatialReceptiveField')
-      % TODO: speed up
-        [r.stim.frameTimes{ep,1}, r.stim.frameRate(ep)] = edu.washington.riekelab.sara.utils.getFrameTiming(epoch.getResponses{deviceNum}.getData);
-    end
+    % if frameFlag && strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.SpatialReceptiveField')
+    %   % TODO: speed up
+    %     [r.stim.frameTimes{ep,1}, r.stim.frameRate(ep)] = edu.washington.riekelab.sara.utils.getFrameTiming(epoch.getResponses{deviceNum}.getData);
+    % end
 
     % analyze by type
     switch r.params.recordingType
@@ -166,9 +167,14 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         fprintf('under epoch flag - %u of %u\n', r.numEpochs, double(r.params.numberOfAverages));
         x = floor(r.numEpochs/length(r.params.SFs));
         r.params.orientations = r.params.orientations(1:x);
+        % TODO clean this up
         if rem(r.numEpochs,length(r.params.SFs)) ~= 0
-          r.respOver = r.resp(x*length(r.params.SFs)+1, :);
-          r.resp(x*length(r.params.SFs)+1,:) = [];
+          r.respOver = r.resp(x*length(r.params.SFs)+1:end, :);
+          r.resp(x*length(r.params.SFs)+1:end,:) = [];
+          r.spikesOver = r.spikes(x*length(r.params.SFs)+1:end,:);
+          r.spikes(x*length(r.params.SFs)+1:end,:) = [];
+          r.omitEpochs = (x*length(r.params.SFs)+1):r.numEpochs;
+          r.numEpochs = r.numEpochs-length(r.omitEpochs);
         end
       end
       r.respBlock = reshape(r.resp, length(r.params.orientations), length(r.params.SFs), size(r.resp,2));
@@ -191,6 +197,45 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         end
       end
 
+      case 'edu.washington.riekelab.sara.protocols.ConeTestGrating'
+        r.params.orntInd = zeros(1, r.numEpochs);
+        r.params.chromInd = [];
+        for ep = 1:r.numEpochs
+          epoch = epochBlock.getEpochs{ep};
+          r.params.orntInd(1, ep) = epoch.protocolParameters('orientation');
+          tmp = epoch.protocolParameters('chromaticClass');
+          r.params.chromInd = [r.params.chromInd tmp(1)];
+        end
+        r.params.orientations = unique(r.params.orntInd);
+        r.params.chromInd = lower(r.params.chromInd);
+
+        if ~isKey(epochBlock.protocolParameters, 'waitTime')
+          r.params.waitTime = 0;
+        end
+
+      case 'edu.washington.riekelab.manookin.protocols.LMIsoSearch'
+        if isfield(r.params, 'temporalFrequency')
+          r.params.searchValues = [255 (248:-8:104) (100:-2:92) (84:-8:52) (50:-2:42) (34:-8:0)]/255;
+        else
+          r.params.searchValues = [(192:-8:104) (100:-2:92) (84:-8:52) (50:-2:42) (34:-8:0)]/255;
+        end
+        
+        if strcmp('chromaticClass', 'L-iso')
+          r.params.ledInd = 1;
+        else
+          r.params.ledInd = 2;
+        end
+
+        for ep = 1:r.numEpochs
+          epoch = epochBlock.getEpochs{ep};
+          r.params.ledWeights(ep,:) = epoch.protocolParameters('ledValues');
+        end
+
+        % r.respBlock = reshape(r.resp, length(r.params.searchValues),... 
+        %   double(r.params.numberOfAverages)/length(r.params.searchValues), length(r.resp));
+        % r.spikeBlock = reshape(r.spikes, length(r.params.searchValues),... 
+        %   double(r.params.numberOfAverages)/length(r.params.searchValues), length(r.spikes));
+
       case 'edu.washington.riekelab.manookin.protocols.ConeIsoSearch'
       r.params.minStep = 2^r.params.minStepBits / 256 * 2;
       r.params.maxStep = 2^r.params.maxStepBits / 256 * 2;
@@ -200,7 +245,7 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
       r.params.plotColor(1,:) = getPlotColor('l');
       r.params.plotColor(2,:) = getPlotColor('m');
 
-    case 'edu.washington.riekelab.sara.protocols.CompareCones'
+    case {'edu.washington.riekelab.sara.protocols.CompareCones', 'edu.washington.riekelab.sara.protocols.ColorExchange'}
       r.params.coneWeights = zeros(r.numEpochs, 3);
       r.params.ledWeights = zeros(r.numEpochs, 3);
       for ep = 1:r.numEpochs
@@ -212,6 +257,18 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         r.params.stimSpace = 'led';
       else
         r.params.stimSpace = 'cone';
+      end
+
+    case 'edu.washington.riekelab.sara.protocols.ColorCircle'
+      r.params.stimulusClass = epochBlock.getEpochs{1}.protocolParameters('stimulusClass');
+      r.params.coneWeights = zeros(r.numEpochs, 3);
+      r.params.ledWeights = zeros(r.numEpochs, 3);
+      r.params.orientations = zeros(1, r.numEpochs);
+      for ep = 1:r.numEpochs
+        epoch = epochBlock.getEpochs{ep};
+        r.params.coneWeights(ep,:) = epoch.protocolParameters('coneWeights');
+        r.params.coneWeights(ep,:) = epoch.protocolParameters('ledWeights');
+        r.params.orientations(ep) = epoch.protocolParameters('orientation');
       end
 
     case 'edu.washington.riekelab.manookin.protocols.sMTFspot'
@@ -258,7 +315,7 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         r.meanResp = squeeze(mean(r.respBlock(ii,:,:), 2));
       end
 
-    case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.ResistanceAndCapacitance'}
+    case {'edu.washington.riekelab.protocols.Pulse', 'edu.washington.riekelab.manookin.protocols.ResistanceAndCapacitance'}
       epoch = epochBlock.getEpochs{1};
       k = epoch.getStimuli{1}.parameters.keys;
       for ii = 1:length(k)
@@ -268,20 +325,18 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
       r.stim.trace(1, r.stim.preTime+1:r.stim.preTime + r.stim.stimTime) = r.stim.amplitude + r.stim.trace(1, r.stim.preTime+1:r.stim.preTime+r.stim.stimTime);
       r.stim.trace = repelem(r.stim.trace, 10);
 
-      if ~isempty(strfind(r.protocol, 'Resistance'))
         for ii = 1:r.numEpochs
           epoch = epochBlock.getEpochs{ii};
-          if length(epoch.protocolParameters) > 5
+          if length(epoch.protocolParameters.keys) > 1
             fprintf('found online analysis\n');
-            r.analysis.oa.rInput = epoch.protocolParameters('rInput');
-            r.analysis.oa.rSeries = epoch.protocolParameters('rSeries');
-            r.analysis.oa.rMembrane = epoch.protocolParameters('rMembrane');
-            r.analysis.oa.rTau = epoch.protocolParameters('rTau');
-            r.analysis.oa.capacitance = epoch.protocolParameters('capacitance');
-            r.analysis.oa.tau_msec = epoch.protocolParameters('tau_msec');
+            r.oa.rInput = epoch.protocolParameters('rInput');
+            r.oa.rSeries = epoch.protocolParameters('rSeries');
+            r.oa.rMembrane = epoch.protocolParameters('rMembrane');
+            r.oa.rTau = epoch.protocolParameters('rTau');
+            r.oa.capacitance = epoch.protocolParameters('capacitance');
+            r.oa.tau_msec = epoch.protocolParameters('tau_msec');
           end
         end
-      end
 
     case {'edu.washington.riekelab.manookin.protocols.GaussianNoise', 'edu.washington.riekelab.sara.protocols.IsoSTA'}
       r.params.seed = zeros(1, r.numEpochs);
@@ -293,7 +348,30 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         r.params.frameDwell = 1;
       end
 
-    case {'edu.washington.riekelab.sara.protocols.SpatialReceptiveField', 'edu.washington.riekelab.sara.protocols.TempSpatialNoise', 'edu.washington.riekelab.manookin.protocols.SpatialNoise', 'edu.washington.riekelab.manookin.protocols.TernaryNoise'}
+    case 'edu.washington.riekelab.manookin.protocols.MovingBar'
+    r.respBlock = zeros(length(r.params.orientations), ceil(r.numEpochs/length(r.params.orientations)), size(r.resp,2));
+    if strcmp(r.params.recordingType, 'extracellular')
+      r.instFt = zeros(size(r.respBlock));
+      r.spikeBlock = zeros(size(r.respBlock));
+    else
+      r.analog = zeros(size(r.respBlock));
+    end
+    for ep = 1:r.numEpochs
+      epoch = epochBlock.getEpochs{ep};
+      r.params.orientation(1, ep) = epoch.protocolParameters('orientation');
+      o = find(r.params.orientations == r.params.orientation(1, ep)); % for rand order
+      r.respBlock(o, ceil(ep/length(r.params.orientations)), :) = r.resp(ep, :);
+      if strcmp(r.params.recordingType, 'extracellular')
+        r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFt(r.spikes(ep,:), r.params.sampleRate);
+        r.spikeBlock(o, ceil(ep/length(r.params.orientations)), :) = r.spikes(ep,:);
+      else
+        r.analogBlock(o, ceil(ep/length(r.params.orientations)), :) = r.analog(ep, :);
+      end
+    end
+
+    case {'edu.washington.riekelab.sara.protocols.SpatialReceptiveField',... 
+      'edu.washington.riekelab.manookin.protocols.SpatialNoise',... 
+      'edu.washington.riekelab.manookin.protocols.TernaryNoise'}
 
       r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate / r.params.frameDwell);
 

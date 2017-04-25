@@ -13,7 +13,7 @@ function r = routine_GaussNoise(r, varargin)
   ip.addParameter('bpf', 6, @isnumeric);
   ip.addParameter('scaleLMS', true, @islogical);
   ip.addParameter('groupPlot', false, @islogical);
-  ip.addParameter('nSmooth', 3, @isnumeric);
+  ip.addParameter('nSmooth', 4, @isnumeric);
   ip.parse(r, varargin{:});
   cones = ip.Results.cones;
   bpf = ip.Results.bpf;
@@ -41,6 +41,8 @@ function r = routine_GaussNoise(r, varargin)
     p = nlinfit([x.l;x.m;x.s], [y.l,y.m,y.s], @simultaneousNLFit, [173 21 8 1 1]);
     yfit = simultaneousNLFit(p, [x.l; x.m; x.s]);
     fac = [1 p(4) p(5)];
+    fprintf('cone gains are %.2f L, %.2f M, %.2f S\n', fac);
+    fprintf('cone weights are %.2f L, %.2f M, %.2f S\n', fac/sum(fac));
   else
     fac = [1 r.NLfit.params(4) r.NLfit.params(5)];
     yfit = r.NLfit.y;
@@ -50,7 +52,7 @@ function r = routine_GaussNoise(r, varargin)
     fac = [1 1 1];
   end
 
-  xpts = linspace(0, 1000, r.(cones{1}).analysis.binRate)
+  xpts = linspace(0, 1000, r.(cones{1}).analysis.binRate);
   figure('Name', [r.(cones{1}).cellName ' - LMS gaussian noise']); hold on;
   legendstr = [];
   for ii = 1:length(cones)
@@ -58,6 +60,9 @@ function r = routine_GaussNoise(r, varargin)
     % normalize filter and multiply by NL scaling factor
     plot(xpts, lf/max(abs(lf)) * fac(ii),...
     'Color', getPlotColor(cones{ii}(1)), 'LineWidth', 1);
+    [loc, pk] = peakfinder(lf/max(abs(lf)),[],[], r.(cones{ii}).analysis.filterSign);
+    [~, ind] = max(abs(pk));
+    r.(cones{ii}).analysis.peakTime = xpts(loc(ind));
     legendstr{ii} = sprintf('%s-iso (n=%u, peak = %.2f)', cones{ii}(1),...
     r.(cones{ii}).numEpochs, r.(cones{ii}).analysis.peakTime);
   end
@@ -68,7 +73,8 @@ function r = routine_GaussNoise(r, varargin)
 
   figure('Name', [r.(cones{1}).cellName ' - temporal tuning']); hold on;
   for ii = 1:length(cones)
-    tft = smooth(r.(cones{ii}).analysis.tempFT, nSmooth);
+    % tft = smooth(r.(cones{ii}).analysis.tempFT, nSmooth);
+    tft = r.(cones{ii}).analysis.tempFT;
     plot(xpts, tft, 'LineWidth', 1, 'Color', getPlotColor(cones{ii}(1)));
   end
   title(r.(cones{1}).cellName);
@@ -124,3 +130,7 @@ function r = routine_GaussNoise(r, varargin)
     subplot(133); title('biphasic index'); ylabel('peak:trough');
     set(findobj(gcf, 'Type', 'Axes'),'XTickLabel', getNiceLabels(cones), 'Box', 'off', 'XTick', 1:length(cones));
   end
+
+  fprintf('biphasic index: %.2f %.2f %.2f\n', bi);
+  fprintf('time to peak: %.2f, %.2f, %.2f\n', t2p);
+  fprintf('zero cross: %.2f, %.2f, %.2f\n', zc);

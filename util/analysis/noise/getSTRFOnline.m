@@ -9,52 +9,45 @@ function [r, analysis, filterTmp] = getSTRFOnline(r, analysis, spikes, seed)
   end
 
   if ~isfield(r.params, 'preF')
-    r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate * analysis.binsPerFrame) / r.params.frameDwell;
+    r.params.numFrames = floor(r.params.stimTime/1000 * r.params.frameRate) / r.params.frameDwell;
     r.params.preF = floor(r.params.preTime/1000 * r.params.frameRate * analysis.binsPerFrame);
     r.params.stimF = floor(r.params.stimTime/1000 * r.params.frameRate * analysis.binsPerFrame);
   end
   prePts = r.params.preTime * 1e-3 * r.params.sampleRate;
 
-
   noiseStream = RandStream('mt19937ar', 'Seed', seed);
 
   if strcmpi(r.params.noiseClass, 'binary') && strcmpi(r.params.chromaticClass, 'RGB')
     frameValues = noiseStream.rand(r.params.numFrames, r.params.numYChecks, r.params.numXChecks,3) > 0.5;
-    frameValues = 2*frameValues-1;
+    stimulus = 2*frameValues-1;
   else
-    frameValues = getSpatialNoiseFramesSara(r.params.numXChecks, r.params.numYChecks,...
+    stimulus = getSpatialNoiseFramesSara(r.params.numXChecks, r.params.numYChecks,...
       r.params.numFrames, r.params.noiseClass, r.params.chromaticClass, seed, r.params.intensity);
+  end
+
+  if analysis.binsPerFrame > 1
+    stimulus = upsampleFrames(shiftdim(stimulus,1), analysis.binsPerFrame);
+    stimulus = shiftdim(stimulus,2);
   end
 
   % just for extracellular right now
   responseTrace = BinSpikeRate(spikes(prePts+1:end), r.params.frameRate * analysis.binsPerFrame, r.params.sampleRate);
 
   % make response trace same size as stim frames
-  responseTrace = responseTrace(1:r.params.numFrames);
-
+  responseTrace = responseTrace(1:r.params.numFrames * analysis.binsPerFrame);
   % Columate
   responseTrace = responseTrace(:);
 
   % zero out the first second while cell is adapting
   responseTrace(1:floor(r.params.frameRate*analysis.binsPerFrame)) = 0;
   if strcmpi(r.params.chromaticClass, 'RGB')
-    frameValues(1:floor(r.params.frameRate*analysis.binsPerFrame), :, :,:) = 0;
+    stimulus(1:floor(r.params.frameRate*analysis.binsPerFrame), :, :,:) = 0;
   else
-    frameValues(1: floor(r.params.frameRate*analysis.binsPerFrame), :, :) = 0;
+    stimulus(1: floor(r.params.frameRate*analysis.binsPerFrame), :, :) = 0;
   end
 
   filterFrames = floor(r.params.frameRate * analysis.binsPerFrame * 0.5);
-  lobePts = round(0.05 * r.params.frameRate * analysis.binsPerFrame) : round(0.15 * r.params.frameRate * analysis.binsPerFrame);
-
-  % Regenerate the stimulus based on the type.
-  stimulus = 2*(double(frameValues)/255)-1;
-
-  if analysis.binsPerFrame > 1
-    stimulus = upsampleFrames(stimulus, analysis.binsPerFrame);
-  end
-
-  % analysis.FilterFft = mean((fft(responseTrace,[],2) .* conj(fft(stimulus,[],2))),1)./mean(fft(stimulus,[],2) .* conj(fft(stimulus,[],2)),1) ;
-
+  lobePts = round(0.05*r.params.frameRate*analysis.binsPerFrame) : round(0.15*r.params.frameRate*analysis.binsPerFrame);
 
   % Do the reverse correlation.
 %  if isempty(strfind(r.protocol, 'Chromatic'))
@@ -76,7 +69,7 @@ function [r, analysis, filterTmp] = getSTRFOnline(r, analysis, spikes, seed)
       filterTmp = zeros(r.params.numYChecks, r.params.numXChecks, filterFrames);
       for m = 1 : r.params.numYChecks
         for n = 1 : r.params.numXChecks
-          tmp = ifft(fft([responseTrace; zeros(60, 1)]) .* conj(fft([squeeze(frameValues(:, m, n)); zeros(60, 1);])));
+          tmp = real(ifft(fft([responseTrace; zeros(60, 1)]) .* conj(fft([squeeze(stimulus(:, m, n)); zeros(60, 1);]))));
           filterTmp(m,n,:) = tmp(1:filterFrames);
         end
       end

@@ -1,6 +1,6 @@
 function S = gratePlot(sf, f1, p1, S, sc)
   % figure style plot for gratings
-  % INPUT:    sf    spatial frequencies (in cpd)
+  % INPUT:    sf    spatial frequencies (in pixels - will convert to cpd)
   %           f1    f1 amplitude
   %           p1    p1 amplitude
   % OPTIONAL

@@ -5,19 +5,24 @@ function strfViewer(r)
 
 	if isstruct(r)
 		S.strf = r.analysis.strf;
-		if strcmp(r.params.chromaticClass, 'RGB')
-			S.rgbFlag = 1;
+		S.str = [r.cellName ' - ' r.params.chromaticClass ' receptive field'];
+		if isfield(r.analysis, 'binsPerFrame')
+			S.binSize = 1000 / (r.params.frameRate * r.analysis.binsPerFrame / r.params.frameDwell);
 		else
-			S.rgbFlag = 0;
+			S.bpf = 1;
 		end
 	else
 		S.strf = r;
-		if length(size(r)) == 4
-			S.rgbFlag = 1;
-		else
-			S.rgbFlag = 0;
-		end
+		S.binSize = 1000/60;
+		S.str = [];
 	end
+	if length(size(S.strf))==4
+		S.rgbFlag = 1;
+	else
+		S.rgbFlag = 0;
+	end
+
+	S.normFlag = false;
 
 	if S.rgbFlag == 1 && size(S.strf, 4) ~= 3
 		S.strf = shiftdim(S.strf,1);
@@ -32,12 +37,15 @@ function strfViewer(r)
 		'Spacing', 5);
 	if S.rgbFlag == 0
 		S.ax = axes('parent', mainLayout)
-		imagesc(squeeze(mean(S.strf(:,:,5:10), 3)), 'parent', S.ax);
+		imagesc(squeeze(mean(S.strf(:,:,3:10), 3)), 'parent', S.ax);
+		if ~isempty(S.str)
+			title(S.ax, S.str);
+		end
 	else
 		axLayout = uix.HBoxFlex('parent', mainLayout);
 		for ii = 1:3
 			S.ax(ii) = axes('parent', axLayout);
-			imagesc(squeeze(mean(S.strf(:,:,5:10,ii),3)),...
+			imagesc(squeeze(mean(S.strf(:,:,3:10,ii),3)),...
 				'parent', S.ax(ii));
 			set(S.ax(ii), 'XTickLabel', [], 'YTickLabel', []);
 		end
@@ -61,7 +69,8 @@ function strfViewer(r)
 		'String', '-->');
 	S.tx1 = uicontrol('parent', timeLayout,...
 		'Style', 'text',...
-		'String', 'Mean');
+		'String', 'Mean',...
+		'FontSize', 10);
 	set(buttonLayout, 'Widths', [-1 -1]);
 	set(timeLayout, 'Heights', [-2 -1]);
 	meanLayout = uix.VBox('Parent', uiLayout,...
@@ -73,7 +82,7 @@ function strfViewer(r)
 		'Style', 'push',...
 		'String', 'Mean');
 	set(meanLayout, 'Heights', [-2 -1]);
-	S.print = uicontrol('Parent', uiLayout,...
+	S.prnt = uicontrol('Parent', uiLayout,...
 		'Style', 'push',...
 		'String', 'Print figure');
 	cmapLayout = uix.VBox('Parent', uiLayout,...
@@ -85,9 +94,15 @@ function strfViewer(r)
 		'Style', 'push',...
 		'String', 'Switch colormap');
 	set(cmapLayout, 'Heights', [-3 -1]);
-	S.fpf = uicontrol('parent', uiLayout,...
+	idkLayout = uix.VBox('Parent', uiLayout,...
+		'Padding', 5, 'Spacing', 5);
+	S.normRF = uicontrol('Parent', idkLayout,...
+		'Style', 'push',...
+		'String', 'show norm');
+	S.fpf = uicontrol('parent', idkLayout,...
 		'Style', 'push',...
 		'String', 'find peaks');
+	set(idkLayout, 'Heights', [-1 -1]);
 	set(uiLayout, 'Widths', [-1 -1 -1 -1 -1]);
 
 	S.t = 0; S.avgFlag = 1;
@@ -97,8 +112,8 @@ function strfViewer(r)
 	set(S.avg, 'Callback', {@onSelected_avg, f});
 	set(S.cmap, 'Callback', {@onSelected_cmap, f});
 	set(S.fpf, 'Callback', {@onSelected_fpf, f});
-	set(S.print, 'Callback', {@onSelected_print, f});
-	
+	set(S.prnt, 'Callback', {@onSelected_print, f});
+	set(S.normRF, 'Callback', {@onSelected_normRF, f});
 	setappdata(f.h, 'GUIdata', S);
 
 %% CALLBACKS %%
@@ -111,7 +126,7 @@ function strfViewer(r)
 
 		if S.t ~= size(S.strf, 3)
 			S.t = S.t + 1;
-			set(S.tx1, 'String', sprintf('t = %u msec', S.t));
+			set(S.tx1, 'String', sprintf(' bin %u: %u-%u ms', S.t, round((S.t-1)*S.binSize), round(S.t*S.binSize)));
 			updateStrf(f);
 		end
 		setappdata(f.h, 'GUIdata', S);
@@ -124,9 +139,9 @@ function strfViewer(r)
 		S.avgFlag = 0;
 
 		if S.t ~= 1
-			S.t = S.t - 1
+			S.t = S.t - 1;
 			updateStrf(f);
-			set(S.tx1, 'String', sprintf('t = %u msec', S.t));
+			set(S.tx1, 'String', sprintf(' bin %u: %u-%u ms', S.t, round((S.t-1)*S.binSize), round(S.t*S.binSize)));
 		end
 		setappdata(f.h, 'GUIdata', S);
 	end
@@ -151,7 +166,13 @@ function strfViewer(r)
 					'parent', S.ax);
 			end
 		end
-		set(S.tx1, 'String', sprintf('t = %u - %u ms avg', S.tm(1), S.tm(2)));
+		set(S.tx1, 'String', sprintf('bin %u - %u avg', S.tm(1), S.tm(2)));
+		if S.normFlag
+			set(S.ax, 'CLim', [-1 1]);
+		else
+			set(S.ax, 'CLimMode', 'auto');
+		end
+		title(S.ax, S.str);
 
 		setappdata(f.h, 'GUIdata', S);
 	end
@@ -243,7 +264,26 @@ function strfViewer(r)
 		%
 		% f2 = figure();
 		% ax2 = axes('Parent', f2);
-		% imagesc(squeeze(S.strf(:,:,S.t)), 'Parent', ax2); 
+		% imagesc(squeeze(S.strf(:,:,S.t)), 'Parent', ax2);
+
+		setappdata(f.h, 'GUIdata', S);
+	end
+
+	function onSelected_normRF(varargin)
+		f = varargin{3};
+		S = getappdata(f.h, 'GUIdata');
+
+		if S.normFlag
+			S.strf = S.oldStrf;
+			S.normFlag = false;
+			set(S.normRF, 'String', 'show norm');
+		else
+			S.normFlag = true;
+			S.oldStrf = S.strf;
+			S.strf = S.strf/max(max(max(abs(S.strf))));
+			set(S.normRF, 'String', 'show original');
+		end
+		updateStrf(f);
 
 		setappdata(f.h, 'GUIdata', S);
 	end
@@ -257,6 +297,14 @@ function strfViewer(r)
 				imagesc(squeeze(S.strf(:,:,S.t,ii)),...
 				'parent', S.ax(ii));
 			end
+		end
+		if S.normFlag
+			set(S.ax, 'CLim', [-1 1]);
+		else
+			set(S.ax, 'CLimMode', 'auto');
+		end
+		if ~isempty(S.str)
+			title(S.ax, S.str);
 		end
 	end
 end

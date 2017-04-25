@@ -6,7 +6,7 @@ function cpd = pix2deg(spatialFrequencies, micronsPerPixel)
   if nargin < 2
     micronsPerPixel = 0.8;
   end
-  micronsPerDegree = 200;
+  micronsPerDegree = 220;
   screenWidth = 912;
 
   cpd = spatialFrequencies / screenWidth / micronsPerPixel * micronsPerDegree;

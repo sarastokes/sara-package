@@ -3,16 +3,16 @@ function stimTrace = getStimTrace(r, stimType, varargin)
 
   ip=inputParser();
   ip.addParameter('coneContrast', 1, @(x)isvector(x));
+  ip.addParameter('waitTime', 0, @(x)isvector(x));
   ip.parse(varargin{:});
   coneContrast = ip.Results.coneContrast;
+  waitTime = ip.Results.waitTime;
 
   if ~isfield(r, 'stimTime') && isfield(r, 'params')
       r = r.params;
-  end
-  if ~isfield(r, 'waitTime')
-      waitTime = 0;
-  else
-      waitTime = r.waitTime;
+      if isfield(r, 'waitTime')
+        waitTime = r.waitTime;
+      end
   end
 
   if ~isfield(r, 'contrast')
@@ -37,7 +37,7 @@ function stimTrace = getStimTrace(r, stimType, varargin)
   elseif strcmp(stimType, 'modulation')
     % numCycles = (r.stimTime - waitTime) * r.temporalFrequency / 1000;
     stimValues = sin(r.temporalFrequency * (1:r.stimTime)/1000 * 2 * pi);
-    if strcmp(r.temporalClass, 'squarewave')
+    if isfield(r, 'temporalClass') && strcmp(r.temporalClass, 'squarewave')
       stimValues = sign(stimValues);
     end
     stimValues = c * stimValues * r.backgroundIntensity + r.backgroundIntensity;

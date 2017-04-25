@@ -186,6 +186,11 @@ function makeConeMaps(varargin)
 
 			subtightplot(graphNum, g1, 5 + g2, 0.07);
 			srf(5+g2, :, :) = ONmap;
+            try
+				imagesc(ONmap, [lims(1) 0]);
+			catch
+				imagesc(ONmap, [-1 0]);
+			end
 			imagesc(ONmap, [0 lims(2)]);
 			axis equal; axis tight; axis off;
 			colormap(rgbmap('black', 'blue')); freezeColors;
