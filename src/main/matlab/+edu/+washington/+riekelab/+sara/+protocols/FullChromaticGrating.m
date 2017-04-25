@@ -56,7 +56,7 @@ ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.proto
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
 
             if length(obj.orientations)>1
                 if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))

@@ -50,7 +50,7 @@ methods
   end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
 
     obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 

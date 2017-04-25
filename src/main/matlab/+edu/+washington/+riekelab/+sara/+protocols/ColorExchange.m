@@ -38,7 +38,7 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
 
   % set stimulus class
   if obj.maskRadius == 0

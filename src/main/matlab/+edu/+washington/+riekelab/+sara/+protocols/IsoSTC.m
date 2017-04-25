@@ -55,7 +55,7 @@ methods
     end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
 
     [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 

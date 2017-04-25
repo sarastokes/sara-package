@@ -50,7 +50,7 @@ function p = getPreview(obj, panel)
 end
 
 function prepareRun(obj)
-  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
 
   % catch some errors
 

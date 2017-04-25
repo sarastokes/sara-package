@@ -54,7 +54,7 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
 
     clear obj.stimValue;
     if strcmp(obj.paradigmClass, 'baselineA_up')
