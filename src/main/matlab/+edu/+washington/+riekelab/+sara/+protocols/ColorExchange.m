@@ -1,4 +1,4 @@
-classdef ColorExchange < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef ColorExchange < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
 
 properties
 	amp
@@ -70,8 +70,9 @@ function prepareRun(obj)
   end
 
   if ~strcmp(obj.onlineAnalysis, 'none')
-  	obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp), obj.contrast, obj.onlineAnalysis,...
-  		obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency, 'plotColor', getPlotColor(lower(obj.coneOne)));
+		titlestr = [obj.coneOne ' vs ' obj.coneTwo ' color exchange'];
+		obj.showFigure('edu.washington.riekelab.sara.figures.F1F2Figure',...
+		obj.rig.getDevice(obj.amp), 1:double(obj.numberOfAverages), obj.onlineAnalysis, obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency, 'showF2', true, 'titlestr', [obj.coneOne ' vs ' obj.coneTwo ' color exchange']);
   end
 
 end

@@ -1,4 +1,4 @@
-classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
     % test spatial (non)linearity - checks if inputs sum/null
 
 

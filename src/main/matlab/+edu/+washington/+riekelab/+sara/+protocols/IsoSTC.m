@@ -1,4 +1,4 @@
-classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
     % ID and get temporal RF - will divide up into seperate protocols eventually
     % 25Jul16 - rgb sta works, f1f2 mtf doesn't
 
@@ -27,7 +27,7 @@ properties (Hidden)
   ampType
   paradigmClassType = symphonyui.core.PropertyType('char', 'row', {'ID', 'STA'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-  chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'LMS-iso' 'RGB-binary', 'RGB-gaussian', 'custom'})
+  chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'achrom2','L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'LMS-iso' 'RGB-binary', 'RGB-gaussian', 'custom'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   seed
   noiseStream

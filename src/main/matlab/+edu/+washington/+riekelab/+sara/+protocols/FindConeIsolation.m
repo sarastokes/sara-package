@@ -1,4 +1,4 @@
-classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
 
     properties
         amp                             % Output amplifier

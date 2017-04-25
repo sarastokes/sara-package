@@ -10,6 +10,7 @@ properties
   plotColor
   numReps   % pass if numReps would ever be >1, otherwise numReps = 1
   waitTime
+  titlestr
 end
 
 properties
@@ -41,10 +42,12 @@ function obj = F1Figure(device, xvals, onlineAnalysis, preTime, stimTime, vararg
   ip.addParameter('plotColor', [0 0 0], @(x)ischar(x) || isvector(x));
   ip.addParameter('numReps', 1, @(x)isnumeric(x) || isvector(x));
   ip.addParameter('waitTime', 0, @(x)isfloat(x));
+  ip.addParameter('titlestr', [], @(x)ischar(x));
   ip.parse(varargin{:});
 
   obj.temporalFrequency = ip.Results.temporalFrequency;
   obj.waitTime = ip.Results.waitTime;
+  obj.titlestr = ip.Results.titlestr;
 
   obj.numReps = ip.Results.numReps;
   obj.plotColor = zeros(2,3);
@@ -76,30 +79,39 @@ function createUi(obj)
         'Separator', 'on', ...
         'ClickedCallback', @obj.onSelectedStoreSweep);
   setIconImage(storeSweepButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
+  switchAxisButton = uipushtool(...
+    'Parent', toolbar,...
+    'TooltipString', 'Switch axis',...
+    'Separator', 'on',...
+    'ClickedCallback', @obj.onSelectedSwitchAxis);
+  setIconImage(switchAxisButton, symphonyui.app.App.getResource('icons/sweep_store.png'));
+
 
   obj.axesHandle(1) = subplot(3,1,1:2,...
     'Parent', obj.figureHandle,...
-    'FontName', 'roboto',...
-    'FontSize', 10,...
+    'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
+    'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'),...
     'XTickMode', 'auto');
   ylabel(obj.axesHandle(1), 'f1 amp');
-% set title stuff
 
   obj.axesHandle(2) = subplot(4,1,4,...
     'Parent', obj.figureHandle,...
-    'FontName', 'Roboto',...
-    'FontSize', 10,...
+    'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
+    'FontSize', get(obj.figureHandle('DefaultUicontrolFontSize')),...
     'XTickMode', 'auto');
   ylabel(obj.axesHandle(2), 'f1 phase');
 
   % for cone contrasts
-  if abs(max(obj.xvals)) + abs(min(obj.xvals)) <= 2
+  if abs(max(obj.xvals)) + abs(min(obj.xvals)) <= 2 || min(obj.xvals) < 0
     set(obj.axesHandle, 'XScale', 'linear');
   else
     set(obj.axesHandle, 'XScale', 'log');
   end
 
   set(obj.figureHandle, 'Color', 'w');
+  if ~isempty(obj.titlestr)
+    obj.setTitle(obj.titlestr);
+  end
 end
 
 function setTitle(obj, t)
@@ -195,10 +207,20 @@ function onSelectedStoreSweep(obj,~,~)
   outputStruct.F1 = obj.F1amp;
   outputStruct.P1 = obj.F1phase;
   answer = inputdlg('Save to workspace as:', 'save dialog', 1, {'r'});
-  fprintf('%s new grating named %s\n', datestr(now), answer{1});
+  fprintf('%s new F1 data named %s\n', datestr(now), answer{1});
   assignin('base', sprintf('%s', answer{1}), outputStruct);
 end
 
+function onSelectedSwitchAxis(obj,~,~)
+  if strcmp(get(obj.axesHandle(1), 'YScale'), 'log');
+    set(findobj(obj.figureHandle, 'Type', 'axes'),...
+    'YScale', 'linear')
+  else
+    set(findobj(obj.figureHandle, 'Type', 'axes'),...
+    'YScale', 'log');
+  end
+end
 
-end
-end
+
+end % methods
+end % classdef

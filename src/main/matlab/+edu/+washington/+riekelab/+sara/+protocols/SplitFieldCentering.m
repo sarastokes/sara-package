@@ -1,4 +1,4 @@
-classdef SplitFieldCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef SplitFieldCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
 % Max's SplitFieldCentering protocol with a few ManookinLabStageProtocol changes and chromatic options
 % Different stimulus set up for cone-iso stim that's limited to splitField
 

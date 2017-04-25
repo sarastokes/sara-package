@@ -102,8 +102,7 @@ methods
   end
 
   function clear(obj)
-    cla(obj.axesHandle(1)); cla(obj.axesHandle(2));
-    cla(obj.axesHandle(3)); cla(obj.axesHandle(4));
+    cla(obj.axesHandle);
     cla(obj.traceHandle);
     obj.sweepOne = []; obj.sweepTwo = []; obj.sweepThree = [];
     obj.stimTrace = [];

@@ -1,4 +1,4 @@
-classdef ConeSweep < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef ConeSweep < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
 
 properties
   amp
@@ -21,7 +21,7 @@ end
 
 properties (Hidden)
   ampType
-  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'alms', 'klms', 'cpy', 'ysa', 'lmx', 'zwx', 'azwx' 'almx', 'yxa', 'rgb', 'rgby', 'ghij'})
+  stimClassType = symphonyui.core.PropertyType('char', 'row', {'lms', 'olms', 'alms', 'klms', 'cpy', 'ysa', 'lmx', 'zwx', 'azwx' 'almx', 'yxa', 'rgb', 'rgby', 'ghij'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'flash'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
   chromaticClass

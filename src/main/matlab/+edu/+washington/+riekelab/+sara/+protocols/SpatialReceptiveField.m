@@ -1,4 +1,4 @@
-classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
 
 % SSP 6Nov2016 - added aperture to properties, createPresentation lines 312-320
 % SSP 21Feb2017 - added bar noise option, cleaned up protocol

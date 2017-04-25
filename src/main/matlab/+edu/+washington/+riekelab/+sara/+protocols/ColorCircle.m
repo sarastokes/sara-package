@@ -1,12 +1,14 @@
-classdef ColorCircle < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
-    % might merge with ColorExchange
+classdef ColorCircle < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+    % might merge with ColorExchange, DKL space
+		%
+		% 2Mar2017 - flipped the L and M cone weights. L-M is now 0, not 180
 
 properties
 	amp
 	preTime = 250
 	stimTime = 2000
 	tailTime = 250
-  contrast = 0.7
+  contrast = 1
 	radius = 1500
 	maskRadius = 0
 	temporalClass = 'sinewave'
@@ -51,14 +53,15 @@ function prepareRun(obj)
 
   obj.coneWeights = zeros(double(obj.numberOfAverages), 3);
 
-  obj.coneWeights(:, 1) = -cos(deg2rad(obj.orientations));
-  obj.coneWeights(:, 2) = cos(deg2rad(obj.orientations));
+  obj.coneWeights(:, 1) = cos(deg2rad(obj.orientations));
+  obj.coneWeights(:, 2) = -cos(deg2rad(obj.orientations));
 	obj.coneWeights(:, 3) = sin(deg2rad(obj.orientations));
+
 
   % set up figures
   if numel(obj.rig.getDeviceNames('Amp')) < 2
     obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace,...
-    	'stimColor', getPlotColor(lower(obj.coneOne)));
+    	'stimColor', 'k');
   else
     obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
   end
