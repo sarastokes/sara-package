@@ -5,7 +5,7 @@ classdef FilterWheelControl < symphonyui.ui.Module
 		filterWheel
 		ndf
 		objectiveMag
-		leds
+		LEDs
 		ndfSettingPopupMenu
 		objectivePopupMenu
 		ledPopupMenu
@@ -76,8 +76,8 @@ classdef FilterWheelControl < symphonyui.ui.Module
 			set(obj.ndfSettingPopupMenu, 'Value', 4);
 
 			% still deciding where to put this
-			% obj.loadQuantalCatch();
-			% obj.setQuantalCatch();
+			obj.loadQuantalCatch();
+			obj.setQuantalCatch();
 		end % willGo
 	end % methods protected
 
@@ -123,21 +123,41 @@ classdef FilterWheelControl < symphonyui.ui.Module
 		function onSelectedLedSetting(obj,~,~)
 			v = get(obj.ledPopupMenu, 'Value');
 			obj.leds = v;
-			% obj.setQuantalCatch();
+
+			obj.setQuantalCatch();
 		end
+
+		function loadQuantalCatch(obj)
+			% Get the quantal catch
+			obj.q = load('QCatch.mat');
 
 		function setQuantalCatch(obj)
 			obj.objectiveMag = obj.filterWheel.getObjective();
-			% get the ndf wheel setting
+			obj.LEDs = obj.filterWheel.getLEDs();
+
+			% Get the ndf wheel setting
 			obj.ndf = obj.filterWheel.getNDF();
 			ndString = num2str(obj.ndf * 10);
 			if length(ndString) == 1
 				ndString = ['0', ndString];
 			end
-			obj.quantalCatch = obj.q.qCatch.(['ndf', ndString]);
 
-			% Adjust the quantal catch depending on the objective
-			
+			% Take current LEDs into account
+			if obj.LEDs == 134
+				obj.quantalCatch = obj.q.qCatch.(['ndf', ndString])([1 2 4], :);
+			else
+				obj.quantalCatch = obj.q.qCatch.(['ndf', ndString])([1 3 4], :);
+			end
+
+			% Adjust the quantal catch depending on the objective.
+			if obj.objectiveMag == 4
+					obj.quantalCatch = obj.quantalCatch .* ([0.498627; 0.4921139; 0.453983]*ones(1,4));
+			elseif obj.objectiveMag == 60
+					obj.quantalCatch = obj.quantalCatch .* ([1.867747065682890; 1.849862001274647; 1.767678539504911]*ones(1,4));
+			end
+
+			% Set the quantal catch on the filter wheel device.
+			obj.filterWheel.setQuantalCatch(obj.quantalCatch);
 		end
 	end % methods private
 end % classdef
