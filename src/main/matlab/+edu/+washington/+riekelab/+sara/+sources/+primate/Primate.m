@@ -1,4 +1,4 @@
-classdef Primate < edu.washington.riekelab.manookin.sources.Subject
+classdef Primate < edu.washington.riekelab.sara.sources.Subject
     
     methods
         

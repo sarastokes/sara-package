@@ -48,7 +48,8 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
 
   r.params.numberOfAverages = double(r.params.numberOfAverages);
   if r.numEpochs < r.params.numberOfAverages
-    fprintf('number of epochs (%u) less than number of averages (%u)\n', r.numEpochs, r.params.numberOfAverages);
+    fprintf('number of epochs (%u) less than number of averages (%u)\n',... 
+      r.numEpochs, r.params.numberOfAverages);
   end
 
   for ep = 1:r.numEpochs
@@ -362,7 +363,7 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
       o = find(r.params.orientations == r.params.orientation(1, ep)); % for rand order
       r.respBlock(o, ceil(ep/length(r.params.orientations)), :) = r.resp(ep, :);
       if strcmp(r.params.recordingType, 'extracellular')
-        r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFt(r.spikes(ep,:), r.params.sampleRate);
+        r.instFt(o, ceil(ep/length(r.params.orientations)), :) = getInstFt(r.spikes(ep,:), 20, r.params.sampleRate);
         r.spikeBlock(o, ceil(ep/length(r.params.orientations)), :) = r.spikes(ep,:);
       else
         r.analogBlock(o, ceil(ep/length(r.params.orientations)), :) = r.analog(ep, :);
@@ -427,7 +428,9 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
           try
             response = wavefilter(response(:)', 6);
           catch
-            fprintf('Running without wavefilter toolbox');
+            if epochNum == 1
+              fprintf('Running without wavefilter toolbox\n');
+            end
           end
           S = spikeDetectorOnline(response);
           spikeAmps = S.spikeAmps;

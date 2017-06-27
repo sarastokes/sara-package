@@ -1,4 +1,4 @@
-classdef Cell < edu.washington.riekelab.manookin.sources.Cell
+classdef Cell < edu.washington.riekelab.sara.sources.Cell
     
     methods
         
@@ -28,8 +28,10 @@ classdef Cell < edu.washington.riekelab.manookin.sources.Cell
                 'SConeInput', PropertyType('char', 'row', containers.Map(...
                     {'unknown', 'yes', 'no'})),...
                 'description', 'has s-cone input');
+            obj.addProperty('centerCones', int32(0),...
+                'Type', PropertyType('int32', 'scalar', [0 100]));
             
-            obj.addAllowableParentType('edu.washington.riekelab.manookin.sources.primate.Preparation');
+            obj.addAllowableParentType('edu.washington.riekelab.sara.sources.primate.Preparation');
         end
         
     end

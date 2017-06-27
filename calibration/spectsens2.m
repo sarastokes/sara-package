@@ -1,4 +1,4 @@
-function [withOD, extinction] = spectsens(LambdaMax, OpticalDensity, Output, StartWavelength, EndWavelength, Res)
+function [withOD, extinction, wavelengths] = spectsens2(varargin)
 %spectsens returns a photopigment spectral sensitivity curve
 %as defined by Carroll, McMahon, Neitz, and Neitz.
 %[withOD, extinction curve] = spectsens(LambdaMax, OpticalDensity, OutputType, StartWavelength, EndWavelength,
@@ -7,20 +7,31 @@ function [withOD, extinction] = spectsens(LambdaMax, OpticalDensity, Output, Sta
 %LambdaMax = Wavelength peak for photopigment (default = 559)
 %OpticalDensity = optical density required (default = 0.20)
 %OutputType = log or anti-log.  if log, maximum data ouput is 0.  if
-%anti-log, data output is between 0 and 1 (default = log).
+%anti-log, data output is between 0 and 1 (default = anti-log).
 %StartWavelength = beginning wavelength (default = 380)
 %EndWavelength = end wavelength (default = 780)
 %Resolution = Number of data points (default = 400)
+%
+% 15May2017 - SSP - added input parsing, default to anti-log, added wl output
 
+
+ip = inputParser();
+ip.addParameter('LambdaMax', 559, @isnumeric);
+ip.addParameter('OpticalDensity', 0.2, @isnumeric);
+ip.addParameter('Output', 'anti-log', @ischar);
+ip.addParameter('StartWavelength', 380, @isnumeric);
+ip.addParameter('EndWavelength', 780, @isnumeric);
+ip.addParameter('Res', 400, @isnumeric);
+ip.parse(varargin{:});
+
+LambdaMax = ip.Results.LambdaMax;
+OpticalDensity = ip.Results.OpticalDensity;
+StartWavelength = ip.Results.StartWavelength;
+EndWavelength = ip.Results.EndWavelength;
+Res = ip.Results.Res;
+Output = ip.Results.Output;
 
 format long;
-
-if nargin < 6, Res = 400; end
-if nargin < 5, EndWavelength = 780; end
-if nargin < 4, StartWavelength = 380; end
-if nargin < 3, Output = 'log'; end
-if nargin < 2, OpticalDensity = 0.2000; end
-if nargin < 1, LambdaMax = 559; end
 
 A = 0.417050601;
 B = 0.002072146;
@@ -57,6 +68,7 @@ end
 A2=(log10(1.00000000/LambdaMax)-log10(1.00000000/558.5));
 vector = log10((StartWavelength:inc:EndWavelength).^-1);
 const = 1/sqrt(2*pi);
+wavelengths = StartWavelength:inc:EndWavelength;
 
 exTemp1 = log10(-E+E*tanh(-((10.^(vector-A2))-F)/G))+D;
 exTemp2 = A*tanh(-(((10.^(vector-A2)))-B)/C);

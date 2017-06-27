@@ -14,6 +14,7 @@ function r = graphDataOnline(r, varargin)
   ip.addParameter('bkgd', [], @ischar)
   ip.addParameter('fac', 20, @isnumeric);
   ip.addParameter('numCycles', 1, @isnumeric);
+  ip.addParameter('cmap', 'pmkmp', @ischar);
   ip.parse(varargin{:});
   neuron = ip.Results.neuron;
   plotAll = ip.Results.plotAll;
@@ -21,6 +22,10 @@ function r = graphDataOnline(r, varargin)
   bkgd = ip.Results.bkgd;
   fac = ip.Results.fac;
   numCycles = ip.Results.numCycles;
+  cmap = ip.Results.cmap;
+  if isempty(find(ismember(cmap, {'pmkmp', 'virindis', 'hsv'})));
+    cmap = 'pmkmp';
+  end
 
 
   if ~isempty(bkgd)
@@ -711,7 +716,8 @@ else
             end
 
             for ii = 1:length(analysis.linearFilter)
-              rectangle('Position', [ii-1, 0, 1, 1], 'FaceColor', newLF(:,ii), 'EdgeColor', newLF(:,ii));
+              rectangle('Position', [ii-1, 0, 1, 1],... 
+                'FaceColor', newLF(:,ii), 'EdgeColor', newLF(:,ii));
             end
             ax=gca; ax.Box = 'off'; xlabel('msec'); ax.YColor = 'w'; ax.YTickLabel = [];
             if r.params.radius > 1000
@@ -1172,47 +1178,32 @@ else
       end
 
     case 'edu.washington.riekelab.manookin.protocols.MovingBar'
-      co = pmkmp(length(r.params.orientations), 'cubicL');
+      switch cmap
+        case 'pmkmp'
+          co = pmkmp(length(r.params.orientations)/2, 'cubicL');
+        case 'virindis'
+          co = virindis(length(r.params.orientations)/2);
+        case 'hsv'
+          co = hsv(length(r.params.orientations)/2);
+      end
+        
+      co = [co; flipud(co)];
       cp = co - (0.4*(1-co)); cp(cp < 0) = 0;
       xpts = (1:size(r.respBlock, 3)) / r.params.sampleRate;
 
-      figure('Name', 'moving bar raster plot')
-      for ii = 1:size(r.respBlock, 1)
-        for jj = 1:size(r.respBlock, 2)
-          ind = sub2ind([size(r.respBlock, 1) size(r.respBlock, 2)], ii, jj);
-          subplot(size(r.respBlock, 1), 1, ii); hold on;
-          switch r.params.recordingType
-          case 'extracellular'
-            plot(xpts, r.spikes(ind, :), 'Color', co(jj*2, :)); axis tight;
-          case 'voltage_clamp'
-            plot(xpts, r.analog(ind,:), 'Color', co(jj*2,:)); axis tight;
-          end
-          set(gca, 'Box', 'off', 'TickDir', 'out', 'YTick', []);
-          ylabel(sprintf('%u%s     ', (30*ii)-30, char(176)),...
-            'Rotation', 0, 'VerticalAlignment', 'middle');
-          if ii ~= size(r.respBlock, 1)
-            set(gca, 'XColor', 'w', 'XTickLabel', {}, 'XTick', []);
-          else
-            xlabel('time (sec)');
-          end
-          if ii == 1
-            title(sprintf('%s - moving bar stimulus %u%s contrast at %.1f mean',...
-              r.cellName, 100*r.params.intensity, '%', r.params.backgroundIntensity));
-          end
-        end
-      end
-
       % instft or analog plot
-      figure(); hold on;
+      figure('Name', [r.cellName ' - Moving bar firing rate']); hold on;
       switch r.params.recordingType
       case 'extracellular'
         for ii = 1:size(r.respBlock,1)
-          plot(xpts, squeeze(mean(r.instFt(ii, :, :), 2)), 'Color', co(ii,:), 'LineWidth', 1);
+          plot(xpts, smooth(squeeze(mean(r.instFt(ii, :, :), 2)), 4),... 
+            'Color', co(ii,:), 'LineWidth', 1.5);
           legendstr{ii} = sprintf('%u%s', (30*ii)-30, char(176));
         end
       case 'voltage_clamp'
         for ii = 1:size(r.respBlock, 1)
-          plot(xpts, squeeze(mean(r.analogBlock(ii,:,:), 2)), 'Color', co(ii,:), 'LineWidth', 1);
+          plot(xpts, squeeze(mean(r.analogBlock(ii,:,:), 2)),... 
+            'Color', co(ii,:), 'LineWidth', 1);
           legendstr{ii} = sprintf('%u%s', (30*ii)-30, char(176));
         end
       end
@@ -1224,9 +1215,11 @@ else
       figure;
       for jj = 1:size(r.respBlock, 1)
         subplot(size(r.respBlock,1), 1, jj); hold on;
-        for ii = 1:size(r.respBlock,2)
-          plot(xpts, squeeze(r.instFt(jj,ii,:)),...
-            'Color', cp(jj,:), 'LineWidth', 1);
+        if plotAll
+          for ii = 1:size(r.respBlock,2)
+            plot(xpts, squeeze(r.instFt(jj,ii,:)),...
+              'Color', cp(jj,:), 'LineWidth', 1);
+          end
         end
         plot(xpts, squeeze(mean(r.instFt(jj,:,:))),...
           'Color', co(jj,:), 'LineWidth', 1);
@@ -1237,9 +1230,12 @@ else
           set(gca, 'XColor', 'w', 'XTick', []);
         end
       end
-      set(findobj(gcf, 'Type', 'axes'), 'YTickLabel', []);
+      set(findobj(gcf, 'Type', 'axes'), 'YTickLabel', [],... 
+        'XLim', [0 length(r.resp)/r.params.sampleRate]);
       subplot(size(r.respBlock, 1), 1, 1);
-      title(sprintf('%s - moving bar (%u%s on %.1f mean)', r.cellName, round(100*r.params.intensity), '%', r.params.backgroundIntensity));
+      title(sprintf('%s - moving bar (%u%s on %.1f mean)',... 
+        r.cellName, round(100*r.params.intensity), '%', r.params.backgroundIntensity));
+      figPos(gcf, 0.8, 1); tightfig(gcf);
 
       % NOTE temporary
       prePts = r.params.preTime*1e-3*r.params.sampleRate;
@@ -1253,6 +1249,18 @@ else
       set(gcf,'Name', [r.cellName ' Direction Figure']);
       figPos(gcf,0.8,0.8); tightfig(gcf);
 
+      figure('Color', 'w', 'Name', sprintf('%s - moving bar firing rate', r.cellName));
+      imagesc(squeeze(mean(r.instFt, 2)));
+      title([r.cellName ' - moving bar firing rate']);
+      set(gca, 'XTickLabel', get(gca, 'XTick')/r.params.sampleRate,...
+        'YTick', 1:2:length(r.params.orientations),... 
+        'YTickLabel', 0:length(r.params.orientations)/2:max(r.params.orientations));
+      axis off; tightfig(gcf);
+
+      figure('Color', 'w', 'Name', [r.cellName ' - firing rate polar plot']);
+      polarplot3d(squeeze(mean(r.instFt, 2))', 'AxisLocation', 'off');
+      title([r.cellName ' - moving bar firing rate']);
+      tightfig(gcf);
 
       if plotAll
         for jj = 1:size(r.respBlock, 2)
@@ -1273,6 +1281,8 @@ else
               title([r.cellName ' - moving bar stimulus (trial ' num2str(jj) ')']);
             end
           end
+          figPos(gcf, 0.8, 1);
+          set(findall(gcf, 'Type', 'axes'), 'XLim', [0 length(r.resp)/r.params.sampleRate]);
         end
       end
 

@@ -1,4 +1,4 @@
-classdef ManookinLabStageProtocolSara < edu.washington.riekelab.protocols.RiekeLabStageProtocol
+classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProtocol
 
     properties
         interpulseInterval = 0          % Duration between pulses (s)
@@ -63,8 +63,6 @@ classdef ManookinLabStageProtocolSara < edu.washington.riekelab.protocols.RiekeL
                 elseif obj.objectiveMag == 60
                     obj.quantalCatch = obj.quantalCatch .* ([0.664836;0.630064;0.732858]*ones(1,4));
                 end
-
-
             else
                 obj.objectiveMag = 'null';
                 obj.ndf = 4;
@@ -78,39 +76,6 @@ classdef ManookinLabStageProtocolSara < edu.washington.riekelab.protocols.RiekeL
 
             % Get the canvas size.
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
-        end
-
-        % Set LED weights based on grating type.
-        function setColorWeights(obj)
-            switch obj.chromaticClass
-                case 'red'
-                    obj.colorWeights = [1 0 0];
-                case 'green'
-                    obj.colorWeights = [0 1 0];
-                case 'blue'
-                    obj.colorWeights = [0 0 1];
-                case 'yellow'
-                    obj.colorWeights = [1 1 0];
-                case 'L-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 0 0]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'M-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [0 1 0]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'S-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [0 0 1]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'LM-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 1 0]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'LMS-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 1 1]';
-                    obj.colorWeights = obj.colorWeights / max(abs(obj.colorWeights));
-                otherwise
-                    obj.colorWeights = [1 1 1];
-            end
-
-            obj.colorWeights = obj.colorWeights(:)';
         end
 
         function prepareEpoch(obj, epoch)
@@ -188,15 +153,6 @@ classdef ManookinLabStageProtocolSara < edu.washington.riekelab.protocols.RiekeL
 
             stim = gen.generate();
         end
-
-%         function completeEpoch(obj, epoch)
-%             completeEpoch@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj, epoch);
-%
-%             % Get the frame times and frame rate and append to epoch.
-% %             [frameTimes, actualFrameRate] = obj.getFrameTimes(epoch);
-% %             epoch.addParameter('frameTimes', frameTimes);
-% %             epoch.addParameter('actualFrameRate', actualFrameRate);
-%         end
 
         function [frameTimes, actualFrameRate] = getFrameTimes(obj, epoch)
             resp = epoch.getResponse(obj.rig.getDevice('Frame Monitor'));

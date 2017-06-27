@@ -1,5 +1,12 @@
 classdef OffsetController < symphonyui.ui.Module
   % set the center offset easily
+  %
+  % future: communication with centering protocols, remove protocol
+  % centerOffset control entirely
+  %
+  % 9Jun2017 - SSP - created
+  % 13Jun2017 - SSP - added one more error catch, should keep symphony from
+  % shutting down if existing protocol doesn't have centerOffset
 
   properties
     cellOffset = [0 0]
@@ -9,7 +16,8 @@ classdef OffsetController < symphonyui.ui.Module
 methods
   function createUi(obj, figureHandle)
     set(figureHandle, 'Name', 'offset controller',...
-        'Position', appbox.screenCenter(250,150));
+        'Position', appbox.screenCenter(250,150),...
+        'Color', 'w');
     mainLayout = uix.VBox('Parent', figureHandle,...
       'Padding', 10);
 
@@ -39,6 +47,7 @@ methods
   end % createUi
 
   function onSelectedSet(obj, ~, ~)
+    % lots of error catching for now...
     try
       obj.cellOffset(1) = str2double(get(obj.handles.x, 'String'));
     catch
@@ -50,9 +59,13 @@ methods
       warndlg(sprintf('issue getting y offset [%s], remains at %u', get(obj.handles.y, 'String'), obj.cellOffset(2)));
     end
 
-    obj.acquisitionService.setProtocolProperty('centerOffset', obj.cellOffset);
+    try
+        obj.acquisitionService.setProtocolProperty('centerOffset', obj.cellOffset);
+        set(obj.handles.dispResult, 'String', ['updated: ' datestr(now)]);
+    catch
+        set(obj.handles.dispResult, 'String', ['ERROR: no update at ' datestr(now)]);
+    end
 
-    set(obj.handles.dispResult, 'String', ['updated:' datestr(now)]);
   end % onSelectedSet
 end % methods
 end % classdef

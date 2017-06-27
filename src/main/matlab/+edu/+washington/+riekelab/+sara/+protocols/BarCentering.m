@@ -54,7 +54,9 @@ methods
         titlestr = [obj.searchAxis ' bar centering'];
         try
           obj.showFigure('edu.washington.riekelab.sara.figures.F1F2Figure',...
-          obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis, obj.preTime, obj.stimTime, 'xName', 'position', 'temporalFrequency', obj.temporalFrequency, 'showF2', true, 'chromaticClass', obj.chromaticClass, 'titlestr', titlestr);
+          obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis, obj.preTime, obj.stimTime,... 
+          'xName', 'position', 'temporalFrequency', obj.temporalFrequency, 'showF2', true,... 
+          'chromaticClass', obj.chromaticClass, 'titlestr', titlestr);
         catch
           obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CTRanalysis);
           f = obj.analysisFigure.getFigureHandle();

@@ -1,4 +1,5 @@
 classdef ChromaticityController < symphonyui.ui.Module
+ % work with 4 led setup, monitor/validate stimuli online
 
 properties
   handles
@@ -8,23 +9,32 @@ properties
   coneStr = 'lmsp'
   ledStr = 'RGBU'
   showPlot = false
+  fourReady = false
 end
 
 methods
   function createUI(obj)
+    set(figureHandle, 'Color', 'w',...
+      'Name', 'ChromaticityController');
+
     mainLayout = uix.VBox('Parent', figureHandle,...
       'Padding', 10, 'Spacing', 10);
 
-    uiLayout = uix.VBox('Parent', mainLayout,...
+    uiLayout = uix.HBox('Parent', mainLayout,...
       'Padding', 10, 'Spacing', 10);
 
     chromLayout = uix.VBox('Parent', mainLayout,...
       'Spacing', 10, 'Padding', 10);
 
     obj.handles.ax = axes('Parent', mainLayout);
-    set(mainLayout, 'Heights', [-1 -1 -3]);
+
+    set(mainLayout, 'Heights', [-1 -1 -4]);
 
     % LED panel
+    obj.handles.lst.leds = uicontrol('Parent', uiLayout,...
+      'Style', 'listbox',...
+      'String', {'RGU', 'RBU'});
+
     obj.handles.pb.switchLED = uicontrol('Parent', uiLayout,...
       'Style', 'push',...
       'String', 'Switch LED',...
@@ -32,20 +42,20 @@ methods
 
     obj.handles.tx.curLED = uicontrol('Parent', uiLayout,...
       'Style', 'text',...
-      'String', 'withBlue');
+      'String', 'RBU');
 
-    set(uiLayout, 'Widths', [-1 -1]);
+    set(uiLayout, 'Widths', [-1 -1 -1]);
 
     % display panel
     obj.handles.lst.whatPlot = uicontrol('Parent', chromLayout,...
-      'Style', 'text',...
+      'Style', 'listbox',...
       'String', {'none', 'CIE', 'LED mod', 'SPD', 'Calib'});
 
     obj.handles.pb.doPlot = uicontrol('Parent', chromLayout,...
       'Style', 'push',...
       'String', 'plot',...
       'Callback', @onSelectedPlot);
-    set(chromLayout, 'Heights', [-1 -5]);
+    set(chromLayout, 'Heights', [-4 -1]);
 
     % pull the SPDs
     load('Spectra.mat');
@@ -62,32 +72,37 @@ methods
   end % createUI
 
   function onSelectedSwitchLED(obj,~,~)
-    switch get(obj.handles.tx.curLED, 'String')
-      case 'withBlue' % change to 405nm
-        set(obj.handles.tx.curLED, 'String', 'withGreen');
+    switch obj.handles.lst.leds.String{obj.handles.lst.leds.Value}
+      case 'RBU' % change to 405nm
+        set(obj.handles.tx.curLED, 'String', 'RGU');
         obj.ledInd = [1 2 4];
-      case 'withGreen' % change to 495nm
-        set(obj.handles.tx.curLED, 'String', 'withBlue');
-        obj.ledInd = [1 3 4];
+      case 'RGU' % change to 495nm
+        if obj.fourReady
+          set(obj.handles.tx.curLED, 'String', 'RBU');
+          obj.ledInd = [1 3 4];
+        else
+          warndlg('No 4th spectra yet');
+        end
     end
   end % onSelectedSwitchLED
 
   function onSelectedPlot(obj,~,~)
-    if ~obj.showPlot
-      obj.showPlot = true;
-      obj.plotStatus();
-    end
+    % if ~obj.showPlot
+    %   obj.showPlot = true;
+    %   obj.plotStatus();
+    % end
+
     switch whichPlot
       case 'SPD'
         obj.handles.lines.R = line('Parent', obj.handles.ax,...
           obj.calib.wl, obj.calib.spd(1,:),...
           'LineWidth', 1.5, 'Color', getPlotColor('l'));
-          switch get(obj.handles.tx.curLED)
-            case 'withBlue'
+          switch get(obj.handles.tx.curLED, 'String')
+            case 'RBU'
               obj.handles.lines.G = line('Parent', obj.handles.ax,...
                 obj.calib.wl, obj.calib.spd(2,:),...
                 'LineWidth', 1.5, 'Color', getPlotColor('m'));
-            case 'withGreen'
+            case 'RGU'
               obj.handles.lines.B = line('Parent', obj.handles.ax,...
                 obj.calib.wl, obj.calib.spd(3,:),...
                 'LineWidth', 1.5, 'Color', getPlotColor('s'));
@@ -110,7 +125,7 @@ methods
         % get protocol
         protocolName = obj.acquisitionService.getSelectedProtocol();
         % get stimTime, preTime, tailTime
-        switch protocolName
+        switch protocolNameu
           case {'FullChromaticGrating', 'TestGrating', 'ChromaticGrating'}
             % get spatialFrequency, contrast, spatialClass
             % x-axis will be space
@@ -124,12 +139,12 @@ methods
             x = 0:0.001:1;
             for ii = 1:3
               ind = obj.ledInd(ii);
-              if isempty(obj.handles.lines.(ledStr(ind)))
-                obj.handles.lines.(ledStr(ind)) = line('Parent', obj.handles.ax,...
+              if isempty(obj.handles.lines.(obj.ledStr(ind)))
+                obj.handles.lines.(obj.ledStr(ind)) = line('Parent', obj.handles.ax,...
                 x, normpdf(x, obj.calib.bkgd(ind), stdev),...
-                'Color', getPlotColor(coneStr(ii)), 'LineWidth', 1.5);
+                'Color', getPlotColor(obj.coneStr(ii)), 'LineWidth', 1.5);
               else
-                set(obj.handles.lines.(ledStr(ind)),...
+                set(obj.handles.lines.(obj.ledStr(ind)),...
                   'XData', x, 'YData', normpdf(x, obj.calib.bkgd(ind), stdev));
               end
             end
@@ -150,14 +165,14 @@ methods
         end
 
         switch whichLED
-          case 'withBlue'
+          case 'RBU'
             if isempty(obj.handles.lines.G)
               obj.handles.lines.G = line('Parent', obj.handles.ax,...
                 'LineWidth', 1.5, 'Color', getPlotColor('m'));
             else
               set(obj.handles.lines.G, 'XData', x, 'YData', y);
             end
-          case 'withGreen'
+          case 'RGU'
             if isempty(obj.handles.lines.B)
               obj.handles.lines.B = line('Parent', obj.handles.ax, x, y,...
               'LineWidth', 1.5, 'Color', getPlotColor('s'));

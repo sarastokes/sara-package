@@ -340,6 +340,7 @@ function r = analyzeOnline(r, varargin)
       r.params.stimF = floor(r.params.stimTime/1000 * r.params.frameRate * binsPerFrame);
 
       analysis.binsPerFrame = binsPerFrame;
+      analysis.binRate = analysis.binsPerFrame * r.params.frameRate;
 
       analysis.strf = zeros(r.params.numYChecks, r.params.numXChecks, floor(r.params.frameRate * analysis.binsPerFrame * 0.5/r.params.frameDwell));
       analysis.spatialRF = zeros(r.params.numYChecks, r.params.numXChecks);
