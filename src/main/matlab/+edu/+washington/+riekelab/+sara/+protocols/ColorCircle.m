@@ -1,4 +1,4 @@
-classdef ColorCircle < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef ColorCircle < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % might merge with ColorExchange, DKL space
 		%
 		% 2Mar2017 - flipped the L and M cone weights. L-M is now 0, not 180
@@ -38,7 +38,7 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
   % set stimulus class
   if obj.maskRadius == 0

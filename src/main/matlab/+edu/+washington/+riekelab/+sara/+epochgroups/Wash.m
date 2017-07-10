@@ -1,4 +1,4 @@
-classdef Wash < edu.washinton.riekelab.sara.epochgroups.EpochGroup
+classdef Wash < edu.washington.riekelab.sara.epochgroups.EpochGroup
 
 methods
   function obj = Wash()

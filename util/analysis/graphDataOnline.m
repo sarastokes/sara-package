@@ -1033,7 +1033,7 @@ else
           'LineWidth', 1, 'Color', getPlotColor(r.params.chromaticClass));
         plot(S2.F1, posMicron, analysis.F2, '-o',... 
           'Linewidth', 1, 'Color', getPlotColor(r.params.chromaticClass, 0.5));
-        legend('f1', 'f2'); set(legend, 'EdgeColor', 'w');
+        legend(S2.F1, 'f1', 'f2'); set(legend, 'EdgeColor', 'w');
         tmp = xlabel('bar position (microns)'); set(tmp, 'FontSize', 10);
         title(S2.F1, titlestr);
 
@@ -1099,11 +1099,11 @@ else
         'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
       title(S.F1, [r.cellName ' - ' num2str(100*r.params.contrast) '% ',... 
         r.params.chromaticClass ' ' r.params.stimulusClass ' ' r.params.temporalClass ' sMTF']);
-
       semilogx(S.P1, pix2micron(r.params.radii,r), analysis.P1, 'o-',... 
         'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
+      figPos(gcf, 0.85, 0.85);
 
-      if strcmp(r.params.temporalClass, 'squarewave')
+      % if strcmp(r.params.temporalClass, 'squarewave')
         S2 = blankF1Fig;
         semilogx(S2.F1, pix2micron(r.params.radii,r), analysis.F1, 'o-',... 
           'Color', getPlotColor(r.params.chromaticClass), 'LineWidth', 1);
@@ -1116,9 +1116,9 @@ else
         semilogx(S2.P1, pix2micron(r.params.radii,r), analysis.P1, 'o-',... 
           'color', getPlotColor(r.params.chromaticClass), 'linewidth', 1);
         semilogx(S2.P1, pix2micron(r.params.radii,r), analysis.P2, 'o-',... 
-          'color', getPlotColor(r.params.chromaticClass, 0.5), 'linewidth', 1);
-        
-      end
+          'color', getPlotColor(r.params.chromaticClass, 0.5), 'linewidth', 1);     
+        figPos(gcf, 0.85, 0.85);
+      % end
 
       % add in the fit
       if isfield(analysis, 'f1Fit')
@@ -1134,7 +1134,7 @@ else
               '.-', 'Color', c2, 'LineWidth', 1);
         end
       end
-      figPos(gcf, 0.85, 0.85);
+
 
     case 'edu.washington.riekelab.manookin.protocols.GliderStimulus'
       figure(); hold on;

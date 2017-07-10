@@ -1,4 +1,4 @@
-classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
     properties
         amp                             % Output amplifier
@@ -53,7 +53,7 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
             obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 

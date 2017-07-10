@@ -13,6 +13,7 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
         ndf
         objectiveMag
         muPerPixel
+        greenLEDName
     end
 
     methods
@@ -23,7 +24,7 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             obj.showFigure('edu.washington.riekelab.figures.FrameTimingFigure', obj.rig.getDevice('Stage'), obj.rig.getDevice('Frame Monitor'));
 
             % Show the progress bar.
-            obj.showFigure('edu.washington.riekelab.manookin.figures.ProgressFigure', obj.numberOfAverages);
+            % obj.showFigure('edu.washington.riekelab.manookin.figures.ProgressFigure', obj.numberOfAverages);
 
             % Get the frame rate. Need to check if it's a LCR rig.
             if ~isempty(strfind(obj.rig.getDevice('Stage').name, 'LightCrafter'))
@@ -38,9 +39,8 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             end
 
             % Get the quantal catch.
-            calibrationDir = 'C:\Users\Public\Documents\GitRepos\Symphony2\sara-package\calibration\';
+            calibrationDir = 'C:\Users\sarap\Google Drive\MATLAB\Symphony\sara-package\calibration\';
             q = load([calibrationDir 'QCatch.mat']);
-
 
             % Look for a filter wheel device.
             fw = obj.rig.getDevices('FilterWheel');
@@ -54,7 +54,13 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                 if length(ndString) == 1
                     ndString = ['0', ndString];
                 end
-                obj.quantalCatch = q.qCatch.(['ndf', ndString]);
+                obj.greenLEDName = filterWheel.getGreenLEDName();
+                if strcmp(obj.greenLEDName, 'Green_505nm')
+                    obj.quantalCatch = q.qCatch.(['ndf', ndString])([1 2 4],:);
+                else
+                    obj.quantalCatch = q.qCatch.(['ndf', ndString])([1 3 4],:);
+                end
+%                 obj.quantalCatch = q.qCatch.(['ndf', ndString]);
                 obj.muPerPixel = filterWheel.getMicronsPerPixel();
 
                 % Adjust the quantal catch depending on the objective.
@@ -63,6 +69,8 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                 elseif obj.objectiveMag == 60
                     obj.quantalCatch = obj.quantalCatch .* ([0.664836;0.630064;0.732858]*ones(1,4));
                 end
+
+
             else
                 obj.objectiveMag = 'null';
                 obj.ndf = 4;
@@ -72,10 +80,41 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                 end
                 obj.quantalCatch = q.qCatch.(['ndf', ndString]);
                 obj.muPerPixel = 0;
+                obj.greenLEDName = 'Green_505nm';
             end
 
             % Get the canvas size.
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
+        end
+
+        % Set LED weights based on grating type.
+        function setColorWeights(obj)
+            switch obj.chromaticClass
+                case 'red'
+                    obj.colorWeights = [1 0 0];
+                case 'green'
+                    obj.colorWeights = [0 1 0];
+                case 'blue'
+                    obj.colorWeights = [0 0 1];
+                case 'yellow'
+                    obj.colorWeights = [1 1 0];
+                case 'L-iso'
+                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 0 0]';
+                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
+                case 'M-iso'
+                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [0 1 0]';
+                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
+                case 'S-iso'
+                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [0 0 1]';
+                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
+                case 'LM-iso'
+                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 1 0]';
+                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
+                otherwise
+                    obj.colorWeights = [1 1 1];
+            end
+
+            obj.colorWeights = obj.colorWeights(:)';
         end
 
         function prepareEpoch(obj, epoch)
@@ -154,6 +193,15 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             stim = gen.generate();
         end
 
+%         function completeEpoch(obj, epoch)
+%             completeEpoch@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj, epoch);
+%
+%             % Get the frame times and frame rate and append to epoch.
+% %             [frameTimes, actualFrameRate] = obj.getFrameTimes(epoch);
+% %             epoch.addParameter('frameTimes', frameTimes);
+% %             epoch.addParameter('actualFrameRate', actualFrameRate);
+%         end
+
         function [frameTimes, actualFrameRate] = getFrameTimes(obj, epoch)
             resp = epoch.getResponse(obj.rig.getDevice('Frame Monitor'));
             frameMonitor = resp.getData();
@@ -167,6 +215,14 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                 frameTimes = frameTimes(frameTimes >= obj.preTime*1e-3*obj.sampleRate & frameTimes <= (obj.preTime+obj.stimTime)*1e-3*obj.sampleRate);
                 actualFrameRate = obj.sampleRate / (mean(diff(frameTimes(frameTimes >= obj.preTime/1000*obj.sampleRate))));
             end
+        end
+
+        function [tf, msg] = isValid(obj)
+          [tf, msg] = isValid@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
+          if tf
+            tf = ~isempty(obj.rig.getDevices('Stage'));
+            msg = 'No stage';
+          end
         end
 
         function response = getResponseByType(obj, response, onlineAnalysis)

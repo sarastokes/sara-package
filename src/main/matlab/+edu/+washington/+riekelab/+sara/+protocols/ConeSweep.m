@@ -1,4 +1,4 @@
-classdef ConeSweep < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef ConeSweep < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
 properties
   amp
@@ -13,7 +13,6 @@ properties
   temporalClass = 'sinewave'
   temporalFrequency = 2
   centerOffset = [0,0]
-  equalQuantalCatch = false
   checkSpikes = false                     % pulls up SpikeDetectionFigure
   onlineAnalysis = 'extracellular'
   numberOfAverages = uint16(9)
@@ -51,7 +50,7 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
   % set stimulus class
   if obj.maskRadius == 0
@@ -167,20 +166,6 @@ end
       else
         colorCall = obj.stimClass(index);
       end
-
-      if obj.equalQuantalCatch && strcmp(obj.stimClass, 'lms')
-        switch colorCall
-          case 'm'
-            obj.currentContrast = 0.73;
-          case 's'
-            obj.currentContrast = 0.28;
-          otherwise
-            obj.currentContrast = 1;
-        end
-      else
-        obj.currentContrast = obj.contrast;
-      end
-      epoch.addParameter('currentContrast', obj.currentContrast);
 
       [obj.currentColorWeights, obj.sweepColor, obj.chromaticClass]  = setColorWeightsLocal(obj, colorCall);
       obj.plotColor = obj.sweepColor;

@@ -1,4 +1,4 @@
-classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % ID and get temporal RF - will divide up into seperate protocols eventually
     % 25Jul16 - rgb sta works, f1f2 mtf doesn't
 
@@ -55,7 +55,7 @@ methods
     end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
     [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
 

@@ -1,4 +1,4 @@
-classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
 % SSP 6Nov2016 - added aperture to properties, createPresentation lines 312-320
 % SSP 21Feb2017 - added bar noise option, cleaned up protocol
@@ -50,7 +50,7 @@ methods
   end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
     obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 

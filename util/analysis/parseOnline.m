@@ -106,8 +106,8 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
         % compare these two:
         r.params.frameRate = epoch.protocolParameters('frameRate');
         if strcmp(epoch.getResponses{deviceNum}.device.name, 'Frame Monitor')
-          r.stim.frameTimes = cell(r.numEpochs,1);
-          r.stim.frameRate = zeros(r.numEpochs, 1);
+          % r.stim.frameTimes = cell(r.numEpochs,1);
+          % r.stim.frameRate = zeros(r.numEpochs, 1);
           frameFlag = true;
           fprintf('found frame data\n');
         end
@@ -118,12 +118,13 @@ function r = parseOnline(symphonyInput, recordingType, varargin)
       end
       r.ampNum = ampNum;
     end
-
-    % get frame data TODO: don't include in fast version
-    % if frameFlag && strcmp(r.protocol, 'edu.washington.riekelab.sara.protocols.SpatialReceptiveField')
-    %   % TODO: speed up
-    %     [r.stim.frameTimes{ep,1}, r.stim.frameRate(ep)] = edu.washington.riekelab.sara.utils.getFrameTiming(epoch.getResponses{deviceNum}.getData);
-    % end
+    
+    if frameFlag
+        if ep == 1
+            r.frames = zeros(r.numEpochs, length(epoch.getResponses{deviceNum}.getData));
+        end
+        r.frames(ep,:) = epoch.getResponses{deviceNum}.getData;
+    end
 
     % analyze by type
     switch r.params.recordingType

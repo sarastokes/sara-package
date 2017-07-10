@@ -1,4 +1,4 @@
-classdef Drug < edu.washinton.riekelab.sara.epochgroups.EpochGroup
+classdef Drug < edu.washington.riekelab.sara.epochgroups.EpochGroup
 
 methods
   function obj = Drug()

@@ -1,4 +1,4 @@
-classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     properties
         amp                             % Output amplifier
         preTime = 500                   % Spot leading duration (ms)
@@ -6,7 +6,7 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
         tailTime = 500                  % Spot trailing duration (ms)
         contrast = 1.0                  % Contrast (-1 to 1)
         innerRadius = 0                 % Inner radius in pixels.
-        outerRadius = 456               % Outer radius in pixels.
+        outerRadius = 1500               % Outer radius in pixels.
         chromaticClass = 'achromatic'   % Spot color
         backgroundIntensity = 0.0       % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
@@ -30,7 +30,7 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
             obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
             obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure', obj.rig.getDevice(obj.amp));

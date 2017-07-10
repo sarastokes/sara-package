@@ -1,4 +1,4 @@
-classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % test spatial (non)linearity - checks if inputs sum/null
 
 
@@ -54,7 +54,7 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
     clear obj.stimValue;
     if strcmp(obj.paradigmClass, 'baselineA_up')

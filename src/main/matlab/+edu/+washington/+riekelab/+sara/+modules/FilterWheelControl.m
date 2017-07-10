@@ -113,7 +113,7 @@ classdef FilterWheelControl < symphonyui.ui.Module
 		end % onSelectedObjectiveSetting
 
 		function populateLedList(obj)
-			ledNums = {134, 124};
+			ledValues = {134, 124};
 			ledStrings = {'RBU', 'RGU'};
 
 			set(obj.ledPopupMenu, 'String', ledStrings);
@@ -130,6 +130,7 @@ classdef FilterWheelControl < symphonyui.ui.Module
 		function loadQuantalCatch(obj)
 			% Get the quantal catch
 			obj.q = load('QCatch.mat');
+        end
 
 		function setQuantalCatch(obj)
 			obj.objectiveMag = obj.filterWheel.getObjective();

@@ -345,11 +345,11 @@ function r = parseDataOnline(symphonyInput, recordingType, varargin)
     r.params.contrast = epochBlock.protocolParameters('contrast');
     r.params.temporalClass = epochBlock.protocolParameters('temporalClass');
     r.params.temporalFrequency = epochBlock.protocolParameters('temporalFrequency');
-    r.params.radii = epochBlock.protocolParameters('radii');
-    if r.numEpochs <= length(r.params.radii)
-      r.params.radii = r.params.radii(1:r.numEpochs);
-    else
-      r.params.radii = [r.params.radii r.params.radii(1:r.numEpochs-length(r.params.radii))];
+    % r.params.radii = epochBlock.protocolParameters('radii');
+    r.params.radii = zeros(1, r.numEpochs);
+    for ep = 1:r.numEpochs
+        epoch = epochBlock.getEpochs{ep};
+        r.params.radii(1, ep) = epoch.protocolParameters('radius');
     end
     r.params.centerOffset = epochBlock.protocolParameters('centerOffset');
     [r.params.plotColor,~] = getPlotColor(r.params.chromaticClass);

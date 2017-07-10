@@ -1,4 +1,4 @@
-classdef ConeTestGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef ConeTestGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     properties
         amp                             % Output amplifier
         preTime = 250                   % Grating leading duration (ms)
@@ -37,7 +37,7 @@ classdef ConeTestGrating < edu.washington.riekelab.manookin.protocols.ManookinLa
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
             obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
             try

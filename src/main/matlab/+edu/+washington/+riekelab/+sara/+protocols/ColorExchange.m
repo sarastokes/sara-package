@@ -1,4 +1,4 @@
-classdef ColorExchange < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+classdef ColorExchange < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 
 properties
 	amp
@@ -38,7 +38,7 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
   % set stimulus class
   if obj.maskRadius == 0

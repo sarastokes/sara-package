@@ -1,4 +1,4 @@
-ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara
+ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % Chromatic grating but with my response figures and option for mask
 
 % 12Sep2016 - copied mike's ChromaticGrating protocol, added working online analysis & response w/ stim figure
@@ -56,7 +56,7 @@ ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.proto
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
             if length(obj.orientations)>1
                 if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))

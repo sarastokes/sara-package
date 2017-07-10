@@ -1,4 +1,4 @@
-classdef Control < edu.washinton.riekelab.sara.epochgroups.EpochGroup
+classdef Control < edu.washington.riekelab.sara.epochgroups.EpochGroup
 
 methods
   function obj = Control()

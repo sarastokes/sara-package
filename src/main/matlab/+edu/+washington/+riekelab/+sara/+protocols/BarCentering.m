@@ -1,4 +1,5 @@
-classdef BarCentering < edu.washington.riekelab.sara.protocols.ManookinLabStageProtocolSara
+classdef BarCentering < edu.washington.riekelab.sara.protocols.SaraStageProtocol
+  % 10Jul2017 - SSP - updated to run x, y together with new figures
 
 properties
   amp                             % Output amplifier
@@ -8,7 +9,6 @@ properties
   intensity = 1.0                 % Bar intensity (0-1)
   temporalFrequency = 2.0         % Modulation frequency (Hz)
   barSize = [50 500]              % Bar size [width, height] (pix)
-  searchAxis = 'xaxis'            % Search axis
   temporalClass = 'squarewave'    % Squarewave or pulse?
   positions = -300:50:300         % Bar center position (pix)
   backgroundIntensity = 0.5       % Background light intensity (0-1)
@@ -20,20 +20,23 @@ end
 
 properties (Hidden)
   ampType
-  searchAxisType = symphonyui.core.PropertyType('char', 'row', {'xaxis', 'yaxis'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'squarewave', 'pulse'})
   chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'red', 'green', 'blue', 'yellow', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+  searchAxis
   position
   orientation
+  orientations
   sequence
+
+  % delete soon:
   F1
   F2
   xaxis
-  bkg
 end
 
 properties (Hidden, Transient)
+  % also to be deleted soon
     analysisFigure
 end
 
@@ -45,7 +48,7 @@ methods
   end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocolSara(obj);
+    prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
       obj.showFigure('edu.washington.riekelab.manookin.figures.ResponseFigure', obj.rig.getDevices('Amp'), ...
           'numberOfAverages', obj.numberOfAverages);
@@ -54,9 +57,13 @@ methods
         titlestr = [obj.searchAxis ' bar centering'];
         try
           obj.showFigure('edu.washington.riekelab.sara.figures.F1F2Figure',...
-          obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis, obj.preTime, obj.stimTime,... 
-          'xName', 'position', 'temporalFrequency', obj.temporalFrequency, 'showF2', true,... 
-          'chromaticClass', obj.chromaticClass, 'titlestr', titlestr);
+            obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis, obj.preTime, obj.stimTime,... 
+            'xName', 'position', 'temporalFrequency', obj.temporalFrequency, 'showF2', true,... 
+            'chromaticClass', obj.chromaticClass, 'titlestr', titlestr);
+
+          obj.showFigure('edu.washington.riekelab.sara.figures.BarCenteringFigure',...
+            obj.rig.getDevice(obj.amp), obj.preTime, obj.stimTime, obj.temporalFrequency,... 
+            'recordingType', obj.onlineAnalysis);
         catch
           obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CTRanalysis);
           f = obj.analysisFigure.getFigureHandle();
@@ -67,35 +74,28 @@ methods
           obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis,...
           obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency,...
           'titlestr', titlestr);
+        end
       end
 
-      % Create the matrix of bar positions.
+      % begin with x-axis
+      obj.searchAxis = 'xaxis';
+      % set up the stimulus parameters
       numReps = ceil(double(obj.numberOfAverages) / length(obj.positions));
 
-      % Get the array of radii.
+      obj.orientations = repmat([0 90], length(obj.positions), 1);
+      obj.orientations = obj.orientations(:)';
+
       pos = obj.positions(:) * ones(1, numReps);
       pos = pos(:);
-      obj.xaxis = pos';
       obj.F1 = zeros(1,length(pos));
       obj.F2 = zeros(1,length(pos));
 
-      if strcmp(obj.searchAxis, 'xaxis')
-          obj.orientation = 0;
-          obj.sequence = [pos+obj.centerOffset(1) obj.centerOffset(2)*ones(length(pos),1)];
-      else
-          obj.orientation = 90;
-          obj.sequence = [obj.centerOffset(1)*ones(length(pos),1) pos+obj.centerOffset(2)];
-      end
+      x = [pos+obj.centerOffset(1) obj.centerOffset(2)*ones(length(pos),1)];
+      y = [obj.centerOffset(1)*ones(length(pos),1) pos+obj.centerOffset(2)];
+      obj.sequence = [x; y];
 
-      if strcmp(obj.stageClass, 'LightCrafter')
-          obj.chromaticClass = 'achromatic';
-      end
-
-      if (obj.backgroundIntensity == 0 || strcmp(obj.chromaticClass, 'achromatic'))
-          obj.bkg = 0.5;
-      else
-          obj.bkg = obj.backgroundIntensity;
-      end
+      % remove soon
+      obj.xaxis = pos';
 
       obj.setColorWeights();
   end % prepareRun
@@ -170,9 +170,9 @@ methods
       rect.position = obj.canvasSize/2 + obj.position;
 
       if strcmp(obj.stageClass, 'Video')
-          rect.color = obj.intensity*obj.colorWeights*obj.bkg + obj.bkg;
+          rect.color = obj.intensity*obj.colorWeights*obj.backgroundIntensity + obj.backgroundIntensity;
       else
-          rect.color = obj.intensity*obj.bkg + obj.bkg;
+          rect.color = obj.intensity*obj.backgroundIntensity + obj.backgroundIntensity;
       end
 
       % Add the stimulus to the presentation.
@@ -192,22 +192,30 @@ methods
 
       function c = getSpotColorVideoSqwv(obj, time)
         if strcmp(obj.stageClass, 'Video')
-          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.colorWeights * obj.bkg + obj.bkg;
+          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.colorWeights * obj.backgroundIntensity + obj.backgroundIntensity;
         else
-          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.bkg + obj.bkg;
+          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
         end
       end
   end
 
   function prepareEpoch(obj, epoch)
-      prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+      prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
       obj.position = obj.sequence(obj.numEpochsCompleted+1, :);
+      obj.orientation = obj.orientations(obj.numEpochsCompleted+1, :);
+      
+      if obj.numEpochsCompleted == length(obj.positions)
+        obj.searchAxis = 'yaxis';
+      end
+      
       if strcmp(obj.searchAxis, 'xaxis')
           epoch.addParameter('position', obj.position(1));
       else
           epoch.addParameter('position', obj.position(2));
       end
+      epoch.addParameter('searchAxis', obj.searchAxis);
+      epoch.addParameter('orientation', obj.orientation);
   end
 
   function tf = shouldContinuePreparingEpochs(obj)
@@ -217,5 +225,5 @@ methods
   function tf = shouldContinueRun(obj)
       tf = obj.numEpochsCompleted < obj.numberOfAverages;
   end
-end
-end
+  end % methods
+end % classdef
