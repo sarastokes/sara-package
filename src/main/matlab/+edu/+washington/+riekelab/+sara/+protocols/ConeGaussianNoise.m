@@ -2,34 +2,36 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
 
 properties
 	amp
-	preTime = 250
-	stimTime = 10000										% Stimulus time for non-null (ms)
-	tailTime = 250
-	radius = 1500
-	innerRadius = 0
-	stDev = 0.3
-	recordingType = 'extracellular'
-	randomSeed = true
-	frameDwell = 1
-	backgroundIntensity = 0.5
-	centerOffset = [0 0]
-	useFrameMonitor = false
+	preTime = 250							% Stimulus leading duration (ms)
+	stimTime = 10000						% Stimulus duration (ms)
+	tailTime = 250							% Stimulus trailing duration (ms)
+	radius = 1500							% Spot radius in pixels
+	innerRadius = 0							% For annulus (pix)
+	stDev = 0.3								% Noise standard deviation
+	onlineAnalysis = 'extracellular'		% Recording type (for analysis)
+	randomSeed = true						% Repeating or random
+	frameDwell = 1							% Frames per stim
+	backgroundIntensity = 0.5				% Mean light level (0-1)
+	centerOffset = [0 0]					% Center offset in pixels (x,y)
 end
 
 properties(Hidden)
 	% protocol properties
 	ampType
 	ledClassType = symphonyui.core.PropertyType('char', 'row', {'505nm', '570nm'})
+    onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+	recording
 	stimulusClass
-
-	% epoch properties set by figure
-	currentCone
-	currentStimTime
 
 	% epoch properties set by protocol
 	ledWeights
 	seed
 	noiseStream
+
+	% epoch properties set by figure
+	currentCone
+	currentStimTime
+
 end
 
 properties (Hidden, Dependent)
@@ -58,18 +60,13 @@ function prepareRun(obj)
 
 	obj.currentCone = 'a';
 
-    if obj.useFrameMonitor
-        FMdata = obj.rig.getDevice('Frame Monitor');
-    else
-        FMdata = [];
-    end
-    
+    % FMdata = obj.rig.getDevice('Frame Monitor');    
     filtWheel = obj.rig.getDevice('FilterWheel');
 
 	obj.fh = obj.showFigure('edu.washington.riekelab.sara.figures.ConeFilterFigure',...
-		obj.rig.getDevice(obj.amp), FMdata, filtWheel,...
+		obj.rig.getDevice(obj.amp), [], filtWheel,...
 		obj.preTime, obj.stimTime,...
-		'recordingType', obj.recordingType, 'stDev', obj.stDev,...
+		'recordingType', obj.onlineAnalysis, 'stDev', obj.stDev,...
 		'frameDwell', obj.frameDwell);
 end % prepareRun
 
@@ -121,24 +118,14 @@ function prepareEpoch(obj, epoch)
 	% don't run 10s if it's ignored
 	obj.currentStimTime = obj.fh.nextStimTime;
 
-%     % get the filter wheel 
-%     fw = obj.rig.getDevices('Filter Wheel');
-%     if ~isempty(fw)
-%         % get the current green LED setting
-%         greenLEDName = filterWheel.getGreenLEDName();
-%         % check to see if it's compatible with currentCone
-%         % if not show a message box that pauses protocol
-%         if strcmp(greenLEDName, 'Green_505nm')
-%             if obj.currentCone ~= 'S'
-%                 msgbox('Change green LED to Green_570nm', 'LED monitor');
-%             end
-%         elseif strcmp(greenLEDName, 'Green_570nm')
-%             if obj.currentCone == 'S'
-%                 msgbox('Change green LED to Green_505nm', 'LED monitor');
-%                 filterwheel.setGreenLEDName();
-%             end
-%         end
-%     end 
+	% repetitive for now
+	try
+		filtWheel = obj.rig.getDevice('FilterWheel');
+		greenLED = fw.getGreenLEDName();
+	catch
+		greenLED = 'unknown';
+	end
+	epoch.addParameter('greenLED', greenLED);
     
 	fprintf('protocol - running %s-iso\n', obj.currentCone);
 	epoch.addParameter('coneClass', obj.currentCone);

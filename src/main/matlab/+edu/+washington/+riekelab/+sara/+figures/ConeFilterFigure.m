@@ -1,5 +1,5 @@
 classdef ConeFilterFigure < symphonyui.core.FigureHandler
-	% just the outline for now
+	% 
 properties (SetAccess = private)
     % required:
 	device
@@ -7,7 +7,6 @@ properties (SetAccess = private)
 	frameMonitor
 	preTime
 	stimTime
-
 	stDev
     % optional:
 	recordingType
@@ -34,9 +33,8 @@ properties
 	nextStimulus % holds future parameters
 
 	% protocol control properties
-	protocolShouldStop = false
 	ignoreNextEpoch = false
-	runPausedSoMayNeedNullEpoch = false
+	addNullEpoch = false
 	ledNeedsToChange = false
 
 	xaxis
@@ -49,7 +47,10 @@ properties (Constant)
 
 	% not really worth making an editable parameter right now
 	BINSPERFRAME = 6
-  FILTERLENGTH = 1000
+  	FILTERLENGTH = 1000
+
+  	% green LED code is potentially problematic. option to disable
+  	LEDMONITOR = true
 
 	% cone options.. might add LM-iso at some point
 	CONES = 'lmsa'
@@ -157,19 +158,19 @@ methods
 			'ColumnEditable', false);
 
 		paramLayout = uix.VBox('Parent', dataLayout,...
-    	'Spacing', 5, 'Padding', 5);
-    xlimLayout = uix.HBox('Parent', paramLayout);
+    		'Spacing', 5, 'Padding', 5);
+    	xlimLayout = uix.HBox('Parent', paramLayout);
 
 		obj.handles.pb.changeXLim = uicontrol('Parent', xlimLayout,...
 			'Style', 'push',...
 			'String', 'Change xlim',...
 			'Callback', @obj.onSelected_changeXLim);
-    obj.handles.ed.changeXLim = uicontrol('Parent', xlimLayout,...
+    	obj.handles.ed.changeXLim = uicontrol('Parent', xlimLayout,...
 			'Style', 'edit',...
 			'String', '1000');
         set(xlimLayout, 'Widths', [-3 -1]);
 
-    smoothLayout = uix.HBox('Parent', paramLayout);
+    	smoothLayout = uix.HBox('Parent', paramLayout);
 		obj.handles.cb.smoothFilt = uicontrol('Parent', smoothLayout,...
 			'String', 'Smooth filters',...
 			'Style', 'checkbox',...
@@ -179,7 +180,7 @@ methods
 			'String', '0');
         set(smoothLayout, 'Widths', [-3 -1]);
 
-    obj.handles.cb.normPlot = uicontrol('Parent', paramLayout,...
+    	obj.handles.cb.normPlot = uicontrol('Parent', paramLayout,...
 			'String', 'Normalize',...
 			'Style', 'checkbox',...
 			'Callback', @obj.onSelected_normPlot);
@@ -188,9 +189,9 @@ methods
 		obj.handles.flags.smoothFilt = false;
 		obj.handles.flags.normPlot = false;
 
-    set(paramLayout, 'Heights', [-1 -1 -1]);
-    set(resultLayout, 'Heights', [-1.5 -1]);
-    set(dataLayout, 'Widths', [-2 -1]);
+    	set(paramLayout, 'Heights', [-1 -1 -1]);
+    	set(resultLayout, 'Heights', [-1.5 -1]);
+    	set(dataLayout, 'Widths', [-2 -1]);
 
 		% display edit boxes
 		uicontrol('Parent', uiLayout,...
@@ -202,7 +203,7 @@ methods
 		obj.handles.ed.queue = uicontrol('Parent', uiLayout,...
 			'Style', 'edit',...
 			'String', '');
-    obj.handles.pb.addToQueue = uicontrol('Parent', uiLayout,...
+    	obj.handles.pb.addToQueue = uicontrol('Parent', uiLayout,...
 			'Style', 'push',...
 			'String', 'UpdateQueue',...
 			'Callback', @obj.onSelected_updateQueue);
@@ -388,7 +389,7 @@ methods
 		%% ------------------------------------------------------------- stimuli ---
 		obj.waitIfNecessary();
 
-		if length(obj.nextStimulus.cone) > 0
+		if length(obj.nextStimulus.cone) > 0 && obj.LEDMONITOR
 			obj.checkNextCone();
 		end
 
@@ -400,7 +401,7 @@ methods
 	end % handleEpoch
 
 %% -------------------------------------------------------------- callbacks ----
-	function onChanged_normPlot(obj,~,~)
+	function onSelected_normPlot(obj,~,~)
 		if get(obj, 'Value') == get(obj, 'Max')
 			obj.handles.flags.normPlot = true;
 		else
@@ -410,7 +411,7 @@ methods
 		obj.updateFilterPlot();
 	end % onChanged_normPlot
 
-	function onChanged_smoothFilt(obj,~,~)
+	function onSelected_smoothFilt(obj,~,~)
 		if get(obj.handles.cb.smoothFilt, 'Value') == 1
 			obj.handles.flags.smoothFilt = true;
 			try
@@ -523,7 +524,6 @@ methods
 		obj.epochNum = 0;
 		obj.nextStimulus.cone = [];
 		obj.nextStimulus.stimTime = [];
-		obj.protocolShouldStop = false;
 	end % resetPlots
 
 	function saveDlg(obj)
@@ -542,22 +542,24 @@ methods
 		% get the filter wheel
 		fw = obj.filtWheel;
 		if ~isempty(fw)
-				% get the current green LED setting
-				greenLEDName = obj.filtWheel.getGreenLEDName();
-				% check to see if it's compatible with currentCone
-				% if not show a message box that pauses protocol
-				if strcmp(greenLEDName, 'Green_505nm')
-						if ~strcmp(obj.nextStimulus.cone(1), 's')
-								obj.ledNeedsToChange = true;
-								msgbox('Change green LED to Green_570nm', 'LED monitor');
-								% fw.setGreenLEDName('Green_570nm');
-						end
-				elseif strcmp(greenLEDName, 'Green_570nm')
-						if strcmp(obj.nextStimulus.cone(1), 's')
-								obj.ledNeedsToChange = true;
-								msgbox('Change green LED to Green_505nm', 'LED monitor');
-						end
+			% get the current green LED setting
+			greenLEDName = obj.filtWheel.getGreenLEDName();
+			% check to see if it's compatible with currentCone
+			% if not show a message box that pauses protocol
+			if strcmp(greenLEDName, 'Green_505nm')
+				if ~strcmp(obj.nextStimulus.cone(1), 's')
+					obj.ledNeedsToChange = true;
+					msgbox('Change green LED to Green_570nm', 'LED monitor');
+					obj.waitForLED();
+					% fw.setGreenLEDName('Green_570nm');
 				end
+			elseif strcmp(greenLEDName, 'Green_570nm')
+				if strcmp(obj.nextStimulus.cone(1), 's')
+					obj.ledNeedsToChange = true;
+					msgbox('Change green LED to Green_505nm', 'LED monitor');
+					obj.waitForLED();
+				end
+			end
 		end
 	end % checkNextCone
 
@@ -573,11 +575,10 @@ methods
 
 	function assignNextStimulus(obj)
         % This should be the very last thing called per epoch
-		%if obj.handles.leadWithNull.Value && obj.runPausedSoMayNeedNullEpoch
-		if obj.runPausedSoMayNeedNullEpoch
+		if obj.addNullEpoch
 			disp('adding null epoch - no stimuli');
 			obj.ignoreNextEpoch = true;
-			obj.runPausedSoMayNeedNullEpoch = false;
+			obj.addNullEpoch = false;
 			% add an extra stimulus with different stim time
 			obj.nextStimulus.stimTime = [obj.NULLTIME, obj.nextStimulus.stimTime];
 			obj.nextStimulus.cone = [obj.nextStimulus.cone(1), obj.nextStimulus.cone];
@@ -585,12 +586,13 @@ methods
 			% keeping these two apart for now
 			disp('adding null epoch - led change');
 			obj.ignoreNextEpoch = true;
-			obj.runPausedSoMayNeedNullEpoch = false;
+			obj.addNullEpoch = false;
 			% add an extra stimulus with different stim time
 			obj.nextStimulus.stimTime = [obj.NULLTIME, obj.nextStimulus.stimTime];
 			obj.nextStimulus.cone = [obj.nextStimulus.cone(1), obj.nextStimulus.cone];
 		else
-			obj.ignoreNextEpoch = true;
+			obj.ignoreNextEpoch = false;
+			obj.addNullEpoch = false;
 		end
 
 		% just chromatic class for now
@@ -598,8 +600,8 @@ methods
 		fprintf('figure - setting stim time to %u\n', obj.nextStimulus.stimTime(1));
 		obj.nextCone = obj.nextStimulus.cone(1);
 		obj.nextStimTime = obj.nextStimulus.stimTime(1);
-    % set the coneInd
-    obj.coneInd = strfind(obj.CONES, obj.nextCone);
+    	% set the coneInd
+    	obj.coneInd = strfind(obj.CONES, obj.nextCone);
 
 		% move queue up
 		obj.nextStimulus.cone(1) = [];
@@ -607,7 +609,7 @@ methods
 
 		% reflect in the ui
 		obj.updateUi();
-	end
+	end % assignNextStimulus
 
 	function resumeProtocol(obj)
 		if isempty(obj.nextStimulus.cone)
@@ -621,18 +623,18 @@ methods
 	function waitIfNecessary(obj)
 		if isempty(obj.nextStimulus.cone)
 			disp('waiting for input');
-			set(obj.figureHandle, 'Name', 'Cone Filter Figure: PAUSED');
-			obj.runPausedSoMayNeedNullEpoch = true;
+			set(obj.figureHandle, 'Name', 'Cone Filter Figure: PAUSED FOR STIM');
+			obj.addNullEpoch = true;
 			uiwait(obj.figureHandle);
 		end
 	end % waitIfNecessary
 
 	function waitForLED(obj)
 		disp('waiting for LED change');
-		set(obj.figureHandle, 'Name', 'Cone Filter Figure: PAUSED');
-		obj.runPausedSoMayNeedNullEpoch = true;
+		set(obj.figureHandle, 'Name', 'Cone Filter Figure: PAUSED FOR LED');
+		obj.addNullEpoch = true;
 		uiwait(obj.figureHandle);
-	end
+	end % waitForLED
 end % methods
 
 %% ------------------------------------------------ toolbar ------------
@@ -645,8 +647,7 @@ methods (Access = private)
 		fprintf('%s - figure data sent as %s', datestr(now), answer{1});
 	end % onSelected_debugButton
 
-
-
+	% TODO: remove bad trace option, fit LMS
 end % methods private
 
 methods (Static)

@@ -86,6 +86,32 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
         end
 
+        function ledFlag = checkGreenLED(colorCall)
+            colorCall = lower(colorCall);
+            fw = obj.rig.getDevices('FilterWheel');
+            ledFlag = false;
+            if ~isempty(fw)
+                fw = fw{1};
+                greenLED = fw.getGreenLEDName();
+                if strcmp(greenLED, 'Green_505nm') 
+                    if strcmp(colorCall(1), 's')
+                        ledFlag = false;
+                    else
+                        ledFlag = true;
+                    end
+                elseif strcmp(greenLED, 'Green_570nm')
+                    if strcmp(colorCall(1), 's')
+                        ledFlag = true;
+                    else
+                        ledFlag = false;
+                    end
+                end
+            end
+            if ledFlag
+                warndlg('Green LED may be incorrect!');
+            end
+        end % checkGreenLED
+
         % Set LED weights based on grating type.
         function setColorWeights(obj)
             switch obj.chromaticClass
