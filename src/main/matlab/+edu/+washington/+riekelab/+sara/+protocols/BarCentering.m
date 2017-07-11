@@ -1,4 +1,4 @@
-classdef BarCentering < edu.washington.riekelab.sara.protocols.SaraStageProtocol
+classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
   % 10Jul2017 - SSP - updated to run x, y together with new figures
 
 properties
@@ -15,7 +15,7 @@ properties
   centerOffset = [0,0]            % Center offset in pixels (x,y)
   chromaticClass = 'achromatic'   % Chromatic class
   onlineAnalysis = 'extracellular'         % Online analysis type.
-  numberOfAverages = uint16(13)   % Number of epochs
+  numberOfAverages = uint16(26)   % Number of epochs
 end
 
 properties (Hidden)
@@ -28,16 +28,6 @@ properties (Hidden)
   orientation
   orientations
   sequence
-
-  % delete soon:
-  F1
-  F2
-  xaxis
-end
-
-properties (Hidden, Transient)
-  % also to be deleted soon
-    analysisFigure
 end
 
 methods
@@ -48,117 +38,33 @@ methods
   end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
 
-      obj.showFigure('edu.washington.riekelab.manookin.figures.ResponseFigure', obj.rig.getDevices('Amp'), ...
-          'numberOfAverages', obj.numberOfAverages);
+      obj.showFigure('edu.washington.riekelab.manookin.figures.ResponseFigure',...
+        obj.rig.getDevices('Amp'), 'numberOfAverages', obj.numberOfAverages);
 
       if ~strcmp(obj.onlineAnalysis, 'none')
-        titlestr = [obj.searchAxis ' bar centering'];
-        try
-          obj.showFigure('edu.washington.riekelab.sara.figures.F1F2Figure',...
-            obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis, obj.preTime, obj.stimTime,... 
-            'xName', 'position', 'temporalFrequency', obj.temporalFrequency, 'showF2', true,... 
-            'chromaticClass', obj.chromaticClass, 'titlestr', titlestr);
-
-          obj.showFigure('edu.washington.riekelab.sara.figures.BarCenteringFigure',...
-            obj.rig.getDevice(obj.amp), obj.preTime, obj.stimTime, obj.temporalFrequency,... 
-            'recordingType', obj.onlineAnalysis);
-        catch
-          obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.CTRanalysis);
-          f = obj.analysisFigure.getFigureHandle();
-          set(f, 'Name', 'bar centering');
-          obj.analysisFigure.userData.axesHandle = axes('Parent', f);
-
-          obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure',...
-          obj.rig.getDevice(obj.amp), obj.positions, obj.onlineAnalysis,...
-          obj.preTime, obj.stimTime, 'temporalFrequency', obj.temporalFrequency,...
-          'titlestr', titlestr);
-        end
+        obj.showFigure('edu.washington.riekelab.sara.figures.BarCenteringFigure',...
+        obj.rig.getDevice(obj.amp), obj.preTime, obj.stimTime, obj.temporalFrequency,...
+        'recordingType', obj.onlineAnalysis);
       end
 
       % begin with x-axis
       obj.searchAxis = 'xaxis';
-      % set up the stimulus parameters
-      numReps = ceil(double(obj.numberOfAverages) / length(obj.positions));
 
+      % set up the stimulus parameters
       obj.orientations = repmat([0 90], length(obj.positions), 1);
       obj.orientations = obj.orientations(:)';
 
-      pos = obj.positions(:) * ones(1, numReps);
+      pos = obj.positions(:);
       pos = pos(:);
-      obj.F1 = zeros(1,length(pos));
-      obj.F2 = zeros(1,length(pos));
 
       x = [pos+obj.centerOffset(1) obj.centerOffset(2)*ones(length(pos),1)];
       y = [obj.centerOffset(1)*ones(length(pos),1) pos+obj.centerOffset(2)];
       obj.sequence = [x; y];
 
-      % remove soon
-      obj.xaxis = pos';
-
       obj.setColorWeights();
   end % prepareRun
-
-  function CTRanalysis(obj, ~, epoch)
-      response = epoch.getResponse(obj.rig.getDevice(obj.amp));
-      responseTrace = response.getData();
-      sampleRate = response.sampleRate.quantityInBaseUnits;
-
-      % Analyze response by type.
-      responseTrace = obj.getResponseByType(responseTrace, obj.onlineAnalysis);
-
-      %--------------------------------------------------------------
-      if strcmp(obj.temporalClass, 'squarewave')
-        % Get the F1 amplitude and phase.
-        responseTrace = responseTrace(obj.preTime/1000*sampleRate+1 : end);
-
-        binRate = 60;
-        binWidth = sampleRate / binRate; % Bin at 60 Hz.
-        numBins = floor(obj.stimTime/1000 * binRate);
-        binData = zeros(1, numBins);
-        for k = 1 : numBins
-            index = round((k-1)*binWidth+1 : k*binWidth);
-            binData(k) = mean(responseTrace(index));
-        end
-        binsPerCycle = binRate / obj.temporalFrequency;
-        numCycles = floor(length(binData)/binsPerCycle);
-        cycleData = zeros(1, floor(binsPerCycle));
-
-        for k = 1 : numCycles
-            index = round((k-1)*binsPerCycle) + (1 : floor(binsPerCycle));
-            cycleData = cycleData + binData(index);
-        end
-        cycleData = cycleData / k;
-
-        ft = fft(cycleData);
-
-        % Get the F1 and F2 responses.
-        f = abs(ft(2:3))/length(ft)*2;
-
-        obj.F1(obj.numEpochsCompleted) = f(1);
-        obj.F2(obj.numEpochsCompleted) = f(2);
-      else % Pulse analysis
-        if ~strcmp(obj.onlineAnalysis, 'extracellular') && ~strcmp(obj.onlineAnalysis, 'spikes_CClamp')
-            % Subtract the baseline.
-            responseTrace = responseTrace - mean(responseTrace(1 : round(obj.preTime/1000*sampleRate)));
-        end
-        responseTrace = responseTrace(obj.preTime/1000*sampleRate+1 : end);
-        obj.F1(obj.numEpochsCompleted) = mean(responseTrace(1 : floor(obj.stimTime/1000*sampleRate)));
-        obj.F2(obj.numEpochsCompleted) = mean(responseTrace(floor(obj.stimTime/1000*sampleRate)+1 : end));
-      end
-      %--------------------------------------------------------------
-
-      axesHandle = obj.analysisFigure.userData.axesHandle;
-      cla(axesHandle);
-      hold(axesHandle, 'on');
-      plot(obj.xaxis, obj.F1, 'ko-', 'Parent', axesHandle);
-      plot(obj.xaxis, obj.F2, 'ro-', 'Parent', axesHandle);
-      hold(axesHandle, 'off');
-      set(axesHandle, 'TickDir', 'out');
-      ylabel(axesHandle, 'F1/F2 amp');
-      title(['Epoch ', num2str(obj.numEpochsCompleted), ' of ', num2str(obj.numberOfAverages)], 'Parent', axesHandle);
-  end
 
     function p = createPresentation(obj)
       p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
@@ -200,15 +106,17 @@ methods
   end
 
   function prepareEpoch(obj, epoch)
-      prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
+    prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
 
       obj.position = obj.sequence(obj.numEpochsCompleted+1, :);
-      obj.orientation = obj.orientations(obj.numEpochsCompleted+1, :);
-      
-      if obj.numEpochsCompleted == length(obj.positions)
+      obj.orientation = obj.orientations(obj.numEpochsCompleted+1);
+
+      if obj.numEpochsCompleted >= length(obj.positions)
         obj.searchAxis = 'yaxis';
+      else
+        obj.searchAxis = 'xaxis';
       end
-      
+
       if strcmp(obj.searchAxis, 'xaxis')
           epoch.addParameter('position', obj.position(1));
       else

@@ -2,9 +2,8 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
 
 properties
 	amp
-	ledClass = '570nm'
 	preTime = 250
-	stimTime = 10000
+	stimTime = 10000										% Stimulus time for non-null (ms)
 	tailTime = 250
 	radius = 1500
 	innerRadius = 0
@@ -14,18 +13,21 @@ properties
 	frameDwell = 1
 	backgroundIntensity = 0.5
 	centerOffset = [0 0]
+	useFrameMonitor = false
 end
 
 properties(Hidden)
+	% protocol properties
 	ampType
 	ledClassType = symphonyui.core.PropertyType('char', 'row', {'505nm', '570nm'})
 	stimulusClass
 
-	responsePlotMode = false;
-	responsePlotSplitParameter = '';
-
-	ledWeights
+	% epoch properties set by figure
 	currentCone
+	currentStimTime
+
+	% epoch properties set by protocol
+	ledWeights
 	seed
 	noiseStream
 end
@@ -56,42 +58,23 @@ function prepareRun(obj)
 
 	obj.currentCone = 'a';
 
+    if obj.useFrameMonitor
+        FMdata = obj.rig.getDevice('Frame Monitor');
+    else
+        FMdata = [];
+    end
+    
+    filtWheel = obj.rig.getDevice('FilterWheel');
+
 	obj.fh = obj.showFigure('edu.washington.riekelab.sara.figures.ConeFilterFigure',...
-		obj.rig.getDevice(obj.amp), obj.rig.getDevice('Frame Monitor'),... 
+		obj.rig.getDevice(obj.amp), FMdata, filtWheel,...
 		obj.preTime, obj.stimTime,...
 		'recordingType', obj.recordingType, 'stDev', obj.stDev,...
 		'frameDwell', obj.frameDwell);
 end % prepareRun
 
-function prepareEpoch(obj, epoch)
-	% pull stimulus info from figure
-	obj.currentCone = obj.fh.nextCone(1);
-	% don't run 10s if it's ignored
-	obj.stimTime = obj.fh.nextStimTime;
-
-	fprintf('protocol - running %s-iso\n', obj.currentCone);
-	epoch.addParameter('chromaticClass', obj.currentCone);
-	epoch.addParameter('stimTime', obj.stimTime);
-
-	obj.ledWeights = setColorWeightsLocal(obj, obj.currentCone);
-
-	if obj.randomSeed
-		obj.seed = RandStream.shuffleSeed;
-	else
-		obj.seed = 1;
-	end
-
-	obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
-
-	epoch.addParameter('seed', obj.seed);
-	epoch.addParameter('stimulusClass', obj.stimulusClass);
-	epoch.addParameter('ledWeights', obj.ledWeights);
-
-	prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
-end % prepareEpoch
-
 function p = createPresentation(obj)
-  p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
+  p = stage.core.Presentation((obj.preTime + obj.currentStimTime + obj.tailTime) * 1e-3);
   p.setBackgroundColor(obj.backgroundIntensity);
 
   spot = stage.builtin.stimuli.Ellipse();
@@ -119,7 +102,7 @@ function p = createPresentation(obj)
 
   % Control when the spot is visible.
   spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
-      @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+      @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.currentStimTime) * 1e-3);
   p.addController(spotVisible);
   % Control the spot color.
   colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
@@ -130,6 +113,53 @@ function p = createPresentation(obj)
   	c = obj.stDev * (obj.noiseStream.randn * obj.ledWeights) * obj.backgroundIntensity + obj.backgroundIntensity;
   end % getSpotColor
 end % createPresentation
+
+function prepareEpoch(obj, epoch)
+    % lastCone = obj.currentCone;
+	% pull stimulus info from figure
+	obj.currentCone = obj.fh.nextCone(1);
+	% don't run 10s if it's ignored
+	obj.currentStimTime = obj.fh.nextStimTime;
+
+%     % get the filter wheel 
+%     fw = obj.rig.getDevices('Filter Wheel');
+%     if ~isempty(fw)
+%         % get the current green LED setting
+%         greenLEDName = filterWheel.getGreenLEDName();
+%         % check to see if it's compatible with currentCone
+%         % if not show a message box that pauses protocol
+%         if strcmp(greenLEDName, 'Green_505nm')
+%             if obj.currentCone ~= 'S'
+%                 msgbox('Change green LED to Green_570nm', 'LED monitor');
+%             end
+%         elseif strcmp(greenLEDName, 'Green_570nm')
+%             if obj.currentCone == 'S'
+%                 msgbox('Change green LED to Green_505nm', 'LED monitor');
+%                 filterwheel.setGreenLEDName();
+%             end
+%         end
+%     end 
+    
+	fprintf('protocol - running %s-iso\n', obj.currentCone);
+	epoch.addParameter('coneClass', obj.currentCone);
+	epoch.addParameter('stimTime', obj.currentStimTime);
+
+	obj.ledWeights = setColorWeightsLocal(obj, obj.currentCone);
+
+	if obj.randomSeed
+		obj.seed = RandStream.shuffleSeed;
+	else
+		obj.seed = 1;
+	end
+
+	obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
+
+	epoch.addParameter('seed', obj.seed);
+	epoch.addParameter('stimulusClass', obj.stimulusClass);
+	epoch.addParameter('ledWeights', obj.ledWeights);
+
+	prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
+end % prepareEpoch
 
 function totalNumEpochs = get.totalNumEpochs(obj) %#ok<MANU>
 	totalNumEpochs = inf;
