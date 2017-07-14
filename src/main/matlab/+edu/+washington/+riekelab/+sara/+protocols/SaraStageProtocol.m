@@ -40,7 +40,8 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             end
 
             % Get the quantal catch.
-            calibrationDir = 'C:\Users\Sara Patterson\Desktop\sara-package-master\calibration\';
+            % calibrationDir = 'C:\Users\sarap\Google Drive\MATLAB\Symphony\sara-package\calibration\';
+            calibrationDir = 'C:\Users\Public\Documents\GitRepos\Symphony2\sara-package\calibration\';
             q = load([calibrationDir 'QCatch.mat']);
 
             % Look for a filter wheel device.
@@ -48,7 +49,7 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             if ~isempty(fw)
                 filterWheel = fw{1};% Get the microscope objective magnification.
                 obj.objectiveMag = filterWheel.getObjective();
-
+                
                 % Get the NDF wheel setting.
                 obj.ndf = filterWheel.getNDF();
                 ndString = num2str(obj.ndf * 10);
@@ -61,9 +62,9 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                 else
                     obj.quantalCatch = q.qCatch.(['ndf', ndString])([1 3 4],:);
                 end
-
+                
                 obj.muPerPixel = filterWheel.getMicronsPerPixel();
-
+                
                 % Adjust the quantal catch depending on the objective.
                 if obj.objectiveMag == 4
                     obj.quantalCatch = obj.quantalCatch .* ([0.498627;0.4921139;0.453983]*ones(1,4));
@@ -71,29 +72,29 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                     obj.quantalCatch = obj.quantalCatch .* ([0.664836;0.630064;0.732858]*ones(1,4));
                 end
             else
-              obj.objectiveMag = 'null';
-              obj.ndf = 4;
-              ndString = num2str(obj.ndf * 10);
-              if length(ndString) == 1
-                  ndString = ['0', ndString];
-              end
-              obj.quantalCatch = q.qCatch.(['ndf', ndString]);
-              obj.muPerPixel = 0;
-              obj.greenLEDName = 'Green_505nm';
-          end
+                obj.objectiveMag = 'null';
+                obj.ndf = 4;
+                ndString = num2str(obj.ndf * 10);
+                if length(ndString) == 1
+                    ndString = ['0', ndString];
+                end
+                obj.quantalCatch = q.qCatch.(['ndf', ndString]);
+                obj.muPerPixel = 0;
+                obj.greenLEDName = 'Green_505nm';
+            end
 
             % Get the canvas size.
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
         end
 
-        function ledFlag = checkGreenLED(colorCall)
+        function ledFlag = checkGreenLED(obj, colorCall)
             colorCall = lower(colorCall);
             fw = obj.rig.getDevices('FilterWheel');
             ledFlag = false;
             if ~isempty(fw)
                 fw = fw{1};
                 greenLED = fw.getGreenLEDName();
-                if strcmp(greenLED, 'Green_505nm') 
+                if strcmp(greenLED, 'Green_505nm')
                     if strcmp(colorCall(1), 's')
                         ledFlag = false;
                     else
@@ -161,18 +162,19 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
           obj.checkImaging(epoch);
 
           %--------------------------------------------------------------
+          % NOTE: This must be set in protocol if using SaraStageProtocol
           % Set up the amplifiers for recording.
-          duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
+          % duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
 
-          % Get the amplfiers.
-          mcDevices = obj.rig.getDevices('Amp');
-
-          % Add each amplifier
-          for k = 1 : length(mcDevices)
-              device = obj.rig.getDevice(mcDevices{k}.name);
-              epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-              epoch.addResponse(device);
-          end
+%           % Get the amplfiers.
+%           mcDevices = obj.rig.getDevices('Amp');
+% 
+%           % Add each amplifier
+%           for k = 1 : length(mcDevices)
+%               device = obj.rig.getDevice(mcDevices{k}.name);
+%               epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
+%               epoch.addResponse(device);
+%           end
       end
 
       function prepareInterval(obj, interval)

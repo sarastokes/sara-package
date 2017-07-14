@@ -1,12 +1,13 @@
 classdef BarCenteringFigure < symphonyui.core.FigureHandler
     % 10Jul2017 - SSP - created
+    % TODO: icons for toolbar stuff
 
 properties (SetAccess = private)
   % required
-	device
-	preTime
-	stimTime
-	temporalFrequency
+  device
+  preTime
+  stimTime
+  temporalFrequency
   % optional:
   recordingType
 end
@@ -25,7 +26,7 @@ end
 
 properties (Constant)
 	RES = {'F1', 'F2', 'P1', 'P2'}
-	DEMOMODE = true
+	DEMOMODE = false
 end
 
 methods
@@ -35,10 +36,10 @@ methods
 		obj.stimTime = stimTime;
 		obj.temporalFrequency = temporalFrequency;
 
-    ip = inputParser();
-    ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
-    ip.parse(varargin{:});
-    obj.recordingType = ip.Results.recordingType;
+        ip = inputParser();
+        ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
+        ip.parse(varargin{:});
+        obj.recordingType = ip.Results.recordingType;
 
 		obj.epochNum = 0;
 
@@ -49,7 +50,7 @@ methods
 			obj.cellData.([obj.RES{ii}, 'X']) = [];
 			obj.cellData.([obj.RES{ii}, 'Y']) = [];
 			obj.handles.(lower([obj.RES{ii}, 'x'])) = [];
-			obj.handles.(lower([obj.RES{ii}, 'x'])) = [];
+			obj.handles.(lower([obj.RES{ii}, 'y'])) = [];
 		end
 
 		obj.createUi();
@@ -81,14 +82,11 @@ methods
 			'Separator', 'on',...
 			'ClickedCallback', @obj.onSelected_sendButton);
 		setIconImage(sendButton,...
-    	symphonyui.app.App.getResource('icons', 'store_sweep.png'));
+    	symphonyui.app.App.getResource('icons', 'modules.png'));
 
-		mainLayout = uix.HBox('Parent', obj.figureHandle,...
-      'Padding', 5, 'Spacing', 0);
-		f1Layout = uix.VBox('Parent', mainLayout,...
-			'Padding', 5, 'Spacing', 0);
-		f2Layout = uix.VBox('Parent', mainLayout,...
-			'Padding', 5, 'Spacing', 0);
+		mainLayout = uix.HBox('Parent', obj.figureHandle);
+		f1Layout = uix.VBox('Parent', mainLayout);
+		f2Layout = uix.VBox('Parent', mainLayout);
 
 		obj.handles.F1X = axes('Parent', f1Layout,...
 			'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
@@ -128,6 +126,7 @@ methods
 			'XTickMode', 'auto');
 		xlabel(obj.handles.im, 'x-axis');
 		ylabel(obj.handles.im, 'y-axis');
+        axis(obj.handles.im, 'square');
 
 		set(mainLayout, 'Widths', [-1 -1 -0.5]);
 	end % createUi
@@ -141,18 +140,14 @@ methods
 		epochResponse = response.getData();
 		sampleRate = response.sampleRate.quantityInBaseUnits;
 
-		epochResponse = getResponseByType(epochResponse, obj.recordingType);
+		if strcmp(obj.recordingType, 'extracellular') && ~obj.DEMOMODE
+			epochResponse = wavefilter(epochResponse(:)', 6);
+			S = spikeDetectorOnline(epochResponse);
+			spikesBinary = zeros(size(epochResponse));
+			spikesBinary(S.sp) = 1;
+			epochResponse = spikesBinary * sampleRate;
+		end
 
-		% analyze the response
-		% prePts = obj.preTime * 1e-3 * sampleRate;
-		% stimFrames = obj.stimTime * 1e-3 * obj.BINRATE;
-
-		% if strcmp(obj.recordingType, 'extracellular')
-		% 	y = BinSpikeRate(epochResponse(obj.epochNum, prePts+1:end), obj.BINRATE, sampleRate);
-		% else
-		% 	y = binData(epochResponse(prePts+1 : end), obj.BINRATE, sampleRate);
-		% end
-		% Get the F1 amplitude and phase.
 		responseTrace = epochResponse(obj.preTime/1000*sampleRate+1 : end);
 
 		binRate = 60;
@@ -198,7 +193,7 @@ methods
 			for ii = 1:length(obj.RES)
 				ind = sprintf('%sX', obj.RES{ii});
 				if isempty(obj.handles.(lower(ind)))
-					ind2 = ind; ind2(2) = 1;
+					ind2 = ind; ind2(2) = '1';
 					obj.handles.(lower(ind)) = line('Parent', obj.handles.(ind2),...
 						'XData', obj.cellData.xpts, 'YData', obj.cellData.(ind),...
 						'Color', obj.getColor(obj.RES{ii}), 'Marker', 'o',...
@@ -228,9 +223,9 @@ methods
 			for ii = 1:length(obj.RES)
 				ind = sprintf('%sY', obj.RES{ii});
 				if isempty(obj.handles.(lower(ind)))
-					ind2 = ind; ind2(2) = 1;
+					ind2 = ind; ind2(2) = '1';
 					obj.handles.(lower(ind)) = line('Parent', obj.handles.(ind2),...
-						'XData', obj.cellData.yps, 'YData', obj.cellData.(ind),...
+						'XData', obj.cellData.ypts, 'YData', obj.cellData.(ind),...
 						'Color', obj.getColor(obj.RES{ii}), 'Marker', 'o',...
 						'LineWidth', obj.getLW(obj.RES{ii}));
 				else
@@ -244,11 +239,17 @@ end % methods
 
 methods
 	function onSelected_interpolate(obj, src, ~)
-		x = [obj.handles.f1x.XData, zeros(length(obj.handles.f1y.XData))];
-		y = [zeros(length(obj.handles.F1x.XData)), obj.handles.F1y.XData];
+        try
+    		x = [obj.handles.f1x.XData, zeros(size(obj.handles.f1y.XData))];
+        	y = [zeros(size(obj.handles.f1x.XData)), obj.handles.f1y.XData];
+        catch
+            x = [obj.cellData.F1X; zeros(size(obj.cellData.F1Y))];
+            y = [zeros(size(obj.cellData.F1X)); obj.cellData.F1Y];
+            fprintf('BarCenteringFigure - used cellData\n');
+        end
 
 		scInt = scatteredInterpolant(x, y,...
-		[obj.handles.F1x.YData obj.handles.F1y.YData]);
+		[obj.handles.F1X.YData obj.handles.F1X.YData]);
 
 		[newX, newY] = meshgrid(linspace(min(x), max(x), 100),...
 			linspace(min(y), max(y), 100));
@@ -283,12 +284,11 @@ methods (Static)
   end % umPerPix
 
 	function co = getColor(res)
-		res
         switch res
             case {'F1', 'P1'}
-							co = 'k'
+                co = 'k';
             otherwise
-              co = [0.5 0.5 0.5];
+                co = [0.5 0.5 0.5];
         end
     end % getColor
 

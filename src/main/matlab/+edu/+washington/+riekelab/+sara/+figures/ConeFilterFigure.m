@@ -1,5 +1,5 @@
 classdef ConeFilterFigure < symphonyui.core.FigureHandler
-	% 
+	%
 properties (SetAccess = private)
     % required:
 	device
@@ -27,18 +27,15 @@ properties
 	% currentCone as number
 	coneInd % current cone as #
 
+	nextStimulus % holds future parameters
 	nextCone % a list of next chromaticClass
 	nextStimTime % how long the next stim will be
-
-	nextStimulus % holds future parameters
 
 	% protocol control properties
 	ignoreNextEpoch = false
 	addNullEpoch = false
 	ledNeedsToChange = false
-
-	xaxis
-	yaxis
+	protocolShouldStop = false
 end
 
 properties (Constant)
@@ -47,16 +44,16 @@ properties (Constant)
 
 	% not really worth making an editable parameter right now
 	BINSPERFRAME = 6
-  	FILTERLENGTH = 1000
-
-  	% green LED code is potentially problematic. option to disable
-  	LEDMONITOR = true
+	FILTERLENGTH = 1000
+	
+	% green LED code is potentially problematic. option to disable
+	LEDMONITOR = true
 
 	% cone options.. might add LM-iso at some point
 	CONES = 'lmsa'
 
 	% generate some fake filters + NLs for debugging
-	DEMOMODE = true
+	DEMOMODE = false
 end
 
 
@@ -81,7 +78,6 @@ methods
 
 		obj.epochNum = 0;
 
-		% create the UI here so can set line handles
 		obj.createUi();
 
 		obj.cellData.filterMap = containers.Map;
@@ -108,6 +104,9 @@ methods
 
 		% this runs at the very end of each epoch, sets the next epoch
 		obj.assignNextStimulus();
+
+		% reflect in the ui
+		obj.updateUi();
 	end % constructor
 
 	function createUi(obj)
@@ -130,7 +129,7 @@ methods
 		mainLayout = uix.HBox('Parent', obj.figureHandle);
 		resultLayout = uix.VBox('Parent', mainLayout);
 		plotLayout = uix.HBoxFlex('Parent', resultLayout);
-  	dataLayout = uix.HBox('Parent', resultLayout);
+        dataLayout = uix.HBox('Parent', resultLayout);
 		uiLayout = uix.VBox('Parent', mainLayout);
 		set(mainLayout, 'Widths', [-4 -1]);
 
@@ -256,7 +255,7 @@ methods
 
 			% make a fake nonlinearity
 			yBin = normcdf(pts, 0, (0.1*obj.coneInd));
-			xBin = pts;
+			xBin = pts; 
 		else
 			xpts = linspace(0, obj.FILTERLENGTH, obj.BINSPERFRAME * obj.frameRate);
 
@@ -268,45 +267,44 @@ methods
 			currentNoiseSeed = epoch.parameters('seed');
 			binRate = 10000;
 
-				% frame monitor still suspicious... hopefully this analysis improves soon
-				newResponse = responseByType(epochResponseTrace, obj.recordingType, obj.preTime, sampleRate);
-				if strcmp(obj.recordingType,'extracellular') || strcmp(obj.recordingType, 'spikes_CClamp')
-						if sampleRate > binRate
-								newResponse = BinSpikeRate(newResponse(prePts+1:end), binRate, sampleRate);
-						else
-								newResponse = newResponse(prePts+1:end)*sampleRate;
-						end
-				else
-						% High-pass filter to get rid of drift.
-						newResponse = highPassFilter(newResponse, 0.5, 1/sampleRate);
-						if prePts > 0
-								newResponse = newResponse - median(newResponse(1:prePts));
-						else
-								newResponse = newResponse - median(newResponse);
-						end
-						newResponse = binData(newResponse(prePts+1:end), binRate, sampleRate);
-				end
-
-				newResponse = newResponse(:)';
-
-				stimulus = getGaussianNoiseFrames(obj.numFrames, obj.frameDwell, obj.stDev, currentNoiseSeed);
-
-				if binRate > obj.frameRate
-						n = round(binRate / obj.frameRate);
-						stimulus = ones(n,1)*stimulus(:)';
-						stimulus = stimulus(:);
-				end
-				plotLngth = round(binRate * 0.5);
-				% Make it the same size as the stim frames.
-				newResponse = newResponse(1 : length(stimulus));
-
-				% Zero out the first half-second while cell is adapting
-				newResponse(1 : floor(binRate/2)) = 0;
-				stimulus(1 : floor(binRate/2)) = 0;
-
-				% Reverse correlation.
-				newFilter = real(ifft( fft([newResponse(:)' zeros(1,100)])...
-					.* conj(fft([stimulus(:)' zeros(1,100)])) ));
+            % frame monitor still suspicious... hopefully this analysis improves soon
+            newResponse = responseByType(epochResponseTrace, obj.recordingType, obj.preTime, sampleRate);
+            if strcmp(obj.recordingType,'extracellular') || strcmp(obj.recordingType, 'spikes_CClamp')
+                if sampleRate > binRate
+                    newResponse = BinSpikeRate(newResponse(prePts+1:end), binRate, sampleRate);
+                else
+                    newResponse = newResponse(prePts+1:end)*sampleRate;
+                end
+            else
+                % High-pass filter to get rid of drift.
+                newResponse = highPassFilter(newResponse, 0.5, 1/sampleRate);
+                if prePts > 0
+                    newResponse = newResponse - median(newResponse(1:prePts));
+                else
+                    newResponse = newResponse - median(newResponse);
+                end
+                newResponse = binData(newResponse(prePts+1:end), binRate, sampleRate);
+            end
+            
+            newResponse = newResponse(:)';
+            
+            stimulus = getGaussianNoiseFrames(obj.numFrames, obj.frameDwell, obj.stDev, currentNoiseSeed);
+            
+            if binRate > obj.frameRate
+                n = round(binRate / obj.frameRate);
+                stimulus = ones(n,1)*stimulus(:)';
+                stimulus = stimulus(:);
+            end
+            % Make it the same size as the stim frames.
+            newResponse = newResponse(1 : length(stimulus));
+            
+            % Zero out the first half-second while cell is adapting
+            newResponse(1 : floor(binRate/2)) = 0;
+            stimulus(1 : floor(binRate/2)) = 0;
+            
+            % Reverse correlation.
+            newFilter = real(ifft( fft([newResponse(:)' zeros(1,100)])...
+                .* conj(fft([stimulus(:)' zeros(1,100)])) ));
 		end % demo mode if
 
 		%% ------------------------------------------------------ store filter -----
@@ -316,44 +314,50 @@ methods
 				'XData', xpts, 'YData', obj.cellData.filterMap(cone),...
 				'Color', getPlotColor(cone), 'LineWidth', 1);
 		else
-			groupLF = obj.cellData.filterMap(cone);
-			newLF = stepMean(groupLF, size(groupLF, 1), newFilter);
-            set(obj.handles.lines(cone), 'YData', newLF,...
-                'Visible', 'on');
-			obj.cellData.filterMap(cone) = [groupLF; newFilter];
+			obj.cellData.filterMap(cone) = [obj.cellData.filterMap(cone); newFilter];
+			set(obj.handles.lf(obj.coneInd), 'YData', mean(obj.cellData.filterMap(cone), 1),...
+				'Visible', 'on');
 		end
 
 		%% ------------------------------------------------------- nonlinearity ----
 		if ~obj.DEMOMODE
 			% Re-bin the response for the nonlinearity.
 			resp = binData(newResponse, 60, binRate);
-			obj.yaxis = [obj.yaxis, resp(:)'];
 
 			% Convolve stimulus with filter to get generator signal.
 			pred = ifft(fft([stimulus(:)' zeros(1,100)]) .* fft(newFilter(:)'));
 
 			pred = binData(pred, 60, binRate);
 			pred = pred(:)';
-			obj.xaxis = [obj.xaxis, pred(1 : length(resp))];
 
 			% Get the binned nonlinearity.
-			[xBin, yBin] = obj.getNL(obj.xaxis, obj.yaxis);
-		end
+		end % if not demomode
 
 			if obj.cellData.ynlMap(cone) == 0
-				obj.cellData.ynlMap(cone) = yBin;
-				obj.cellData.xnlMap(cone)  = xBin;
-				obj.handles.nl(obj.coneInd) = line('Parent', obj.handles.ax.nl,...
-					'XData', xBin, 'YData', yBin,...
-					'Color', getPlotColor(cone),...
-					'Marker', '.', 'LineStyle', 'none');
-			else
-				obj.cellData.xnlMap(cone)  = [obj.cellData.xnlMap(cone); xBin];
-				obj.cellData.ynlMap(cone)  = [obj.cellData.ynlMap(cone); yBin];
+                if ~obj.DEMOMODE
+                    obj.cellData.ynlMap(cone) = resp(:)';
+                    obj.cellData.xnlMap(cone)  = pred(1:length(resp));
+                    [xBin, yBin] = obj.getNL(obj.cellData.xnlMap(cone), obj.cellData.ynlMap(cone));
+                else
+                    obj.cellData.xnlMap(cone) = xBin;
+                    obj.cellData.ynlMap(cone) = yBin;
+                end
+                obj.handles.nl(obj.coneInd) = line('Parent', obj.handles.ax.nl,...
+                    'XData', xBin, 'YData', yBin,...
+                    'Color', getPlotColor(cone),...
+                    'Marker', '.', 'LineStyle', 'none');
+			else % existing
+				if ~obj.DEMOMODE
+					obj.cellData.xnlMap(cone) = [obj.cellData.xnlMap(cone), pred(1 : length(resp))];
+					obj.cellData.ynlMap(cone) = [obj.cellData.ynlMap(cone), resp(:)'];
+					[xBin, yBin] = obj.getNL(obj.cellData.xnlMap(cone), obj.cellData.ynlMap(cone));            
+                else
+                    obj.cellData.xnlMap(cone) = [obj.cellData.xnlMap(cone); xBin];
+                    obj.cellData.ynlMap(cone) = [obj.cellData.ynlMap(cone); yBin];
+				end
 				set(obj.handles.nl(obj.coneInd),...
-					'XData', obj.cellData.xnlMap(cone),...
-					'YData', obj.cellData.ynlMap(cone));
-        end
+					'XData', xBin, 'YData',yBin);
+			end
 
 		%% ----------------------------------------------------- filter stats ------
 			% calculate time to peak, zero cross, biphasic index
@@ -389,7 +393,7 @@ methods
 		%% ------------------------------------------------------------- stimuli ---
 		obj.waitIfNecessary();
 
-		if length(obj.nextStimulus.cone) > 0 && obj.LEDMONITOR
+		if ~isempty(obj.nextStimulus.cone) && obj.LEDMONITOR
 			obj.checkNextCone();
 		end
 
@@ -397,12 +401,16 @@ methods
 			return;
 		end
 
+		% set the next epoch's stimulus
 		obj.assignNextStimulus();
+
+		% reflect in the ui
+		obj.updateUi();
 	end % handleEpoch
 
 %% -------------------------------------------------------------- callbacks ----
 	function onSelected_normPlot(obj,~,~)
-		if get(obj, 'Value') == get(obj, 'Max')
+		if get(obj.handles.cb.normPlot, 'Value') == get(obj, 'Max')
 			obj.handles.flags.normPlot = true;
 		else
 			obj.handles.flags.normPlot = false;
@@ -436,10 +444,6 @@ methods
 			[0 str2double(get(obj.handles.ed.changeXLim, 'String'))]);
 	end % changeXLim
 
-	function onSelected_updatePlot(obj,~,~)
-		obj.updateFilterPlot();
-	end % updatePlot
-
 	function onSelected_updateQueue(obj,~,~)
         % appends to existing queue
         x = get(obj.handles.tx.queue, 'String');
@@ -457,18 +461,19 @@ methods
 %% ------------------------------------------------ main -----------
 	function updateFilterPlot(obj)
 		% this method applies smooth, normalize, etc to exisiting plot
-
+        lines = findall(obj.handles.ax.lf, 'Type', 'line');
 		% check for smooth plot
-		if obj.handles.flags.smoothFilt
-			set(obj.handles.lines.lf(obj.coneInd),...
-				'YData', smooth(get(obj.handles.lines.lf(obj.coneInd), 'YData'), obj.smoothFac));
-		end % updateFilterPlot
-
-		% check for normPlot
-		if obj.handles.flags.normPlot
-			set(obj.handles.lines.lf(obj.coneInd),...
-				'YData', get(obj.handles.lines.lf(obj.coneInd), 'YData')...
-				/ max(abs(obj.handles.lines.lf(obj.coneInd))));
+        if ~isempty(lines)
+            if obj.handles.flags.smoothFilt
+                for ii = 1:numel(lines)
+                    set(lines(ii), 'YData', smooth(lines(ii).YData, obj.smoothFac));
+                end
+            end
+            if obj.handles.flags.normPlot
+                for ii = 1:numel(lines)
+                    set(lines(ii), 'YData', lines(ii).YData / max(abs(lines(ii).YData)));
+                end
+            end
         end
 	end % updateFilterPlot
 
@@ -482,7 +487,7 @@ methods
 				end
 			else
 				for ii = 2:4
-					tableData(obj.coneInd, ii) = stepMean(tableData(obj.coneInd, ii),...
+					tableData(obj.coneInd, ii) = obj.stepMean(tableData(obj.coneInd, ii),...
 						tableData(obj.coneInd, 1), stats(ii-1));
 				end
 			end
@@ -493,6 +498,7 @@ methods
 	end % updateDataTable
 
 	function updateUi(obj)
+		% this is called after the next stimulus has been assigned in handleEpoch
 		if obj.ignoreNextEpoch
 			obj.handles.tx.curEpoch.String = ['NULL - ' num2str(obj.nextStimTime) 's'];
 		else
@@ -507,10 +513,11 @@ methods
 		end
 
 		% update stimulus queue:
+		% this will reflect epochNum + 2
 		obj.handles.tx.queue.String = obj.nextStimulus.cone;
 	end % updateUi
 
-%% ------------------------------------------------ support --------
+%% ------------------------------------------------------- support --------
 	function clearFigure(obj)
 		if obj.epochNum > 1
 			obj.saveDlg();
@@ -522,6 +529,7 @@ methods
 	function resetPlots(obj)
 		obj.cellData = [];
 		obj.epochNum = 0;
+		obj.protocolShouldStop = false;
 		obj.nextStimulus.cone = [];
 		obj.nextStimulus.stimTime = [];
 	end % resetPlots
@@ -530,7 +538,11 @@ methods
 		selection = questdlg('Save the data?', 'Save dialog',...
 			'Yes', 'No', 'Yes');
 		if strcmp(selection, 'Yes')
-			warndlg('set this up later...');
+			outputStruct = obj.cellData;
+			answer = inputdlg('Send cellData to workspaces as: ',...
+				'Naming Dialog', 1, {'r'});
+			assignin('base', sprintf('%s', answer{1}), outputStruct);
+			fprintf('%s - figure data sent as %s', datestr(now), answer{1});
 		end
 	end % saveDlg
 
@@ -564,7 +576,7 @@ methods
 	end % checkNextCone
 
 	function addStimuli(obj, newCones)
-		% validate input - could be edit box
+		% TODO: some kind of input validation?
 		% add to stimulus queue
 		obj.nextStimulus.cone = [obj.nextStimulus.cone newCones];
 		obj.nextStimulus.stimTime = obj.stimTime + zeros(size(obj.nextStimulus.cone));
@@ -574,7 +586,7 @@ methods
 
 
 	function assignNextStimulus(obj)
-        % This should be the very last thing called per epoch
+		% sets up the next epoch at the end of handleEpoch
 		if obj.addNullEpoch
 			disp('adding null epoch - no stimuli');
 			obj.ignoreNextEpoch = true;
@@ -591,6 +603,7 @@ methods
 			obj.nextStimulus.stimTime = [obj.NULLTIME, obj.nextStimulus.stimTime];
 			obj.nextStimulus.cone = [obj.nextStimulus.cone(1), obj.nextStimulus.cone];
 		else
+			disp('adding normal epoch');
 			obj.ignoreNextEpoch = false;
 			obj.addNullEpoch = false;
 		end
@@ -606,9 +619,6 @@ methods
 		% move queue up
 		obj.nextStimulus.cone(1) = [];
 		obj.nextStimulus.stimTime(1) = [];
-
-		% reflect in the ui
-		obj.updateUi();
 	end % assignNextStimulus
 
 	function resumeProtocol(obj)
@@ -651,12 +661,12 @@ methods (Access = private)
 end % methods private
 
 methods (Static)
-% random methods for convinience. slowly moving elsewhere
-	function newMean = stepMean(prevMean, prevN, newValue)
-		x = prevMean * prevN;
-		newMean = (x + newValue)/(prevN + 1);
-	end % stepMean
-
+    % random methods for convinience. slowly moving elsewhere
+    function newMean = stepMean(prevMean, prevN, newValue)
+        x = prevMean * prevN;
+        newMean = (x + newValue)/(prevN + 1);
+    end % stepMean
+    
 	function [xBin, yBin] = getNL(P, R)
         nlBins = 200; % maybe make constant parameter?
 		[a, b] = sort(P(:));

@@ -117,6 +117,17 @@ function prepareEpoch(obj, epoch)
 	obj.currentCone = obj.fh.nextCone(1);
 	% don't run 10s if it's ignored
 	obj.currentStimTime = obj.fh.nextStimTime;
+    
+    % Make sure stimulus duration reflects changes in stimTime
+    duration = (obj.preTime + obj.currentStimTime + obj.tailTime) * 1e-3;
+    % Get the amplfiers.
+    mcDevices = obj.rig.getDevices('Amp');
+    % Add each amplifier
+    for k = 1 : length(mcDevices)
+        device = obj.rig.getDevice(mcDevices{k}.name);
+        epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
+        epoch.addResponse(device);
+    end
 
 	% repetitive for now
 	try
