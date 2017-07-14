@@ -30,7 +30,6 @@ properties(Hidden)
 
 	% epoch properties set by figure
 	currentCone
-	currentStimTime
 
 end
 
@@ -71,7 +70,7 @@ function prepareRun(obj)
 end % prepareRun
 
 function p = createPresentation(obj)
-  p = stage.core.Presentation((obj.preTime + obj.currentStimTime + obj.tailTime) * 1e-3);
+  p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
   p.setBackgroundColor(obj.backgroundIntensity);
 
   spot = stage.builtin.stimuli.Ellipse();
@@ -99,7 +98,7 @@ function p = createPresentation(obj)
 
   % Control when the spot is visible.
   spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
-      @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.currentStimTime) * 1e-3);
+      @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
   p.addController(spotVisible);
   % Control the spot color.
   colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
@@ -116,23 +115,12 @@ function prepareEpoch(obj, epoch)
 	% pull stimulus info from figure
 	obj.currentCone = obj.fh.nextCone(1);
 	% don't run 10s if it's ignored
-	obj.currentStimTime = obj.fh.nextStimTime;
-    
-    % Make sure stimulus duration reflects changes in stimTime
-    duration = (obj.preTime + obj.currentStimTime + obj.tailTime) * 1e-3;
-    % Get the amplfiers.
-    mcDevices = obj.rig.getDevices('Amp');
-    % Add each amplifier
-    for k = 1 : length(mcDevices)
-        device = obj.rig.getDevice(mcDevices{k}.name);
-        epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-        epoch.addResponse(device);
-    end
+	% obj.stimTime = obj.fh.nextStimTime;
 
 	% repetitive for now
 	try
 		filtWheel = obj.rig.getDevice('FilterWheel');
-		greenLED = fw.getGreenLEDName();
+		greenLED = filtWheel.getGreenLEDName();
 	catch
 		greenLED = 'unknown';
 	end
@@ -140,7 +128,7 @@ function prepareEpoch(obj, epoch)
     
 	fprintf('protocol - running %s-iso\n', obj.currentCone);
 	epoch.addParameter('coneClass', obj.currentCone);
-	epoch.addParameter('stimTime', obj.currentStimTime);
+	% epoch.addParameter('stimTime', obj.stimTime);
 
 	obj.ledWeights = setColorWeightsLocal(obj, obj.currentCone);
 

@@ -164,17 +164,17 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
           %--------------------------------------------------------------
           % NOTE: This must be set in protocol if using SaraStageProtocol
           % Set up the amplifiers for recording.
-          % duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
+          duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
 
-%           % Get the amplfiers.
-%           mcDevices = obj.rig.getDevices('Amp');
-% 
-%           % Add each amplifier
-%           for k = 1 : length(mcDevices)
-%               device = obj.rig.getDevice(mcDevices{k}.name);
-%               epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-%               epoch.addResponse(device);
-%           end
+          % Get the amplfiers.
+          mcDevices = obj.rig.getDevices('Amp');
+
+          % Add each amplifier
+          for k = 1 : length(mcDevices)
+              device = obj.rig.getDevice(mcDevices{k}.name);
+              epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
+              epoch.addResponse(device);
+          end
       end
 
       function prepareInterval(obj, interval)
