@@ -22,6 +22,8 @@ function EEweights = getWhite(varargin)
       pkSens = [559 530 430];
       % jim's lens data - keep in unpublished folder for now
       load('nemestrinaLens.mat');
+      lensData = nemestrinaLens;
+      wlMin = 385; wlMax = 780;
     case 'human'
       pkSens = [559 530 419];
       % from http://www.cvrl.org/database/text/maclens/lenssmj.htm

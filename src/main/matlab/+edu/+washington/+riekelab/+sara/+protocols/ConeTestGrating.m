@@ -1,6 +1,7 @@
 classdef ConeTestGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     properties
         amp                             % Output amplifier
+        greenLED = '570nm'              % Green LED
         preTime = 250                   % Grating leading duration (ms)
         stimTime = 4000                 % Grating duration (ms)
         tailTime = 250                  % Grating trailing duration (ms)
@@ -16,6 +17,7 @@ classdef ConeTestGrating < edu.washington.riekelab.manookin.protocols.ManookinLa
 
     properties (Hidden)
         ampType
+        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         rawImage
         chromaticClasses = {'achromatic','M-iso','L-iso','S-iso'};

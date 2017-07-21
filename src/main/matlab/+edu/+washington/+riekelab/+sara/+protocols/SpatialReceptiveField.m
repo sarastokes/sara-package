@@ -5,6 +5,7 @@ classdef SpatialReceptiveField < edu.washington.riekelab.manookin.protocols.Mano
 
 properties
     amp                              % Output amplifier
+    greenLED                         % Green LED
     preTime = 500                    % Noise leading duration (ms)
     stimTime = 21000                 % Noise duration (ms)
     tailTime = 500                   % Noise trailing duration (ms)
@@ -26,6 +27,7 @@ end
 
 properties (Hidden)
     ampType
+    greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
     onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
     noiseClassType = symphonyui.core.PropertyType('char', 'row', {'binary', 'ternary', 'gaussian'})
     boardClassType = symphonyui.core.PropertyType('char', 'row', {'checker', 'xBar', 'yBar'})

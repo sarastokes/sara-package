@@ -3,6 +3,7 @@ classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
 properties
   amp                             % Output amplifier
+  greenLED = '570nm'              % Which green LED
   preTime = 250                   % Spot leading duration (ms)
   stimTime = 2000                 % Spot duration (ms)
   tailTime = 1000                 % Spot trailing duration (ms)
@@ -20,6 +21,7 @@ end
 
 properties (Hidden)
   ampType
+  greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'squarewave', 'pulse'})
   chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'red', 'green', 'blue', 'yellow', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
   onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})

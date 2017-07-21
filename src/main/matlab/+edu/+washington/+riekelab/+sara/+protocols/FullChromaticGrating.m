@@ -1,4 +1,4 @@
-ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
 % Chromatic grating but with my response figures and option for mask
 
 % 12Sep2016 - copied mike's ChromaticGrating protocol, added working online analysis & response w/ stim figure
@@ -7,6 +7,7 @@ ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.proto
 
     properties
         amp                             % Output amplifier
+        greenLED = '570nm'              % Green LED
         preTime = 250                   % Grating leading duration (ms)
         stimTime = 4000                 % Grating duration (ms)
         tailTime = 250                  % Grating trailing duration (ms)
@@ -33,6 +34,7 @@ ledWeightsclassdef FullChromaticGrating < edu.washington.riekelab.manookin.proto
 
     properties (Hidden)
         ampType
+        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
         apertureClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
         spatialClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
         temporalClassType = symphonyui.core.PropertyType('char', 'row', {'drifting', 'reversing'})

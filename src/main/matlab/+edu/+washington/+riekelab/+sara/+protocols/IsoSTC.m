@@ -4,6 +4,7 @@ classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStagePro
 
 properties
   amp                                     % amplifier
+  greenLED = '570nm'                      % greenLED
   preTime = 500                           % before stim (ms)
   stimTime = 2000                         % stim duration (ms)
   tailTime = 500                          % after stim (ms)
@@ -25,6 +26,7 @@ end
 
 properties (Hidden)
   ampType
+  greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
   paradigmClassType = symphonyui.core.PropertyType('char', 'row', {'ID', 'STA'})
   temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
   chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'achrom2','L-iso', 'M-iso', 'S-iso', 'LM-iso', 'MS-iso', 'LS-iso', 'LMS-iso' 'RGB-binary', 'RGB-gaussian', 'custom'})

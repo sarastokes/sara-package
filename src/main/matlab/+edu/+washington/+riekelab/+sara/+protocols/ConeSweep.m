@@ -38,8 +38,8 @@ properties (Hidden) % online analysis properties
   plotColor % some of these are unnecessary, condense later
 end
 
-properties (Hidden, Transient)
-  analysisFigure
+properties (Constant)
+  CONES = 'lmsa'
 end
 
 methods
@@ -87,12 +87,29 @@ function prepareRun(obj)
 
   % set up figures
   if numel(obj.rig.getDeviceNames('Amp')) < 2
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace);
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure',...
+      obj.rig.getDevice(obj.amp), obj.stimTrace);
   else
-    obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
+    obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure',...
+      obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
   end
 
-  obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure', obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+  obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure',...
+    obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', obj.stimTrace);
+
+  if isempty(obj.analysisFigure) || ~isvalid(obj.analysisFigure)
+    obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.F1F2_PTSH);
+    f = obj.analysisFigure.getFigureHandle();
+    set(f, 'Name', 'Cycle avg PTSH');
+    for ii = 1:length(obj.CONES)
+      obj.analysisFigure.userData.runningTrace.(obj.CONES(ii)) = 0;
+    end
+    obj.analysisFigure.userData.axesHandle = axes('Parent', f);
+  else
+    for ii = 1:length(obj.CONES)
+      obj.analysisFigure.userData.runningTrace.(obj.CONES(ii)) = 0;
+    end
+  end
 
   if ~strcmp(obj.onlineAnalysis, 'none')
     if strcmp(obj.onlineAnalysis, 'extracellular') || strcmp(obj.onlineAnalysis, 'Spikes_CClamp')
@@ -104,7 +121,73 @@ function prepareRun(obj)
     obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',...
       obj.rig.getDevice(obj.amp));
   end
-end
+end % prepareRun
+
+function F1F2_PTSH(obj, ~, epoch)
+  % from Max's SplitFieldCentering protocol
+  response = epoch.getResponse(obj.rig.getDevice(obj.amp));
+  quantities = response.getData();
+  sampleRate = response.sampleRate.quantityInBaseUnits;
+
+  axesHandle = obj.analysisFigure.userData.axesHandle;
+  cone = lower(epoch.parameters('chromaticClass'));
+  runningTrace = obj.analysisFigure.userData.runningTrace(cone(1));
+
+  if strcmp(obj.onlineAnalysis,'extracellular') %spike recording
+      filterSigma = (20/1000)*sampleRate; %msec -> dataPts
+      newFilt = normpdf(1:10*filterSigma,10*filterSigma/2,filterSigma);
+      res = spikeDetectorOnline(quantities,[],sampleRate);
+      epochResponseTrace = zeros(size(quantities));
+      epochResponseTrace(res.sp) = 1; %spike binary
+      epochResponseTrace = sampleRate*conv(epochResponseTrace,newFilt,'same'); %inst firing rate
+  else %intracellular - Vclamp
+      epochResponseTrace = quantities-mean(quantities(1:sampleRate*obj.preTime/1000)); %baseline
+      if strcmp(obj.onlineAnalysis,'exc') %measuring exc
+          epochResponseTrace = epochResponseTrace./(-60-0); %conductance (nS), ballpark
+      elseif strcmp(obj.onlineAnalysis,'inh') %measuring inh
+          epochResponseTrace = epochResponseTrace./(0-(-60)); %conductance (nS), ballpark
+      end
+  end
+  noCycles = floor(obj.temporalFrequency*obj.stimTime/1000);
+  period = (1/obj.temporalFrequency)*sampleRate; %data points
+  epochResponseTrace(1:(sampleRate*obj.preTime/1000)) = []; %cut out prePts
+  cycleAvgResp = 0;
+  for c = 1:noCycles
+      cycleAvgResp = cycleAvgResp + epochResponseTrace((c-1)*period+1:c*period);
+  end
+  cycleAvgResp = cycleAvgResp./noCycles;
+  timeVector = (1:length(cycleAvgResp))./sampleRate; %sec
+  runningTrace = runningTrace + cycleAvgResp;
+
+  % add to userdata
+  obj.analysisFigure.userData.runningTrace.(cone) = runningTrace ./ ...
+    (ceil(obj.numEpochsCompleted/length(obj.stimClass)));
+
+  % edit the plot
+  cla(axesHandle);
+
+  % kinda messy but it'll do
+  h = line(timeVector, runningTrace./ceil(obj.numEpochsCompleted/length(obj.stimClass)),...
+    'Parent', axesHandle);
+  set(h, 'Color', getPlotColor(epoch.parameters('chromaticClass')), 'LineWidth', 2);
+  a = 1;
+  for ii = 1:length(obj.CONES)
+    if ~strcmp(obj.CONES(ii), cone)
+      a = a + 1;
+      h(a) = line(timeVector, obj.analysisFigure.userData.runningTrace.(obj.CONES(ii)),...
+        'Parent', axesHandle);
+      set(h(a), 'Color', getPlotColor(obj.CONES(ii)), 'LineWidth', 2);
+    end
+  end
+  xlabel(axesHandle,'Time (s)')
+  title(axesHandle,'Running cycle average...')
+  if strcmp(obj.onlineAnalysis, 'extracellular')
+    ylabel(axesHandle, 'Spike rate (Hz)');
+  else
+    ylabel(axesHandle, 'Resp (nS)');
+  end
+
+end % F1F2_PTSH
 
   function p = createPresentation(obj)
 

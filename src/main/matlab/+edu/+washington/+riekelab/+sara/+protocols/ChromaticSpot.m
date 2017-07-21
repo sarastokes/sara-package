@@ -1,6 +1,7 @@
 classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     properties
         amp                             % Output amplifier
+        greenLED = '570nm'
         preTime = 500                   % Spot leading duration (ms)
         stimTime = 500                  % Spot duration (ms)
         tailTime = 500                  % Spot trailing duration (ms)
@@ -16,6 +17,7 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
 
     properties (Hidden)
         ampType
+        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
         chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','red','green','blue','yellow','S-iso','M-iso','L-iso','LM-iso'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
         intensity

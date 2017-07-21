@@ -3,6 +3,7 @@ classdef SplitFieldCentering < edu.washington.riekelab.manookin.protocols.Manook
 % Different stimulus set up for cone-iso stim that's limited to splitField
 
 properties
+    greenLED = '570nm'
     preTime = 250 % ms
     stimTime = 2000 % ms
     tailTime = 250 % ms
@@ -23,6 +24,7 @@ end
 
 properties (Hidden)
     ampType
+    greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
     temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
     chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso', 'LMS-iso', 'red', 'yellow', 'green', 'blue'})
     onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})

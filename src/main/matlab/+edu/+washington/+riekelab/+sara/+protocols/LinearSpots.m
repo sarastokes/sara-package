@@ -1,11 +1,10 @@
 classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
     % test spatial (non)linearity - checks if inputs sum/null
-
-
     % 3Aug - fixed issue for cone-iso stim
 
 properties
   amp
+  greenLED = '570nm'                    % Green LED
   preTime = 200                         % time before stim (ms)
   stimTime = 200                        % stim duration (ms)
   tailTime = 200                        % time after stim (ms)
@@ -28,6 +27,7 @@ end
 
 properties (Hidden)
   ampType
+  greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
   paradigmClassType = symphonyui.core.PropertyType('char', 'row', {'sum_up', 'sum_down', 'null_wb', 'null_bw', 'baselineA_up', 'baselineB_up', 'baselineA_down', 'baselineB_down'})
   chromaticClassOneType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso'})
   chromaticClassTwoType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'custom', 'LM-iso'})

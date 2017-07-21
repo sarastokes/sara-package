@@ -2,6 +2,7 @@ classdef TargetConeF1 < edu.washington.riekelab.manookin.protocols.ManookinLabSt
 
 properties
   amp                               % Output amplifier
+  greenLED = '570nm'                % Green LED
   preTime = 500                     % Spot leading duration (ms)
   stimTime = 2500                   % Spot duration (ms)
   tailTime = 500                    % Spot trailing duration (ms)
@@ -21,6 +22,7 @@ end
 
 properties (Hidden)
     ampType
+    greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
     temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'pulse-positive', 'pulse-negative'})
     chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'red', 'green', 'blue', 'yellow', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
     onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})

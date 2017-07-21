@@ -2,6 +2,7 @@ classdef ColorExchange < edu.washington.riekelab.manookin.protocols.ManookinLabS
 
 properties
 	amp
+	greenLED = '570nm'
 	preTime = 250
 	stimTime = 2000
 	tailTime = 250
@@ -20,6 +21,7 @@ end
 
 properties (Hidden)
 	ampType
+  greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
 	temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
 	onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
 	coneOneType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B', 'LMS'})

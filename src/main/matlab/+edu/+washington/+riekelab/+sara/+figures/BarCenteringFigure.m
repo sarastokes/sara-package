@@ -26,7 +26,7 @@ end
 
 properties (Constant)
 	RES = {'F1', 'F2', 'P1', 'P2'}
-	DEMOMODE = false
+	DEMOMODE = true
 end
 
 methods
@@ -61,21 +61,20 @@ methods
 
 		set(obj.figureHandle, 'Color', 'w',...
 			'Name', 'Bar Centering Figure');
+        iconDir = [fileparts(fileparts(mfilename('fullpath'))), '\+icons\'];
 
 		toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
 		pcolorButton = uipushtool('Parent', toolbar,...
 			'TooltipString', 'interpolate & pcolor',...
 			'Separator', 'on',...
 			'ClickedCallback', @obj.onSelected_interpolate);
-		setIconImage(pcolorButton,...
-			symphonyui.app.App.getResource('icons', 'modules.png'));
+		setIconImage(pcolorButton, [iconDir, 'pcolor.png']);
 
 		surfButton = uipushtool('Parent', toolbar,...
 			'TooltipString', 'interpolate & surf',...
 			'Separator', 'on',...
 			'ClickedCallback', @obj.onSelected_interpolate);
-		setIconImage(surfButton,...
-			symphonyui.app.App.getResource('icons', 'modules.png'));
+		setIconImage(surfButton, [iconDir, 'surf.png']);
 
 		sendButton = uipushtool('Parent', toolbar,...
 			'TooltipString', 'send to workspace',...
@@ -184,8 +183,8 @@ methods
 				obj.cellData.P1X = cat(2, obj.cellData.P1X, 0);
 				obj.cellData.P2X = cat(2, obj.cellData.P2X, 0);
 			else
-				obj.cellData.F1X = cat(2, obj.cellData.F1X, abs(ft(2))/length(avgCycle*2));
-				obj.cellData.F2X = cat(2, obj.cellData.F2X, abs(ft(3))/length(avgCycle*2));
+				obj.cellData.F1X = cat(2, obj.cellData.F1X, abs(ft(2))/length(cycleData*2));
+				obj.cellData.F2X = cat(2, obj.cellData.F2X, abs(ft(3))/length(cycleData*2));
 				obj.cellData.P1X = cat(2, obj.cellData.P1X, angle(ft(2)) * 180/pi);
 				obj.cellData.P2X = cat(2, obj.cellData.P2X, angle(ft(3)) * 180/pi);
 			end
@@ -240,7 +239,7 @@ end % methods
 methods
 	function onSelected_interpolate(obj, src, ~)
         try
-    		x = [obj.handles.f1x.XData, zeros(size(obj.handles.f1y.XData))];
+    		  x = [obj.handles.f1x.XData, zeros(size(obj.handles.f1y.XData))];
         	y = [zeros(size(obj.handles.f1x.XData)), obj.handles.f1y.XData];
         catch
             x = [obj.cellData.F1X; zeros(size(obj.cellData.F1Y))];
@@ -248,8 +247,8 @@ methods
             fprintf('BarCenteringFigure - used cellData\n');
         end
 
-		scInt = scatteredInterpolant(x, y,...
-		[obj.handles.F1X.YData obj.handles.F1X.YData]);
+		scInt = scatteredInterpolant(x', y',...
+		[obj.handles.f1x.YData obj.handles.f1x.YData]');
 
 		[newX, newY] = meshgrid(linspace(min(x), max(x), 100),...
 			linspace(min(y), max(y), 100));

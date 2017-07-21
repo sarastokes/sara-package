@@ -2,6 +2,7 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
 
     properties
         amp                             % Output amplifier
+        greenLED = '570nm'              % Green LED
         preTime = 250                   % Spot leading duration (ms)
         stimTime = 1500                 % Spot duration (ms)
         tailTime = 250                  % Spot trailing duration (ms)
@@ -20,6 +21,7 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
 
     properties (Hidden)
         ampType
+        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
         targetConeType = symphonyui.core.PropertyType('char', 'row', {'sCone', 'mCone', 'lCone'});
         temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'pulse'})
         onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
