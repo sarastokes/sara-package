@@ -1,4 +1,4 @@
-classdef TargetConeF1 < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef TargetConeF1 < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
 properties
   amp                               % Output amplifier
@@ -8,7 +8,7 @@ properties
   tailTime = 500                    % Spot trailing duration (ms)
   temporalFrequency = 4.0           % Modulation frequency (Hz)
   radius = 200                      % Inner radius in pixels.
-  backgroundIntensity = 0.5         % Background light intensity (0-1)
+  lightMean = 0.5         % Background light intensity (0-1)
   centerOffset = [0,0]              % Center offset in pixels (x,y)
   temporalClass = 'sinewave'        % Sinewave or squarewave?
   chromaticClass = 'achromatic'     % Spot color
@@ -49,7 +49,7 @@ function didSetRig(obj)
     [obj.amp, obj.ampType] = obj.createDeviceNamesProperty('Amp');
 end
 function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
     obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
@@ -66,7 +66,7 @@ function prepareRun(obj)
 
     obj.xaxis = zeros(1, double(obj.numberOfAverages));
 
-    obj.setColorWeights();
+    obj.setLEDs;
 end
 
 function CRFanalysis(obj, ~, epoch)
@@ -132,7 +132,7 @@ end
 
 function p = createPresentation(obj)
     p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
-    p.setBackgroundColor(obj.backgroundIntensity);
+    p.setBackgroundColor(obj.lightMean);
 
     spot = stage.builtin.stimuli.Ellipse();
     spot.radiusX = obj.radius;
@@ -153,7 +153,7 @@ function p = createPresentation(obj)
       mask.radiusX = obj.maskRadius;
       mask.radiusY = obj.maskRadius;
       mask.position = obj.canvasSize/2 + obj.centerOffset;
-      mask.color = obj.backgroundIntensity;
+      mask.color = obj.lightMean;
 
       maskVisibleController = stage.builtin.controllers.PropertyController(mask, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
@@ -164,18 +164,18 @@ function p = createPresentation(obj)
   function c = getSpotColor(obj, time)
     if time >= 0
       if strcmp(obj.temporalClass, 'sinewave')
-        c = obj.contrast * obj.colorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+        c = obj.contrast * obj.colorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.lightMean + obj.lightMean;
       elseif strcmp(obj.temporalClass, 'squarewave')
-         c = obj.contrast * obj.colorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+         c = obj.contrast * obj.colorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
       end
     else
-      c = obj.backgroundIntensity;
+      c = obj.lightMean;
     end
   end
 end
 
 function prepareEpoch(obj, epoch)
-  prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch)
+  prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch)
 
   obj.lastPt = obj.nextPt;
 

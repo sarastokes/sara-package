@@ -1,8 +1,4 @@
-function frameValues = getSpatialNoiseFrames(numXChecks, numYChecks, numFrames, noiseClass, chromaticClass, seed, intensity)
-
-if nargin < 7
-    intensity = 1;
-end
+function frameValues = getSpatialNoiseFrames(numXChecks, numYChecks, numFrames, noiseClass, chromaticClass, seed)
 
 % Seed the random number generator.
 noiseStream = RandStream('mt19937ar', 'Seed', seed);
@@ -25,9 +21,9 @@ elseif strcmpi(noiseClass, 'ternary')
     end
 else
     if strcmpi(chromaticClass, 'RGB')
-        frameValues = (0.3*intensity*noiseStream.randn(numFrames, numYChecks, numXChecks, 3));
+        frameValues = (0.3*intensity*noiseStream.rand(numFrames, numYChecks, numXChecks, 3));
     else
-        frameValues = (0.3*intensity*noiseStream.randn(numFrames, numYChecks, numXChecks));
+        frameValues = (0.3*intensity*noiseStream.rand(numFrames, numYChecks, numXChecks));
     end
     frameValues(frameValues > 1) = 1;
     frameValues(frameValues < -1) = -1;

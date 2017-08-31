@@ -1,4 +1,4 @@
-classdef BarCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef BarCentering < edu.washington.riekelab.sara.protocols.SaraStageProtocol
   % 10Jul2017 - SSP - updated to run x, y together with new figures
 
 properties
@@ -12,7 +12,7 @@ properties
   barSize = [50 500]              % Bar size [width, height] (pix)
   temporalClass = 'squarewave'    % Squarewave or pulse?
   positions = -300:50:300         % Bar center position (pix)
-  backgroundIntensity = 0.5       % Background light intensity (0-1)
+  lightMean = 0.5       % Background light intensity (0-1)
   centerOffset = [0,0]            % Center offset in pixels (x,y)
   chromaticClass = 'achromatic'   % Chromatic class
   onlineAnalysis = 'extracellular'         % Online analysis type.
@@ -40,10 +40,10 @@ methods
   end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
-      obj.showFigure('edu.washington.riekelab.manookin.figures.ResponseFigure',...
-        obj.rig.getDevices('Amp'), 'numberOfAverages', obj.numberOfAverages);
+      obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+        obj.rig.getDevices('Amp'));
 
       if ~strcmp(obj.onlineAnalysis, 'none')
         obj.showFigure('edu.washington.riekelab.sara.figures.BarCenteringFigure',...
@@ -65,12 +65,12 @@ methods
       y = [obj.centerOffset(1)*ones(length(pos),1) pos+obj.centerOffset(2)];
       obj.sequence = [x; y];
 
-      obj.setColorWeights();
+      obj.setLEDs;
   end % prepareRun
 
     function p = createPresentation(obj)
       p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
-      p.setBackgroundColor(obj.backgroundIntensity);
+      p.setBackgroundColor(obj.lightMean);
 
       rect = stage.builtin.stimuli.Rectangle();
       rect.size = obj.barSize;
@@ -78,9 +78,9 @@ methods
       rect.position = obj.canvasSize/2 + obj.position;
 
       if strcmp(obj.stageClass, 'Video')
-          rect.color = obj.intensity*obj.colorWeights*obj.backgroundIntensity + obj.backgroundIntensity;
+          rect.color = obj.intensity*obj.ledWeights*obj.lightMean + obj.lightMean;
       else
-          rect.color = obj.intensity*obj.backgroundIntensity + obj.backgroundIntensity;
+          rect.color = obj.intensity*obj.lightMean + obj.lightMean;
       end
 
       % Add the stimulus to the presentation.
@@ -100,15 +100,15 @@ methods
 
       function c = getSpotColorVideoSqwv(obj, time)
         if strcmp(obj.stageClass, 'Video')
-          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.colorWeights * obj.backgroundIntensity + obj.backgroundIntensity;
+          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.ledWeights * obj.lightMean + obj.lightMean;
         else
-          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+          c = obj.intensity * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.lightMean + obj.lightMean;
         end
       end
   end
 
   function prepareEpoch(obj, epoch)
-    prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+    prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
       obj.position = obj.sequence(obj.numEpochsCompleted+1, :);
       obj.orientation = obj.orientations(obj.numEpochsCompleted+1);

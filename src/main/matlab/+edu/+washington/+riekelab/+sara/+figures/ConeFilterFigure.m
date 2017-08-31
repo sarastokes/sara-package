@@ -1,10 +1,10 @@
 classdef ConeFilterFigure < symphonyui.core.FigureHandler
-    %
+    % 28Aug2017 - SSP - cleaned up, removed demoMode,
+    %       frameMonitor issues so removed that code
     properties (SetAccess = private)
         % required:
         device
         filtWheel
-        frameMonitor
         preTime
         stimTime
         stDev
@@ -14,23 +14,17 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         frameRate
     end
     
-    properties
-        % contains all UI handles
-        handles
-        
-        % keeps track epochs
-        epochNum
-        
-        % analysis is stored here
-        cellData
-        
-        % currentCone as number
-        coneInd % current cone as #
-        
+    properties (SetAccess = private)
+        handles % contains all UI handles        
+        cellData % stores analyzed linear filters and nonlinearities
         nextStimulus % holds future parameters
         nextCone % a list of next chromaticClass
-        nextStimTime % how long the next stim will be
-        
+    end
+    
+    properties (Hidden)
+        epochNum % tracks epochs       
+        coneInd % current cone as #
+  
         % protocol control properties
         ignoreNextEpoch = false
         addNullEpoch = false
@@ -38,30 +32,23 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         protocolShouldStop = false
     end
     
-    properties (Constant)
-        % how long the null epochs should run for
-        NULLTIME = 500
+    properties (Constant, Hidden)
+        CONES = 'lmsa' % cone stim options, may add lm-iso
         
-        % not really worth making an editable parameter right now
+        % not really worth making editable parameters right now
         BINSPERFRAME = 6
         FILTERLENGTH = 1000
-        
-        % green LED code is potentially problematic. option to disable
-        LEDMONITOR = true
-        
-        % cone options.. might add LM-iso at some point
-        CONES = 'lmsa'
-        
-        % generate some fake filters + NLs for debugging
-        DEMOMODE = false
-        DEMOGAUSS = false
+        NONLINEARITYBINS = 200
+
+        LEDMONITOR = true % monitor green LED vs cone-iso
+ 
+        DEMOGAUSS = false % use old data for debugging
     end
     
     
     methods
-        function obj = ConeFilterFigure(device, frameMonitor, filtWheel, preTime, stimTime, varargin)
+        function obj = ConeFilterFigure(device, filtWheel, preTime, stimTime, varargin)
             obj.device = device;
-            obj.frameMonitor = frameMonitor;
             obj.filtWheel = filtWheel;
             obj.preTime = preTime;
             obj.stimTime = stimTime;
@@ -79,24 +66,30 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             
             obj.epochNum = 0;
             
+            % init some plot flags
+            obj.handles.flags.smoothFilt = false;
+            obj.handles.flags.normPlot = false;
+            
+            % create the UI handles
             obj.createUi();
             
+            % init the data structures
             obj.cellData.filterMap = containers.Map;
             obj.cellData.xnlMap = containers.Map;
             obj.cellData.ynlMap = containers.Map;
             
-            % set to zero which flags new cone type
+            % set to zero which flags a new cone type
             for ii = 1:length(obj.CONES)
                 obj.cellData.filterMap(obj.CONES(ii)) = 0;
                 obj.cellData.xnlMap(obj.CONES(ii)) = 0;
                 obj.cellData.ynlMap(obj.CONES(ii)) = 0;
             end
-            % this figure controls two protocol parameters:
+            
+            % this figure controls one protocol parameters:
             obj.nextStimulus.cone = [];
-            obj.nextStimulus.stimTime = [];
             
             % this waits until more stimuli are added to the queue
-            obj.waitIfNecessary();
+            obj.waitForStim();
             
             if ~isvalid(obj)
                 fprintf('Not valid object\n');
@@ -106,120 +99,122 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             % this runs at the very end of each epoch, sets the next epoch
             obj.assignNextStimulus();
             
-            % reflect in the ui
+            % reflect changes in stimulus assignment
             obj.updateUi();
         end % constructor
         
         function createUi(obj)
             import appbox.*;
             
-            % toolbar
+            % FIGURE
+            set(obj.figureHandle, 'Name', 'Cone Filter Figure',...
+                'Color', 'w',...
+                'NumberTitle', 'off');
+            
+            % TOOLBAR
             toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
             
             debugButton = uipushtool('Parent', toolbar,...
                 'TooltipString', 'send obj to wkspace',...
                 'Separator', 'on',...
-                'ClickedCallback', @obj.onSelected_debugButton);
-            setIconImage(debugButton, symphonyui.app.App.getResource('icons', 'modules.png'));
+                'ClickedCallback', @obj.sendData);
+            setIconImage(debugButton, symphonyui.app.App.getResource( ...
+                'icons', 'modules.png'));
             
-            set(obj.figureHandle, 'Name', 'Cone Filter Figure',...
-                'Color', 'w',...
-                'NumberTitle', 'off');
-            
-            % basic layouts
+            % LAYOUTS
             mainLayout = uix.HBox('Parent', obj.figureHandle);
+            % This layout contains the plot and data table
             resultLayout = uix.VBox('Parent', mainLayout);
             plotLayout = uix.HBoxFlex('Parent', resultLayout);
             dataLayout = uix.HBox('Parent', resultLayout);
+            % This layout contains the protocol control buttons
             uiLayout = uix.VBox('Parent', mainLayout);
             set(mainLayout, 'Widths', [-4 -1]);
             
-            % axes:
-            obj.handles.ax.lf = axes('Parent', plotLayout,...
+            % AXES: linear filter and nonlinearity
+            obj.handles.ax.lf = axes(plotLayout,...
                 'XTickMode', 'auto',...
                 'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
                 'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'));
             xlabel(obj.handles.ax.lf, 'Time (ms)');
             title(obj.handles.ax.lf, 'Linear Filter');
-            obj.handles.ax.nl = axes('Parent', plotLayout,...
+            obj.handles.ax.nl = axes(plotLayout,...
                 'XTickMode', 'auto',...
                 'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'),...
                 'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'));
-            set(plotLayout, 'Widths', [-1.5 -1]);
             xlabel(obj.handles.ax.nl, 'Linear prediction');
             ylabel(obj.handles.ax.nl, 'Meaured');
-            title(obj.handles.ax.nl, 'Noninearity');
+            title(obj.handles.ax.nl, 'Nonlinearity');
+            set(plotLayout, 'Widths', [-1.5 -1]);
             
-            % data table
+            % DATA TABLE
             obj.handles.dataTable = uitable('Parent', dataLayout);
             set(obj.handles.dataTable, 'Data', zeros(4,4),...
                 'ColumnName', {'N','T2P', 'ZC', 'BI'},...
                 'RowName', {'L', 'M', 'S', 'A'},...
                 'ColumnEditable', false);
             
-            paramLayout = uix.VBox('Parent', dataLayout,...
-                'Spacing', 5, 'Padding', 5);
+            % PLOT DISPLAY CONTROLS
+            paramLayout = uix.VBox('Parent', dataLayout);
+            % Control the linear filter graph XLim
             xlimLayout = uix.HBox('Parent', paramLayout);
-            
-            obj.handles.pb.changeXLim = uicontrol('Parent', xlimLayout,...
+            obj.handles.pb.changeXLim = uicontrol(xlimLayout,...
                 'Style', 'push',...
                 'String', 'Change xlim',...
-                'Callback', @obj.onSelected_changeXLim);
-            obj.handles.ed.changeXLim = uicontrol('Parent', xlimLayout,...
+                'Callback', @obj.changeXLim);
+            obj.handles.ed.changeXLim = uicontrol(xlimLayout,...
                 'Style', 'edit',...
                 'String', '1000');
             set(xlimLayout, 'Widths', [-3 -1]);
             
+            % Smooth the data points
             smoothLayout = uix.HBox('Parent', paramLayout);
-            obj.handles.cb.smoothFilt = uicontrol('Parent', smoothLayout,...
+            obj.handles.cb.smoothFilt = uicontrol(smoothLayout,...
                 'String', 'Smooth filters',...
                 'Style', 'checkbox',...
-                'Callback', @obj.onSelected_smoothFilt);
-            obj.handles.ed.smoothFac = uicontrol('Parent', smoothLayout,...
+                'Callback', @obj.smoothFilters);
+            obj.handles.ed.smoothFac = uicontrol(smoothLayout,...
                 'Style', 'edit',...
                 'String', '0');
             set(smoothLayout, 'Widths', [-3 -1]);
             
-            obj.handles.cb.normPlot = uicontrol('Parent', paramLayout,...
+            % Normalize the filters for easy comparison
+            obj.handles.cb.normPlot = uicontrol(paramLayout,...
                 'String', 'Normalize',...
                 'Style', 'checkbox',...
-                'Callback', @obj.onSelected_normPlot);
-            
-            % init some plot flags
-            obj.handles.flags.smoothFilt = false;
-            obj.handles.flags.normPlot = false;
+                'Callback', @obj.normPlot);
             
             set(paramLayout, 'Heights', [-1 -1 -1]);
-            set(resultLayout, 'Heights', [-1.5 -1]);
+            set(resultLayout, 'Heights', [-2 -1]);
             set(dataLayout, 'Widths', [-2 -1]);
             
-            % display edit boxes
+            % STIMULUS CONTROL
             uicontrol('Parent', uiLayout,...
                 'Style', 'text',...
                 'String', 'Stimulus queue:');
-            obj.handles.tx.queue = uicontrol('Parent', uiLayout,...
+            obj.handles.tx.queue = uicontrol(uiLayout,...
                 'Style', 'text',...
                 'String', '');
-            obj.handles.ed.queue = uicontrol('Parent', uiLayout,...
+            obj.handles.ed.queue = uicontrol(uiLayout,...
                 'Style', 'edit',...
                 'String', '');
-            obj.handles.pb.addToQueue = uicontrol('Parent', uiLayout,...
+            obj.handles.pb.addToQueue = uicontrol(uiLayout,...
                 'Style', 'push',...
                 'String', 'UpdateQueue',...
-                'Callback', @obj.onSelected_updateQueue);
-            obj.handles.pb.clearQueue = uicontrol('Parent', uiLayout,...
+                'Callback', @obj.updateQueue);
+            obj.handles.pb.clearQueue = uicontrol(uiLayout,...
                 'Style', 'push',...
                 'String', 'Clear queue',...
-                'Callback', @obj.onSelected_clearQueue);
+                'Callback', @obj.clearQueue);
             
-            % protocol displays
-            obj.handles.tx.curEpoch = uicontrol('Parent', uiLayout,...
+            % PROTOCOL DISPLAY
+            obj.handles.tx.curEpoch = uicontrol(uiLayout,...
                 'Style', 'text',...
                 'String', 'Current Epoch: -');
-            obj.handles.tx.nextEpoch = uicontrol('Parent', uiLayout,...
+            obj.handles.tx.nextEpoch = uicontrol(uiLayout,...
                 'Style', 'text',...
                 'String', 'Next Epoch: -');
-            % protocol control buttons
+            % PROTOCOL CONTROL
             uicontrol('Parent', uiLayout,...
                 'Style', 'push',...
                 'String', 'Resume Protocol',...
@@ -227,7 +222,10 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         end % createUi
         
         function handleEpoch(obj, epoch)
-            % basic plan: each epoch gets a newFilter which is added to existing filters in cellData
+            % basic plan: each epoch gets a newFilter (and NL)
+            % which is added to existing filters in cellData.
+            % after analysis, the next stimulus is assigned
+            
             if obj.ignoreNextEpoch
                 disp('ignoring epoch');
                 epoch.shouldBePersisted = false;
@@ -241,84 +239,53 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             fprintf('figure - handleEpoch - protocol saved %s\n', cone);
             
             %% ANALYSIS ---------------------------------------------
-            if obj.DEMOMODE
-                % make a fake filter
-                pts = linspace(-1, 1, obj.BINSPERFRAME * obj.frameRate + 1);
-                newFilter = diff(normpdf(pts, 0, (0.1*obj.coneInd)));
-                % add some variability so they aren't overlapping
-                newFilter = ((0.1*obj.coneInd) * randi(10)) .* newFilter;
-                % make it an M-center OFF cell
-                if obj.coneInd == 2 || obj.coneInd == 4
-                    newFilter = -1 * newFilter;
-                end
-                xpts = 1:length(newFilter);
-                
-                % make a fake nonlinearity
-                yBin = normcdf(pts, 0, (0.1*obj.coneInd));
-                xBin = pts;
-            else % use actual spikes
-                if obj.DEMOGAUSS
-                    load('C:\Users\Sara Patterson\Documents\MATLAB\demoGauss.mat')
-                    epochResponseTrace = demoGauss.resp(obj.epochNum, :);
-                    currentNoiseSeed = demoGauss.seed(obj.epochNum);
-                    sampleRate = 10000;
-                else
-                    % this is where the real linear filter analysis goes
-                    response = epoch.getResponse(obj.device);
-                    epochResponseTrace = response.getData();
-                    sampleRate = response.sampleRate.quantityInBaseUnits;
-                    currentNoiseSeed = epoch.parameters('seed');
-                end
-                prePts = sampleRate * obj.preTime/1000;
-
-                numFrames = floor(obj.stimTime/1000 * obj.frameRate) / obj.frameDwell;
-                
-                binRate = obj.BINSPERFRAME * obj.frameRate;
-                plotLngth = round(binRate*0.5);
-                % numBins = floor(obj.stimTime/1000 * binRate);
-                % binSize = sampleRate / binRate;
-                % resp = zeros(1, numBins);
-                resp = responseByType(epochResponseTrace, obj.recordingType, obj.preTime, sampleRate);
-                
-                % 			S = spikeDetectorOnline(epochResponseTrace);
-                % 			spikeTimes = S.sp;
-                % 			spikes = zeros(size(response));
-                % 			spikes(spikeTimes) = 1;
-                
-                % data = spikes(obj.preTime/1000 * sampleRate+1:end);
-                % bin the data
-                resp = BinSpikeRate(resp(prePts+1:end), binRate, sampleRate);
-                resp = resp(:)';
-                fprintf('response is %u,%u\n',size(resp));
-                
-                % noiseStream = RandStream('mt19937ar', 'Seed', currentNoiseSeed);
-                % stimulus = obj.stDev * noiseStream.randn(1, numBins/obj.BINSPERFRAME);
-                stimulus = getGaussianNoiseFrames(numFrames, obj.frameDwell, obj.stDev, currentNoiseSeed);
-                
-                if binRate > obj.frameRate
-                    n = round(binRate / obj.frameRate);
-                    stimulus = ones(n,1)*stimulus(:)';
-                    stimulus = stimulus(:);
-                end
-                
-                % 			if obj.BINSPERFRAME > 1
-                % 					stimulus = ones(obj.BINSPERFRAME,1) * stimulus;
-                % 					stimulus = stimulus(:)';
-                %             end
-                resp = resp(1 : length(stimulus));
-                fprintf('stimulus is %u,%u\n', size(stimulus));
-                
-                % get rid of the first 0.5 sec
-                stimulus(1:round(binRate/2)) = 0;
-                resp(1:round(binRate/2)) = 0;
-                
-                newFilter = real(ifft(fft([resp(:)', zeros(1,60)]) .* conj(fft([stimulus(:)', zeros(1,60)]))));
-                
-                xpts = linspace(0, length(newFilter), obj.BINSPERFRAME * obj.frameRate);
-                
-            end % demo mode if
+            if obj.DEMOGAUSS
+                %load('C:\Users\Sara Patterson\Documents\MATLAB\demoGauss.mat')
+                load('C:\Users\sarap\Google Drive\Symphony\sara-package\utils\demoGauss.mat')
+                epochResponseTrace = demoGauss.resp(obj.epochNum, :);
+                currentNoiseSeed = demoGauss.seed(obj.epochNum);
+                sampleRate = 10000;
+            else
+                % this is where the real linear filter analysis goes
+                response = epoch.getResponse(obj.device);
+                epochResponseTrace = response.getData();
+                sampleRate = response.sampleRate.quantityInBaseUnits;
+                currentNoiseSeed = epoch.parameters('seed');
+            end
+            prePts = sampleRate * obj.preTime/1000;
             
-%% ------------------------------------------------------ store filter -----
+            numFrames = floor(obj.stimTime/1000 * obj.frameRate)/obj.frameDwell;
+            
+            binRate = obj.BINSPERFRAME * obj.frameRate;
+            
+            resp = responseByType(epochResponseTrace, obj.recordingType,...
+                obj.preTime, sampleRate);
+            resp = BinSpikeRate(resp(prePts+1:end), binRate, sampleRate);
+            resp = resp(:)';
+            
+            noiseStream = RandStream('mt19937ar', 'Seed', currentNoiseSeed);
+            stimulus = obj.stDev * noiseStream.randn(numFrames, 1);
+            if obj.frameDwell > 1
+                stimulus = ones(obj.frameDwell,1) * stimulus(:)';
+            end
+            stimulus = stimulus(:);
+            
+            if binRate > obj.frameRate
+                n = round(binRate / obj.frameRate);
+                stimulus = ones(n,1)*stimulus(:)';
+                stimulus = stimulus(:);
+            end
+            
+            resp = resp(1 : length(stimulus));
+            stimulus(1:round(binRate/2)) = 0;
+            resp(1:round(binRate/2)) = 0;
+            
+            % reverse correlation
+            newFilter = real(ifft(fft([resp(:)', zeros(1,60)]) .* ...
+                conj(fft([stimulus(:)', zeros(1,60)]))));
+            
+            %% ----------------------------------------- store filter -----
+            plotLngth = round(binRate*0.5);
             if obj.cellData.filterMap(cone) == 0
                 obj.cellData.filterMap(cone) = newFilter;
                 obj.handles.lf(obj.coneInd) = line('Parent', obj.handles.ax.lf,...
@@ -330,57 +297,35 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
                 set(obj.handles.lf(obj.coneInd), 'YData', tmp(1:plotLngth));
             end
             
-%% ------------------------------------------------------- nonlinearity ----
-            if ~obj.DEMOMODE
-                % Re-bin the response for the nonlinearity.
-                resp = binData(resp, 60, binRate);
-                size(fft([stimulus(:)', zeros(1,100)]))
-                size(newFilter(:)')
-                
-                
-                % Convolve stimulus with filter to get generator signal.
-                try
-                    pred = ifft(fft([stimulus(:)' zeros(1,60)]) .* fft(newFilter(:)'));
-                    plotNL = true;
-                    pred = binData(pred, 60, binRate);
-                    pred = pred(:)';
-                catch
-                    plotNL = false;
-                end
-                
-                
-                
-                % Get the binned nonlinearity.
-            end % if not demomode
-            if plotNL
-                if obj.cellData.ynlMap(cone) == 0
-                    if ~obj.DEMOMODE
-                        obj.cellData.ynlMap(cone) = resp(:)';
-                        obj.cellData.xnlMap(cone)  = pred(1:length(resp));
-                        [xBin, yBin] = obj.getNL(obj.cellData.xnlMap(cone), obj.cellData.ynlMap(cone));
-                    else
-                        obj.cellData.xnlMap(cone) = xBin;
-                        obj.cellData.ynlMap(cone) = yBin;
-                    end
-                    obj.handles.nl(obj.coneInd) = line('Parent', obj.handles.ax.nl,...
-                        'XData', xBin, 'YData', yBin,...
-                        'Color', getPlotColor(cone),...
-                        'Marker', '.', 'LineStyle', 'none');
-                else % existing
-                    if ~obj.DEMOMODE
-                        obj.cellData.xnlMap(cone) = [obj.cellData.xnlMap(cone), pred(1 : length(resp))];
-                        obj.cellData.ynlMap(cone) = [obj.cellData.ynlMap(cone), resp(:)'];
-                        [xBin, yBin] = obj.getNL(obj.cellData.xnlMap(cone), obj.cellData.ynlMap(cone));
-                    else
-                        obj.cellData.xnlMap(cone) = [obj.cellData.xnlMap(cone); xBin];
-                        obj.cellData.ynlMap(cone) = [obj.cellData.ynlMap(cone); yBin];
-                    end
-                    set(obj.handles.nl(obj.coneInd),...
-                        'XData', xBin, 'YData',yBin);
-                end
+            %% ------------------------------------------ nonlinearity ----
+            resp = binData(resp, 60, binRate);
+            
+            % convolve stimulus with filter
+            pred = ifft(fft([stimulus(:)' zeros(1,60)]) .* fft(newFilter(:)'));
+            pred = binData(pred, 60, binRate);
+            pred = pred(:)';
+            
+            if obj.cellData.ynlMap(cone) == 0
+                obj.cellData.ynlMap(cone) = resp(:)';
+                obj.cellData.xnlMap(cone)  = pred(1:length(resp));
+                [xBin, yBin] = obj.getNL(obj.cellData.xnlMap(cone),...
+                    obj.cellData.ynlMap(cone));
+                obj.handles.nl(obj.coneInd) = line('Parent', obj.handles.ax.nl,...
+                    'XData', xBin, 'YData', yBin,...
+                    'Color', getPlotColor(cone),...
+                    'LineWidth', 0.5);
+                % 'Marker', '.', 'LineStyle', 'none');
+            else % existing
+                obj.cellData.xnlMap(cone) = cat(2, obj.cellData.xnlMap(cone),...
+                    pred(1 : length(resp)));
+                obj.cellData.ynlMap(cone) = cat(2, obj.cellData.ynlMap(cone), resp(:)');
+                [xBin, yBin] = obj.getNL(obj.cellData.xnlMap(cone),...
+                    obj.cellData.ynlMap(cone));
+                set(obj.handles.nl(obj.coneInd),...
+                    'XData', xBin, 'YData',yBin);
             end
             
-%% ----------------------------------------------------- filter stats ------
+            %% ---------------------------------------- filter stats ------
             % calculate time to peak, zero cross, biphasic index
             if abs(min(newFilter)) > max(newFilter)
                 filterSign = -1;
@@ -406,28 +351,29 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             
             [loc, pk] = peakfinder(newFilter, [], [], filterSign);
             [~, ind] = max(abs(pk));
+            
             try
                 t2p = xpts(loc(ind));
             catch
                 t2p = 0;
             end
             try
-                bi = abs(min(newFilter)/max(newFilter));
+                bi = abs(min(newFilter) / max(newFilter));
             catch
                 bi = 0;
             end
-%% ------------------------------------------------------------ graphs -----
-            % add to plots
-            obj.updateFilterPlot();
+            
             % send stats to the data table
             try
                 obj.updateDataTable([t2p, zc, bi]);
             catch
-                [t2p zc bi]
+                fprintf('%s - Data table did not update\n', datestr(now));
+                fprintf('   t2p = %.2f, zc = %.2f, bi = %.2f\n', [t2p, zc, bi]);
             end
             
-%% ------------------------------------------------------------- stimuli ---
-            obj.waitIfNecessary();
+            %% ------------------------------------------------ stimuli ---
+            obj.updateFilterPlots();
+            obj.waitForStim();
             
             if ~isempty(obj.nextStimulus.cone) && obj.LEDMONITOR
                 obj.checkNextCone();
@@ -444,18 +390,20 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             obj.updateUi();
         end % handleEpoch
         
-%% -------------------------------------------------------------- callbacks ----
-        function onSelected_normPlot(obj,~,~)
-            if get(obj.handles.cb.normPlot, 'Value') == get(obj, 'Max')
+        %% ------------------------------------------------- callbacks ----
+        function normPlot(obj,~,~)
+            % NORMPLOT  Normalize the linear filters
+            if get(obj.handles.cb.normPlot, 'Value') == get(obj.handles.cb.normPlot, 'Max')
                 obj.handles.flags.normPlot = true;
             else
                 obj.handles.flags.normPlot = false;
             end
             
             obj.updateFilterPlot();
-        end % onChanged_normPlot
+        end % normPlot
         
-        function onSelected_smoothFilt(obj,~,~)
+        function smoothFilters(obj,~,~)
+            % SMOOTHFILTERS  Smooth filters by n
             if get(obj.handles.cb.smoothFilt, 'Value') == 1
                 obj.handles.flags.smoothFilt = true;
                 try
@@ -471,43 +419,40 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             end
             
             obj.updateFilterPlot();
-        end % onChanged_smoothFilt
+        end % smoothFilters
         
-        function onSelected_changeXLim(obj,~,~)
-            % possibly just put this in updateFilterPlot()
-            % not sure how much time this would even save...
+        function changeXLim(obj,~,~)
+            % CHANGEXLIM  Change the x-axis of linear filter plot
             set(obj.handles.ax.lf, 'XLim',...
                 [0 str2double(get(obj.handles.ed.changeXLim, 'String'))]);
         end % changeXLim
         
-        function onSelected_updateQueue(obj,~,~)
-            % appends to existing queue
+        function updateQueue(obj,~,~)
+            % UPDATEQUEUE  Appends to existing queue
             x = get(obj.handles.tx.queue, 'String');
             x = [x get(obj.handles.ed.queue, 'String')];
             set(obj.handles.tx.queue, 'String', x);
             obj.addStimuli(get(obj.handles.ed.queue, 'String'));
         end % updateQueue
         
-        function onSelected_clearQueue(obj,~,~)
+        function clearQueue(obj,~,~)
+            % CLEARQUEUE  Clears stimuli in queue
             obj.nextStimulus.cone = [];
-            obj.nextStimulus.stimTime = [];
             obj.updateUi();
         end % clearQueue
         
-%% ------------------------------------------------ main -----------
+        %% ------------------------------------------------ main -----------
         function updateFilterPlot(obj)
             % this method applies smooth, normalize, etc to exisiting plot
-            lines = findall(obj.handles.ax.lf, 'Type', 'line');
-            % check for smooth plot
-            if ~isempty(lines)
-                if obj.handles.flags.smoothFilt
-                    for ii = 1:numel(lines)
-                        set(lines(ii), 'YData', smooth(lines(ii).YData, obj.smoothFac));
+            for ii = 1:length(obj.CONES)
+                if obj.cellData.filterMap(obj.CONES(ii)) ~=0
+                    if obj.handles.flags.smoothFilt
+                        set(obj.handles.lf(ii), 'YData',...
+                            smooth(obj.handles.lf(ii).YData, obj.smoothFac));
                     end
-                end
-                if obj.handles.flags.normPlot
-                    for ii = 1:numel(lines)
-                        set(lines(ii), 'YData', lines(ii).YData / max(abs(lines(ii).YData)));
+                    if obj.handles.flags.normPlot
+                        set(obj.handles.lf(ii), 'YData',...
+                            obj.handles.lf(ii).YData / max(abs(obj.handles.lf(ii).YData)));
                     end
                 end
             end
@@ -515,7 +460,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         
         
         function updateDataTable(obj, stats)
-            % stats should be [t2p zc bi]
+            % UPDATEDATATABLE  Add time to peak, biphasic index, zero cross
             tableData = get(obj.handles.dataTable, 'Data');
             if tableData(obj.coneInd, 1) == 0
                 for ii = 2:4
@@ -527,25 +472,27 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
                         tableData(obj.coneInd, 1), stats(1,ii-1));
                 end
             end
-            % update count after used for variables
+            % update count after used for finding new mean
             tableData(obj.coneInd, 1) = tableData(obj.coneInd, 1) + 1;
             
             set(obj.handles.dataTable, 'Data', tableData);
         end % updateDataTable
         
         function updateUi(obj)
-            % this is called after the next stimulus has been assigned in handleEpoch
+            % UPDATEUI  Update user interface to reflect the next epoch
             if obj.ignoreNextEpoch
-                obj.handles.tx.curEpoch.String = ['NULL - ' num2str(obj.nextStimTime) 's'];
+                obj.handles.tx.curEpoch.String = 'NULL EPOCH';
             else
-                obj.handles.tx.curEpoch.String = obj.nextCone;
+                obj.handles.tx.curEpoch.String = ['Stim Epoch: ',...
+                    obj.nextCone];
             end
             
             % show the next stimulus
             if isempty(obj.nextStimulus.cone)
                 obj.handles.tx.nextEpoch.String = 'no next stim!';
             else
-                obj.handles.tx.nextEpoch.String = obj.nextStimulus.cone(1);
+                obj.handles.tx.nextEpoch.String = ['Next epoch: ',...
+                    obj.nextStimulus.cone(1)];
             end
             
             % update stimulus queue:
@@ -553,11 +500,8 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             obj.handles.tx.queue.String = obj.nextStimulus.cone;
         end % updateUi
         
-%% ------------------------------------------------------- support --------
+        %% ----------------------------------------------- support --------
         function clearFigure(obj)
-            if obj.epochNum > 1
-                obj.saveDlg();
-            end
             obj.resetPlots();
             clearFigure@FigureHandler(obj);
         end
@@ -567,25 +511,11 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             obj.epochNum = 0;
             obj.protocolShouldStop = false;
             obj.nextStimulus.cone = [];
-            obj.nextStimulus.stimTime = [];
         end % resetPlots
         
-        function saveDlg(obj)
-            selection = questdlg('Save the data?', 'Save dialog',...
-                'Yes', 'No', 'Yes');
-            if strcmp(selection, 'Yes')
-                outputStruct = obj.cellData;
-                answer = inputdlg('Send cellData to workspaces as: ',...
-                    'Naming Dialog', 1, {'r'});
-                assignin('base', sprintf('%s', answer{1}), outputStruct);
-                fprintf('%s - figure data sent as %s', datestr(now), answer{1});
-            end
-        end % saveDlg
-        
-%% ------------------------------------------------ protocol --------
+        %% ---------------------------------------------- protocol --------
         function checkNextCone(obj)
-            % this method will remind when the green LED needs to change
-            
+            % CHECKNEXTCONE  Reminder of when the green LED needs to change
             obj.ledNeedsToChange = false;
             % get the filter wheel
             fw = obj.filtWheel;
@@ -593,18 +523,16 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
                 % get the current green LED setting
                 greenLEDName = obj.filtWheel.getGreenLEDName();
                 % check to see if it's compatible with currentCone
-                % if not show a message box that pauses protocol
-                if strcmp(greenLEDName, 'Green_505nm')
+                if strcmp(greenLEDName, 'Green_570nm')
                     if ~strcmp(obj.nextStimulus.cone(1), 's')
                         obj.ledNeedsToChange = true;
-                        msgbox('Change green LED to Green_570nm', 'LED monitor');
+                        msgbox('Change green LED to 505nm', 'LED monitor');
                         obj.waitForLED();
-                        % fw.setGreenLEDName('Green_570nm');
                     end
-                elseif strcmp(greenLEDName, 'Green_570nm')
+                elseif strcmp(greenLEDName, 'Green_505nm')
                     if strcmp(obj.nextStimulus.cone(1), 's')
                         obj.ledNeedsToChange = true;
-                        msgbox('Change green LED to Green_505nm', 'LED monitor');
+                        msgbox('Change green LED to 570nm', 'LED monitor');
                         obj.waitForLED();
                     end
                 end
@@ -612,32 +540,30 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         end % checkNextCone
         
         function addStimuli(obj, newCones)
+            % ADDSTIMULI  Appends stimuli letters to queue
             % TODO: some kind of input validation?
             % add to stimulus queue
             obj.nextStimulus.cone = [obj.nextStimulus.cone newCones];
-            obj.nextStimulus.stimTime = obj.stimTime + zeros(size(obj.nextStimulus.cone));
             % reflect changes in the stimulus queue
             set(obj.handles.tx.queue, 'String', obj.nextStimulus.cone);
         end % addStimuli
         
         
         function assignNextStimulus(obj)
-            % sets up the next epoch at the end of handleEpoch
+            % ASSIGNNEXTSTIMULUS  Sets up the next epoch after handleEpoch
             if obj.addNullEpoch
                 disp('adding null epoch - no stimuli');
-                obj.ignoreNextEpoch = true;
+                obj.ignoreNextEpoch = false;
                 obj.addNullEpoch = false;
-                % add an extra stimulus with different stim time
-                obj.nextStimulus.stimTime = [obj.NULLTIME, obj.nextStimulus.stimTime];
-                obj.nextStimulus.cone = [obj.nextStimulus.cone(1), obj.nextStimulus.cone];
+                obj.nextStimulus.cone = [obj.nextStimulus.cone(1),...
+                    obj.nextStimulus.cone];
             elseif obj.ledNeedsToChange
                 % keeping these two apart for now
                 disp('adding null epoch - led change');
-                obj.ignoreNextEpoch = true;
+                obj.ignoreNextEpoch = false;
                 obj.addNullEpoch = false;
-                % add an extra stimulus with different stim time
-                obj.nextStimulus.stimTime = [obj.NULLTIME, obj.nextStimulus.stimTime];
-                obj.nextStimulus.cone = [obj.nextStimulus.cone(1), obj.nextStimulus.cone];
+                obj.nextStimulus.cone = [obj.nextStimulus.cone(1),...
+                    obj.nextStimulus.cone];
             else
                 disp('adding normal epoch');
                 obj.ignoreNextEpoch = false;
@@ -645,19 +571,19 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             end
             
             % just chromatic class for now
-            fprintf('figure - setting next cone to %s\n', obj.nextStimulus.cone(1));
-            fprintf('figure - setting stim time to %u\n', obj.nextStimulus.stimTime(1));
+            fprintf('figure - setting next cone to %s\n',... 
+                obj.nextStimulus.cone(1));
             obj.nextCone = obj.nextStimulus.cone(1);
-            obj.nextStimTime = obj.nextStimulus.stimTime(1);
+            
             % set the coneInd
             obj.coneInd = strfind(obj.CONES, obj.nextCone);
             
             % move queue up
             obj.nextStimulus.cone(1) = [];
-            obj.nextStimulus.stimTime(1) = [];
         end % assignNextStimulus
         
         function resumeProtocol(obj)
+            % RESUMEPROTOCOL  Begin epochs again
             if isempty(obj.nextStimulus.cone)
                 disp('empty stimulus list');
             else
@@ -666,52 +592,55 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             end
         end % resumeProtocol
         
-        function waitIfNecessary(obj)
+        function waitForStim(obj)
+            % WAITFORSTIM  Pause the protocol for adding new stimuli
             if isempty(obj.nextStimulus.cone)
                 disp('waiting for input');
                 set(obj.figureHandle, 'Name', 'Cone Filter Figure: PAUSED FOR STIM');
-                obj.addNullEpoch = true;
+                % obj.addNullEpoch = true;
                 uiwait(obj.figureHandle);
             end
-        end % waitIfNecessary
+        end % waitForStim
         
         function waitForLED(obj)
+            % WAITFORLED  Pause the protocol while LED switches
             disp('waiting for LED change');
             set(obj.figureHandle, 'Name', 'Cone Filter Figure: PAUSED FOR LED');
-            obj.addNullEpoch = true;
+            % obj.addNullEpoch = true;
             uiwait(obj.figureHandle);
         end % waitForLED
     end % methods
     
-%% ------------------------------------------------ toolbar ------------
     methods (Access = private)
-        function onSelected_debugButton(obj, ~, ~)
+        function sendData(obj, ~, ~)
+            % SENDDATA  Send data to workspace
             outputStruct = obj;
             answer = inputdlg('Send to workspaces as: ',...
                 'Debug Dialog', 1, {'r'});
             assignin('base', sprintf('%s', answer{1}), outputStruct);
             fprintf('%s - figure data sent as %s', datestr(now), answer{1});
-        end % onSelected_debugButton
-        
-        % TODO: remove bad trace option, fit LMS
+        end % sendData
     end % methods private
     
     methods (Static)
         % random methods for convinience. slowly moving elsewhere
         function newMean = stepMean(prevMean, prevN, newValue)
+            % STEPMEAN  Uses N of previous mean in new mean calc
             x = prevMean * prevN;
             newMean = (x + newValue)/(prevN + 1);
         end % stepMean
         
         function [xBin, yBin] = getNL(P, R)
-            nlBins = 200; % maybe make constant parameter?
+            % GETNL  Get the nonlinearity
             [a, b] = sort(P(:));
             xSort = a;
             ySort = R(b);
             
-            valsPerBin = floor(length(xSort) / nlBins);
-            xBin = mean(reshape(xSort(1: nlBins*valsPerBin), valsPerBin, nlBins));
-            yBin = mean(reshape(ySort(1: nlBins*valsPerBin), valsPerBin, nlBins));
+            valsPerBin = floor(length(xSort) / obj.NONLINEARITYBINS);
+            xBin = mean(reshape(xSort(1:obj.NONLINEARITYBINS * valsPerBin),...
+                valsPerBin, obj.NONLINEARITYBINS));
+            yBin = mean(reshape(ySort(1:obj.NONLINEARITYBINS * valsPerBin),...
+                valsPerBin, obj.NONLINEARITYBINS));
         end % getNL
     end % methods static
 end % classdef

@@ -1,4 +1,4 @@
-classdef Calibration < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef Calibration < edu.washington.riekelab.sara.protocols.SaraStageProtocol
     % 17Jul2017 - SSP - added cone-iso options, green LED
 
     properties
@@ -30,7 +30,7 @@ classdef Calibration < edu.washington.riekelab.manookin.protocols.ManookinLabSta
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+            prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
         end % prepareRun
 
         function p = createPresentation(obj)
@@ -56,7 +56,7 @@ classdef Calibration < edu.washington.riekelab.manookin.protocols.ManookinLabSta
         end
 
         function prepareEpoch(obj, epoch)
-            prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+            prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
             switch obj.chromaticClass
                 case 'white'
@@ -73,7 +73,7 @@ classdef Calibration < edu.washington.riekelab.manookin.protocols.ManookinLabSta
                     if obj.altCal
                       cw = getColorWeightsLocal(obj, obj.chromaticClass);
                     else
-                      obj.setColorWeights();
+                      obj.setLEDs;
                       cw = obj.colorWeights;
                     end
                     switch obj.stimulusClass

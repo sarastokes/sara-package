@@ -8,7 +8,7 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
         stageClass
         frameRate
         canvasSize
-        colorWeights
+        ledWeights
         quantalCatch
         ndf
         objectiveMag
@@ -22,10 +22,8 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             prepareRun@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
 
             obj.showFigure('edu.washington.riekelab.figures.FrameTimingFigure',...
-              obj.rig.getDevice('Stage'), obj.rig.getDevice('Frame Monitor'));
+                obj.rig.getDevice('Stage'), obj.rig.getDevice('Frame Monitor'));
 
-            % Show the progress bar.
-            % obj.showFigure('edu.washington.riekelab.manookin.figures.ProgressFigure', obj.numberOfAverages);
 
             % Get the frame rate. Need to check if it's a LCR rig.
             if ~isempty(strfind(obj.rig.getDevice('Stage').name, 'LightCrafter'))
@@ -40,16 +38,17 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             end
 
             % Get the quantal catch.
-            % calibrationDir = 'C:\Users\sarap\Google Drive\MATLAB\Symphony\sara-package\calibration\';
-            calibrationDir = 'C:\Users\Public\Documents\GitRepos\Symphony2\sara-package\calibration\';
+            calibrationDir = 'C:\Users\brian\Google Drive\MATLAB\Symphony\sara-package\calibration\';
+            %calibrationDir = 'C:\Users\Public\Documents\GitRepos\Symphony2\sara-package\calibration\';
             q = load([calibrationDir 'QCatch.mat']);
 
             % Look for a filter wheel device.
             fw = obj.rig.getDevices('FilterWheel');
-            if ~isempty(fw)
-                filterWheel = fw{1};% Get the microscope objective magnification.
+            if ~isempty(fw{1})
+                filterWheel = fw{1};
+                % Get the microscope objective magnification.
                 obj.objectiveMag = filterWheel.getObjective();
-                
+
                 % Get the NDF wheel setting.
                 obj.ndf = filterWheel.getNDF();
                 ndString = num2str(obj.ndf * 10);
@@ -62,9 +61,9 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                 else
                     obj.quantalCatch = q.qCatch.(['ndf', ndString])([1 3 4],:);
                 end
-                
+
                 obj.muPerPixel = filterWheel.getMicronsPerPixel();
-                
+
                 % Adjust the quantal catch depending on the objective.
                 if obj.objectiveMag == 4
                     obj.quantalCatch = obj.quantalCatch .* ([0.498627;0.4921139;0.453983]*ones(1,4));
@@ -87,165 +86,75 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
         end
 
-        function ledFlag = checkGreenLED(obj, colorCall)
-            colorCall = lower(colorCall);
-            fw = obj.rig.getDevices('FilterWheel');
-            ledFlag = false;
-            if ~isempty(fw)
-                fw = fw{1};
-                greenLED = fw.getGreenLEDName();
-                if strcmp(greenLED, 'Green_505nm')
-                    if strcmp(colorCall(1), 's')
-                        ledFlag = false;
-                    else
-                        ledFlag = true;
-                    end
-                elseif strcmp(greenLED, 'Green_570nm')
-                    if strcmp(colorCall(1), 's')
-                        ledFlag = true;
-                    else
-                        ledFlag = false;
-                    end
-                end
-            end
-            if ledFlag
-                warndlg('Green LED may be incorrect!');
-            end
-        end % checkGreenLED
-
-        % Set LED weights based on grating type.
-        function setColorWeights(obj)
-            switch obj.chromaticClass
-                case 'red'
-                    obj.colorWeights = [1 0 0];
-                case 'green'
-                    obj.colorWeights = [0 1 0];
-                case 'blue'
-                    obj.colorWeights = [0 0 1];
-                case 'yellow'
-                    obj.colorWeights = [1 1 0];
-                case 'L-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 0 0]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'M-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [0 1 0]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'S-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [0 0 1]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                case 'LM-iso'
-                    obj.colorWeights = obj.quantalCatch(:,1:3)' \ [1 1 0]';
-                    obj.colorWeights = obj.colorWeights/max(abs(obj.colorWeights));
-                otherwise
-                    obj.colorWeights = [1 1 1];
-            end
-
-            obj.colorWeights = obj.colorWeights(:)';
-        end
 
         function prepareEpoch(obj, epoch)
-          prepareEpoch@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj, epoch);
+            prepareEpoch@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj, epoch);
 
-          epoch.addParameter('frameRate', obj.frameRate);
-          epoch.addParameter('stageClass', obj.stageClass);
-          epoch.addParameter('ndf', obj.ndf);
-          if obj.muPerPixel > 0
-              epoch.addParameter('micronsPerPixel', obj.muPerPixel);
-              epoch.addParameter('objectiveMag', obj.objectiveMag);
-          end
-          epoch.addParameter('maxLCone', sum(obj.quantalCatch(:,1)));
-          epoch.addParameter('maxMCone', sum(obj.quantalCatch(:,2)));
-          epoch.addParameter('maxSCone', sum(obj.quantalCatch(:,3)));
-          epoch.addParameter('maxRod', sum(obj.quantalCatch(:,4)));
+            epoch.addParameter('frameRate', obj.frameRate);
+            epoch.addParameter('stageClass', obj.stageClass);
+            epoch.addParameter('ndf', obj.ndf);
+            if obj.muPerPixel > 0
+                epoch.addParameter('micronsPerPixel', obj.muPerPixel);
+                epoch.addParameter('objectiveMag', obj.objectiveMag);
+            end
+            epoch.addParameter('maxLCone', sum(obj.quantalCatch(:,1)));
+            epoch.addParameter('maxMCone', sum(obj.quantalCatch(:,2)));
+            epoch.addParameter('maxSCone', sum(obj.quantalCatch(:,3)));
+            epoch.addParameter('maxRod', sum(obj.quantalCatch(:,4)));
 
-          % Check for 2P scanning devices.
-          obj.checkImaging(epoch);
+            % Check for 2P scanning devices.
+            obj.checkImaging(epoch);
 
-          %--------------------------------------------------------------
-          % NOTE: This must be set in protocol if using SaraStageProtocol
-          % Set up the amplifiers for recording.
-          duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
+            %--------------------------------------------------------------
+            % NOTE: This must be set in protocol if using SaraStageProtocol
+            % Set up the amplifiers for recording.
+            duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
 
-          % Get the amplfiers.
-          mcDevices = obj.rig.getDevices('Amp');
+            % Get the amplfiers.
+            mcDevices = obj.rig.getDevices('Amp');
 
-          % Add each amplifier
-          for k = 1 : length(mcDevices)
-              device = obj.rig.getDevice(mcDevices{k}.name);
-              epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
-              epoch.addResponse(device);
-          end
-      end
+            % Add each amplifier
+            for k = 1 : length(mcDevices)
+                device = obj.rig.getDevice(mcDevices{k}.name);
+                epoch.addDirectCurrentStimulus(device, device.background, duration, obj.sampleRate);
+                epoch.addResponse(device);
+            end
+        end
 
-      function prepareInterval(obj, interval)
-          prepareInterval@edu.washington.riekelab.protocols.RiekeLabProtocol(obj, interval);
+        function prepareInterval(obj, interval)
+            prepareInterval@edu.washington.riekelab.protocols.RiekeLabProtocol(obj, interval);
 
-          device = obj.rig.getDevice(obj.amp);
-          interval.addDirectCurrentStimulus(device, device.background, obj.interpulseInterval, obj.sampleRate);
-      end
+            device = obj.rig.getDevice(obj.amp);
+            interval.addDirectCurrentStimulus(device, device.background, obj.interpulseInterval, obj.sampleRate);
+        end
 
-      function checkImaging(obj, epoch)
-          triggers = obj.rig.getDevices('SciScan Trigger');
-          if ~isempty(triggers)
 
-              stim = obj.createSciScanTriggerStimulus();
-              epoch.addStimulus(triggers{1}, stim);
 
-              % Add the devices you need for imaging.
-              devNames = {'Green PMT', 'Red PMT', 'SciScan F Clock', 'SciScan S Clock'};
-              % Check for the PMT DAQ devices.
-              foo = obj.rig.getDevices('Green PMT');
-              if ~isempty(foo)
-                  for k = 1 : length(devNames)
-                      device = obj.rig.getDevice(devNames{k});
-                      if ~isempty(device)
-                          epoch.addResponse(device);
-                      end
-                  end
-              end
-          end
-      end
+        function [frameTimes, actualFrameRate] = getFrameTimes(obj, epoch)
+            resp = epoch.getResponse(obj.rig.getDevice('Frame Monitor'));
+            frameMonitor = resp.getData();
 
-      function stim = createSciScanTriggerStimulus(obj)
-          gen = symphonyui.builtin.stimuli.PulseGenerator();
-
-          gen.preTime = 0;
-          gen.stimTime = 10;
-          gen.tailTime = obj.preTime + obj.stimTime + obj.tailTime - 10;
-          gen.amplitude = 1;
-          gen.mean = 0;
-          gen.sampleRate = obj.sampleRate;
-          gen.units = symphonyui.core.Measurement.UNITLESS;
-
-          stim = gen.generate();
-      end
-
-      function [frameTimes, actualFrameRate] = getFrameTimes(obj, epoch)
-          resp = epoch.getResponse(obj.rig.getDevice('Frame Monitor'));
-          frameMonitor = resp.getData();
-
-          if sum(frameMonitor) == 0
-              frameTimes = [0 0];
-              actualFrameRate = 60;
-          else
-              frameTimes = getFrameTiming(frameMonitor(:)', 1);
-              % Take only the frame times during the stimulus.
-              frameTimes = frameTimes(frameTimes >= obj.preTime*1e-3*obj.sampleRate & frameTimes <= (obj.preTime+obj.stimTime)*1e-3*obj.sampleRate);
-              actualFrameRate = obj.sampleRate / (mean(diff(frameTimes(frameTimes >= obj.preTime/1000*obj.sampleRate))));
-          end
-      end
+            if sum(frameMonitor) == 0
+                frameTimes = [0 0];
+                actualFrameRate = 60;
+            else
+                frameTimes = getFrameTiming(frameMonitor(:)', 1);
+                % Take only the frame times during the stimulus.
+                frameTimes = frameTimes(frameTimes >= obj.preTime*1e-3*obj.sampleRate & frameTimes <= (obj.preTime+obj.stimTime)*1e-3*obj.sampleRate);
+                actualFrameRate = obj.sampleRate / (mean(diff(frameTimes(frameTimes >= obj.preTime/1000*obj.sampleRate))));
+            end
+        end
 
         function [tf, msg] = isValid(obj)
-          [tf, msg] = isValid@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
-          if tf
-            tf = ~isempty(obj.rig.getDevices('Stage'));
-            msg = 'No stage';
-          end
+            [tf, msg] = isValid@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
+            if tf
+                tf = ~isempty(obj.rig.getDevices('Stage'));
+                msg = 'No stage';
+            end
         end
 
         function response = getResponseByType(obj, response, onlineAnalysis)
-            % Bin the data based on the type.
-            %  'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'
+            % GETRESPONSEBYTYPE  Process data by recordingType
             switch onlineAnalysis
                 case 'extracellular'
                     response = wavefilter(response(:)', 6);
@@ -285,5 +194,148 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             end
         end
 
+    end
+
+    methods % imaging
+        function checkImaging(obj, epoch)
+            triggers = obj.rig.getDevices('SciScan Trigger');
+            if ~isempty(triggers)
+
+                stim = obj.createSciScanTriggerStimulus();
+                epoch.addStimulus(triggers{1}, stim);
+
+                % Add the devices you need for imaging.
+                devNames = {'Green PMT', 'Red PMT', 'SciScan F Clock', 'SciScan S Clock'};
+                % Check for the PMT DAQ devices.
+                foo = obj.rig.getDevices('Green PMT');
+                if ~isempty(foo)
+                    for k = 1 : length(devNames)
+                        device = obj.rig.getDevice(devNames{k});
+                        if ~isempty(device)
+                            epoch.addResponse(device);
+                        end
+                    end
+                end
+            end
+        end
+
+        function stim = createSciScanTriggerStimulus(obj)
+            gen = symphonyui.builtin.stimuli.PulseGenerator();
+
+            gen.preTime = 0;
+            gen.stimTime = 10;
+            gen.tailTime = obj.preTime + obj.stimTime + obj.tailTime - 10;
+            gen.amplitude = 1;
+            gen.mean = 0;
+            gen.sampleRate = obj.sampleRate;
+            gen.units = symphonyui.core.Measurement.UNITLESS;
+
+            stim = gen.generate();
+        end
+    end
+
+    methods % LED management
+        function greenLED = findGreenLEDName(obj)
+            fw = obj.rig.getDevices('FilterWheel');
+            if ~isempty(fw)
+                greenLED = fw.getGreenLEDName();
+            else
+                greenLED = [];
+            end
+        end
+
+        function [stimList, greenLED] = getStimuliByLED(obj)
+            fw = obj.rig.getDevices('FilterWheel');
+            if ~isempty(fw)
+                greenLED = fw.getGreenLEDName();
+                switch greenLED
+                    case 'Green_505nm'
+                        stimList = 'alm';
+                    case 'Green_570nm'
+                        stimList = 'as';
+                end
+            else
+                warndlg('getStimuliByLED - No filter wheel found!');
+                greenLED = 'unknown';
+                stimList = [];
+            end
+        end
+
+        function ledFlag = checkGreenLED(obj, colorCall)
+        % CHECKGREENLED  Matches green LED to cone-iso stim
+            colorCall = lower(colorCall);
+            fw = obj.rig.getDevices('FilterWheel');
+            ledFlag = false;
+            if ~isempty(fw)
+                fw = fw{1};
+                greenLED = fw.getGreenLEDName();
+                if strcmp(greenLED, 'Green_570nm')
+                    if strcmp(colorCall(1), 's')
+                        ledFlag = false;
+                    else
+                        ledFlag = true;
+                    end
+                elseif strcmp(greenLED, 'Green_505nm')
+                    if strcmp(colorCall(1), 's')
+                        ledFlag = true;
+                    else
+                        ledFlag = false;
+                    end
+                end
+            end
+            if ledFlag
+                warndlg('Green LED may be incorrect!');
+            end
+        end % checkGreenLED
+
+        % Set LED weights based on grating type.
+        function setLEDs(obj, colorCall)
+        % SETLEDS  LED weights for cone-isolating stimuli
+            if nargin < 2
+                colorCall = obj.chromaticClass;
+            end
+            switch colorCall
+                case 'red'
+                    obj.ledWeights = [1 0 0];
+                case 'green'
+                    obj.ledWeights = [0 1 0];
+                case 'blue'
+                    obj.ledWeights = [0 0 1];
+                case 'yellow'
+                    obj.ledWeights = [1 1 0];
+                case 'L-iso'
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [1 0 0]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                case 'M-iso'
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [0 1 0]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                case 'S-iso'
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [0 0 1]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                case 'LM-iso'
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [1 1 0]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                otherwise
+                    obj.ledWeights = [1 1 1];
+            end
+
+            obj.ledWeights = obj.ledWeights(:)';
+        end
+    end
+
+    methods (Static)
+
+        function fullName = extendName(abbrev)
+            switch abbrev
+                case 'a'
+                    fullName = 'achromatic';
+                case 'l'
+                    fullName = 'l-iso';
+                case 'm'
+                    fullName = 'm-iso';
+                case 's'
+                    fullName = 's-iso';
+            end
+        end % extendName
     end
 end

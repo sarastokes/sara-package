@@ -1,4 +1,4 @@
-classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef ChromaticSpot < edu.washington.riekelab.sara.protocols.SaraStageProtocol
     properties
         amp                             % Output amplifier
         greenLED = '570nm'
@@ -9,7 +9,7 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
         innerRadius = 0                 % Inner radius in pixels.
         outerRadius = 1500               % Outer radius in pixels.
         chromaticClass = 'achromatic'   % Spot color
-        backgroundIntensity = 0.0       % Background light intensity (0-1)
+        lightMean = 0.0       % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
         onlineAnalysis = 'none'         % Online analysis type.
         numberOfAverages = uint16(1)    % Number of epochs
@@ -32,9 +32,11 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+            prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
             obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'pulse'));
             obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure', obj.rig.getDevice(obj.amp));
 
             % Get the canvas size.
@@ -43,19 +45,19 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
             % Check the chromatic type to set the intensity.
             if strcmp(obj.stageClass, 'Video')
                 % Set the LED weights.
-                obj.setColorWeights();
-                if obj.backgroundIntensity > 0
-                    obj.intensity = obj.backgroundIntensity * (obj.contrast * obj.colorWeights) + obj.backgroundIntensity;
+                obj.setLEDs();
+                if obj.lightMean > 0
+                    obj.intensity = obj.lightMean * (obj.contrast * obj.ledWeights) + obj.lightMean;
                 else
                     if isempty(strfind(obj.chromaticClass, 'iso'))
-                        obj.intensity = obj.colorWeights * obj.contrast;
+                        obj.intensity = obj.ledWeights * obj.contrast;
                     else
-                        obj.intensity = obj.contrast * (0.5 * obj.colorWeights + 0.5);
+                        obj.intensity = obj.contrast * (0.5 * obj.ledWeights + 0.5);
                     end
                 end
             else
-                if obj.backgroundIntensity > 0
-                    obj.intensity = obj.backgroundIntensity * obj.contrast + obj.backgroundIntensity;
+                if obj.lightMean > 0
+                    obj.intensity = obj.lightMean * obj.contrast + obj.lightMean;
                 else
                     obj.intensity = obj.contrast;
                 end
@@ -65,7 +67,7 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
         function p = createPresentation(obj)
 
             p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
-            p.setBackgroundColor(obj.backgroundIntensity);
+            p.setBackgroundColor(obj.lightMean);
 
             spot = stage.builtin.stimuli.Ellipse();
             spot.radiusX = obj.outerRadius;
@@ -82,7 +84,7 @@ classdef ChromaticSpot < edu.washington.riekelab.manookin.protocols.ManookinLabS
 
             % Control when the spot is visible.
             spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
-                @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+                 @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(spotVisible);
 
             if strcmp(obj.stageClass, 'LcrRGB')

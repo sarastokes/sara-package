@@ -1,5 +1,5 @@
-classdef SplitFieldCentering < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
-% Max's SplitFieldCentering protocol with a few ManookinLabStageProtocol changes and chromatic options
+classdef SplitFieldCentering < edu.washington.riekelab.sara.protocols.SaraStageProtocol
+% Max's SplitFieldCentering protocol with a few changes and chromatic options
 % Different stimulus set up for cone-iso stim that's limited to splitField
 
 properties
@@ -15,7 +15,7 @@ properties
     maskRadius = 0 % um
     splitField = true
     rotation = 0;  % deg
-    backgroundIntensity = 0.5 % (0-1)
+    lightMean = 0.5 % (0-1)
     centerOffset = [0, 0] % [x,y] (um)
     onlineAnalysis = 'none'
     numberOfAverages = uint16(1) % number of epochs to queue
@@ -52,25 +52,26 @@ function p = getPreview(obj, panel)
 end
 
 function prepareRun(obj)
-  prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+  prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
   % catch some errors
-
   if ~isempty(strfind(obj.chromaticClass, '-iso'))
     if obj.rotation ~= 90 && obj.rotation ~= 0
       error('cone iso only works for 0 and 90 degrees right now');
     end
     if strcmp(obj.temporalClass, 'sinewave')
-      error('cone iso only works with squarewave splitfield, use conesweep for uniform spot stuff');
+      warndlg('cone iso only works with squarewave splitfield, use conesweep for uniform spot stuff');
+      return;
     end
   end
 
-  [obj.currentColorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
+  obj.setLEDs();
 
-  stimTrace = getStimTrace(obj, 'modulation');
-  obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), stimTrace, 'stimColor', obj.plotColor);
+  obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+    obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'modulation'), 'stimColor', getPlotColor(obj.chromaticClass));
 
-  obj.showFigure('edu.washington.riekelab.manookin.figures.MeanResponseFigure', obj.rig.getDevice(obj.amp), 'recordingType', obj.onlineAnalysis);
+  obj.showFigure('edu.washington.riekelab.sara.figures.MeanResponseFigure',...
+    obj.rig.getDevice(obj.amp), 'recordingType', obj.onlineAnalysis);
 
   if ~strcmp(obj.onlineAnalysis, 'none')
     if isempty(obj.analysisFigure) || ~isvalid(obj.analysisFigure)
@@ -134,7 +135,7 @@ end
 
 function p = createPresentation(obj)
   p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3); %create presentation of specified duration
-  p.setBackgroundColor(obj.backgroundIntensity); % Set background intensity
+  p.setBackgroundColor(obj.lightMean); % Set background intensity
 
   if isempty(strfind(obj.chromaticClass, '-iso')) % old working code
     % Create grating stimulus.
@@ -207,7 +208,7 @@ function p = createPresentation(obj)
   % Create aperture
   aperture = stage.builtin.stimuli.Rectangle();
   aperture.position = obj.canvasSize/2 + obj.centerOffset;
-  aperture.color = obj.backgroundIntensity;
+  aperture.color = obj.lightMean;
   aperture.size = [2*obj.radius, 2*obj.radius];
   mask = stage.core.Mask.createCircularAperture(1, 1024); %circular aperture
   aperture.setMask(mask);
@@ -216,7 +217,7 @@ function p = createPresentation(obj)
   if (obj.maskRadius > 0) % Create mask
       mask = stage.builtin.stimuli.Ellipse();
       mask.position = obj.canvasSize/2 + obj.centerOffset;
-      mask.color = obj.backgroundIntensity;
+      mask.color = obj.lightMean;
       mask.radiusX = obj.maskRadius;
       mask.radiusY = obj.maskRadius;
 
@@ -229,17 +230,17 @@ function p = createPresentation(obj)
   %% controller functions
   function c = getBarOneColor(obj, time)
     if time >= 0
-      c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+      c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
     else
-      c = obj.backgroundIntensity;
+      c = obj.lightMean;
     end
   end
 
   function c = getBarTwoColor(obj, time)
     if time >= 0
-      c = -1 * obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+      c = -1 * obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
     else
-      c = obj.backgroundIntensity;
+      c = obj.lightMean;
     end
   end
 
@@ -254,19 +255,19 @@ function p = createPresentation(obj)
   function c = getGrateColor(obj, time)
     if time >= 0
       if strcmp(obj.temporalClass, 'sinewave')
-        c = obj.contrast * obj.currentColorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+        c = obj.contrast * obj.currentColorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.lightMean + obj.lightMean;
       else
-        c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFreuency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+        c = obj.contrast * obj.currentColorWeights * sign(sin(obj.temporalFreuency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
       end
     else
-      c = obj.backgroundIntensity;
+      c = obj.lightMean;
     end
   end
 
 end
 
 function prepareEpoch(obj, epoch)
-  prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch)
+  prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch)
 
   if obj.maskRadius > 0
     stimulusClass = 'annulus';

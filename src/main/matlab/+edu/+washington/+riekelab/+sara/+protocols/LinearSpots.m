@@ -1,4 +1,4 @@
-classdef LinearSpots < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef LinearSpots < edu.washington.riekelab.sara.protocols.SaraStageProtocol
     % test spatial (non)linearity - checks if inputs sum/null
     % 3Aug - fixed issue for cone-iso stim
 
@@ -8,7 +8,7 @@ properties
   preTime = 200                         % time before stim (ms)
   stimTime = 200                        % stim duration (ms)
   tailTime = 200                        % time after stim (ms)
-  backgroundIntensity = 0.5             % mean light level (0-1)
+  lightMean = 0.5             % mean light level (0-1)
   centerOffsetOne = [-200,-200]         % location of spot A (pix: x,y)
   radiusOne = 75                        % size of spot A (pix)
   centerOffsetTwo = [200,200]           % location of spot B (pix - x,y)
@@ -54,17 +54,17 @@ function didSetRig(obj)
 end
 
 function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+    prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
     clear obj.stimValue;
     if strcmp(obj.paradigmClass, 'baselineA_up')
-      obj.spotValues = [1, obj.backgroundIntensity];
+      obj.spotValues = [1, obj.lightMean];
     elseif strcmp(obj.paradigmClass, 'baselineA_down')
-      obj.spotValues = [0, obj.backgroundIntensity];
+      obj.spotValues = [0, obj.lightMean];
     elseif strcmp(obj.paradigmClass, 'baselineB_up')
-      obj.spotValues = [obj.backgroundIntensity, 1];
+      obj.spotValues = [obj.lightMean, 1];
     elseif strcmp(obj.paradigmClass, 'baselineB_down')
-      obj.spotValues = [obj.backgroundIntensity, 0];
+      obj.spotValues = [obj.lightMean, 0];
     elseif strcmp(obj.paradigmClass, 'sum_up')
       obj.spotValues = [1, 1];
     elseif strcmp(obj.paradigmClass, 'sum_down')
@@ -89,7 +89,7 @@ function prepareRun(obj)
     n = size(obj.stimValue);
     fprintf('Size of stimValue is %u, %u\n', n(1), n(2));
 
-    obj.stimTrace = [(obj.backgroundIntensity * ones(obj.stimPerSweep, obj.preTime)) obj.stimValue (obj.backgroundIntensity * ones(obj.stimPerSweep, obj.tailTime))];
+    obj.stimTrace = [(obj.lightMean * ones(obj.stimPerSweep, obj.preTime)) obj.stimValue (obj.lightMean * ones(obj.stimPerSweep, obj.tailTime))];
     n = size(obj.stimTrace);
     fprintf('Size of stimTrace is %u, %u\n', n(1), n(2));
 
@@ -100,12 +100,12 @@ function prepareRun(obj)
       obj.colorWeightsThree = setColorWeightsLocal(obj, obj.chromaticClassThree);
     end
 
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimPerSweep', obj.stimPerSweep);
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure', obj.rig.getDevice(obj.amp), 'stimTrace', obj.stimTrace, 'stimPerSweep', obj.stimPerSweep);
   end
 
   function p = createPresentation(obj)
     p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
-    p.setBackgroundColor(obj.backgroundIntensity);
+    p.setBackgroundColor(obj.lightMean);
 
     % 1st spot setup
     spotOne = stage.builtin.stimuli.Ellipse();
@@ -155,7 +155,7 @@ function prepareRun(obj)
   end
 
   function prepareEpoch(obj, epoch)
-    prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+    prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
   end
 

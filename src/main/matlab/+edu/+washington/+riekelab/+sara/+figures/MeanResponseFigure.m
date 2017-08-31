@@ -91,12 +91,10 @@ classdef MeanResponseFigure < symphonyui.core.FigureHandler
                 y = quantities;
 
                 y = responseByType(y, obj.recordingType, 0, sampleRate);
+                x = (1:length(y)) / sampleRate; 
 
                 if strcmp(obj.recordingType, 'extracellular') || strcmp(obj.recordingType, 'spikes_CClamp')
-                    y = binData(y, 60, sampleRate);
-                    x = (1:length(y)) / 60;
-                else
-                    x = (1:length(y)) / sampleRate;
+                    y = instFt(y);
                 end
             else
                 x = [];
@@ -166,23 +164,12 @@ classdef MeanResponseFigure < symphonyui.core.FigureHandler
                     if obj.storedSweep.line.isvalid %Line still there
 
                     else
-                      try
-                        obj.storedSweep.line = line(storedData(1,:), smooth(storedData(2,:),8),...
-                        'Parent', obj.axesHandle, 'Color', obj.storedSweepColor);
-                      catch
                         obj.storedSweep.line = line(storedData(1,:), storedData(2,:),...
                         'Parent', obj.axesHandle, 'Color', obj.storedSweepColor);
-                      end
                     end
                 else %no handle
-                  try
-                    obj.storedSweep.line = line(storedData(1,:), smooth(storedData(2,:),8),...
-                        'Parent', obj.axesHandle, 'Color', obj.storedSweepColor);
-                  catch
                       obj.storedSweep.line = line(storedData(1,:), storedData(2,:),...
                           'Parent', obj.axesHandle, 'Color', obj.storedSweepColor);
-                  end
-
                 end
             end
 

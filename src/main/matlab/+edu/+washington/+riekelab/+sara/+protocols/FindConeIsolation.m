@@ -1,4 +1,4 @@
-classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
     properties
         amp                             % Output amplifier
@@ -12,7 +12,7 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
         radius = 1500                   % Spot radius (pix)
         minStepBits = 2                 % Min step size (bits)
         maxStepBits = 3                 % Max step size (bits)
-        backgroundIntensity = 0.5       % Background light intensity (0-1)
+        lightMean = 0.5       % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
         temporalClass = 'sinewave'      % Sinewave or squarewave?
         onlineAnalysis = 'extracellular' % Online analysis type.
@@ -55,7 +55,7 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+            prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
             obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
 
@@ -200,16 +200,16 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
         function p = createPresentation(obj)
 
             p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
-            p.setBackgroundColor(obj.backgroundIntensity);
+            p.setBackgroundColor(obj.lightMean);
 
             spot = stage.builtin.stimuli.Ellipse();
             spot.radiusX = obj.radius;
             spot.radiusY = obj.radius;
             spot.position = obj.canvasSize/2 + obj.centerOffset;
             if strcmp(obj.stageClass, 'Video')
-                spot.color = obj.ledContrasts*obj.backgroundIntensity + obj.backgroundIntensity;
+                spot.color = obj.ledContrasts*obj.lightMean + obj.lightMean;
             else
-                spot.color = obj.ledContrasts(1)*obj.backgroundIntensity + obj.backgroundIntensity;
+                spot.color = obj.ledContrasts(1)*obj.lightMean + obj.lightMean;
             end
 
             % Add the stimulus to the presentation.
@@ -244,37 +244,37 @@ classdef FindConeIsolation < edu.washington.riekelab.manookin.protocols.Manookin
             end
 
             function c = getSpotColorVideo(obj, time)
-                c = obj.ledContrasts * sin(obj.temporalFrequency*time*2*pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+                c = obj.ledContrasts * sin(obj.temporalFrequency*time*2*pi) * obj.lightMean + obj.lightMean;
             end
 
             function c = getSpotColorVideoSqwv(obj, time)
-                c = obj.ledContrasts * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+                c = obj.ledContrasts * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.lightMean + obj.lightMean;
             end
 
 
             function c = getSpotColorLcrRGB(obj, state)
                 if state.pattern == 0
-                    c = obj.ledContrasts(1) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+                    c = obj.ledContrasts(1) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.lightMean + obj.lightMean;
                 elseif state.pattern == 1
-                    c = obj.ledContrasts(2) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+                    c = obj.ledContrasts(2) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.lightMean + obj.lightMean;
                 else
-                    c = obj.ledContrasts(3) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+                    c = obj.ledContrasts(3) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.lightMean + obj.lightMean;
                 end
             end
 
             function c = getSpotColorLcrRGBSqwv(obj, state)
                 if state.pattern == 0
-                    c = obj.ledContrasts(1) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+                    c = obj.ledContrasts(1) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.lightMean + obj.lightMean;
                 elseif state.pattern == 1
-                    c = obj.ledContrasts(2) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+                    c = obj.ledContrasts(2) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.lightMean + obj.lightMean;
                 else
-                    c = obj.ledContrasts(3) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+                    c = obj.ledContrasts(3) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.lightMean + obj.lightMean;
                 end
             end
         end
 
         function prepareEpoch(obj, epoch)
-            prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+            prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
             if (obj.numEpochsCompleted-length(obj.searchValues)) == 0
                 if strcmp(obj.targetCone, 'sCone')

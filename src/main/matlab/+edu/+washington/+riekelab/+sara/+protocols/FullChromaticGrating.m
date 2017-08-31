@@ -1,4 +1,4 @@
-classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 % Chromatic grating but with my response figures and option for mask
 
 % 12Sep2016 - copied mike's ChromaticGrating protocol, added working online analysis & response w/ stim figure
@@ -17,7 +17,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         spatialFreqs = 10.^(-0.301:0.301/3:1.4047)        % Spatial frequency (cyc/short axis of screen)
         temporalFrequency = 2.0         % Temporal frequency (Hz)
         spatialPhase = 0.0              % Spatial phase of grating (deg)
-        backgroundIntensity = 0.5       % Background light intensity (0-1)
+        lightMean = 0.5       % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
         apertureRadius = 0              % Aperture radius in pixels.
         apertureClass = 'spot'          % Spot or annulus?
@@ -27,8 +27,6 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         chromaticClass = 'achromatic'   % Chromatic type
         onlineAnalysis = 'extracellular' % Type of online analysis
         randomOrder = false             % Run the sequence in random order?
-        checkSpikes = false             % Show SpikeDetectionFigure
-        demoMode = false                 % use earlier grating data
         numberOfAverages = uint16(144)   % spatialFreqs * orientations
     end
 
@@ -46,7 +44,6 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         spatialFrequencies
         spatialFreq % The current spatial frequency for the epoch
         orientation % The current orientation
-        ledWeights
         coneContrasts
     end
 
@@ -58,7 +55,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         end
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
+            prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
             if length(obj.orientations)>1
                 if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))
@@ -72,24 +69,16 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
             %     end
             end
 
-            % trace for response figure
-            stimTrace = getStimTrace(obj, 'modulation', 'waitTime', obj.waitTime);
+            obj.setLEDWeights();
 
-            if strcmp(obj.chromaticClass, 'white')
-              obj.ledWeights = [1 1 0];
-              stimColor = [0 0 0];
-            else
-              [obj.ledWeights, stimColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
-            end
-
-            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp),...
-                stimTrace, 'stimColor', stimColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure', obj.rig.getDevice(obj.amp),...
+                'stimTrace', getLightStim(obj, 'modulation'), 'stimColor', stimColor);
 
             % Calculate the spatial phase in radians.
             obj.spatialPhaseRad = obj.spatialPhase / 180 * pi;
 
             % Calculate the cone contrasts.
-            obj.coneContrasts = coneContrast(obj.backgroundIntensity*obj.quantalCatch, ...
+            obj.coneContrasts = coneContrast(obj.lightMean*obj.quantalCatch, ...
                 obj.ledWeights, 'michaelson');
 
             % Organize stimulus and analysis parameters.
@@ -97,26 +86,24 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
 
             if ~strcmp(obj.onlineAnalysis,'none')
                 if length(obj.orientations) > 1
-                    obj.showFigure('edu.washington.riekelab.sara.figures.GratingOrientationFigure', obj.rig.getDevice(obj.amp),...
-                        obj.onlineAnalysis, obj.preTime, obj.stimTime, obj.temporalFrequency, obj.spatialFreqs,...
-                        obj.chromaticClass, 'waitTime', obj.waitTime, 'orientations', obj.orientations, 'demoMode', obj.demoMode);
+                    obj.showFigure('edu.washington.riekelab.sara.figures.GratingOrientationFigure',...
+                        obj.rig.getDevice(obj.amp), obj.onlineAnalysis,...
+                        obj.preTime, obj.stimTime, obj.temporalFrequency,...
+                        obj.spatialFreqs,  obj.chromaticClass,...
+                        'waitTime', obj.waitTime, 'orientations', obj.orientations);
                 else
                     obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),...
                         obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
-                        'temporalFrequency', obj.temporalFrequency, 'plotColor', stimColor, 'waitTime', obj.waitTime);
+                        'temporalFrequency', obj.temporalFrequency,...
+                        'plotColor', stimColor, 'waitTime', obj.waitTime);
                 end
             end
-
-            if obj.checkSpikes
-                obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure',...
-                    obj.rig.getDevice(obj.amp));
-            end
-        end
+        end % prepareRun
 
         function p = createPresentation(obj)
 
             p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3); %create presentation of specified duration
-            p.setBackgroundColor(obj.backgroundIntensity); % Set background intensity
+            p.setBackgroundColor(obj.lightMean); % Set background intensity
 
             % Create the grating.
             grate = stage.builtin.stimuli.Image(uint8(0 * obj.rawImage));
@@ -169,7 +156,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
                         g(:,:,m) = obj.ledWeights(m) * g(:,:,m);
                     end
                 end
-                g = uint8(255*(obj.backgroundIntensity * g + obj.backgroundIntensity));
+                g = uint8(255*(obj.lightMean * g + obj.lightMean));
             end
 
             % Set the reversing grating
@@ -194,7 +181,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
                         g(:,:,m) = obj.ledWeights(m) * g(:,:,m);
                     end
                 end
-                g = uint8(255*(obj.backgroundIntensity * g + obj.backgroundIntensity));
+                g = uint8(255*(obj.lightMean * g + obj.lightMean));
             end
         end
 
@@ -252,7 +239,7 @@ classdef FullChromaticGrating < edu.washington.riekelab.manookin.protocols.Manoo
         end
 
         function prepareEpoch(obj, epoch)
-            prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+            prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
             % Set the current spatial frequency.
             obj.spatialFreq = obj.params.spatialFrequencies(obj.numEpochsCompleted+1);

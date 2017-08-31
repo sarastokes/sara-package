@@ -1,4 +1,4 @@
-classdef IsoSTC < edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol
+classdef IsoSTC < edu.washington.riekelab.sara.protocols.SaraStageProtocol
     % ID and get temporal RF - will divide up into seperate protocols eventually
     % 25Jul16 - rgb sta works, f1f2 mtf doesn't
 
@@ -11,7 +11,7 @@ properties
   contrast = 1                            % contrast (0 - 1)
   temporalFrequency = 2                   % modulation frequency
   radius = 150                            % spot size (pixels)
-  backgroundIntensity = 0.5               % mean (0 - 1)
+  lightMean = 0.5               % mean (0 - 1)
   centerOffset = [0,0]                    % spot center (pixels x,y)
   paradigmClass = 'ID';                   % ID=sin/sqr, STA=gaussian noise
   temporalClass = 'sinewave'              % if ID, sine or sqrwave
@@ -57,36 +57,17 @@ methods
     end
 
   function prepareRun(obj)
-    prepareRun@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj);
-
-    [obj.colorWeights, obj.plotColor, ~] = setColorWeightsLocal(obj, obj.chromaticClass);
-
-    % online analysis prep
-    x = 0:0.001:((obj.stimTime - 1) * 1e-3);
-    obj.stimValues = zeros(1, length(x));
-    if strcmp(obj.paradigmClass, 'ID')
-      for ii = 1:length(x)
-        if strcmp(obj.temporalClass, 'sinewave')
-          obj.stimValues(1,ii) = obj.contrast * sin(obj.temporalFrequency * x(ii) * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
-        else
-          obj.stimValues(1,ii) = obj.contrast * sign(sin(obj.temporalFrequency * x(ii) * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
-        end
-      end
-    else
-        obj.stimValues(:) = 1;
-    end
-
-    obj.stimTrace = [(obj.backgroundIntensity * ones(1, obj.preTime)) obj.stimValues (obj.backgroundIntensity * ones(1, obj.tailTime))];
-
+    prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
+    
+    obj.setLEDs();
 
     if numel(obj.rig.getDeviceNames('Amp')) < 2
-    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseWithStimFigure', obj.rig.getDevice(obj.amp), obj.stimTrace, 'stimColor', obj.plotColor);
+    obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',... 
+        obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj),... 
+        'stimColor', getStimColor(obj.chromaticClass));
     else
-      obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure', obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
-    end
-
-    if obj.checkSpikes
-      obj.showFigure('edu.washington.riekelab.sara.figures.SpikeDetectionFigure', obj.rig.getDevice(obj.amp));
+      obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure',... 
+          obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
     end
 
     if ~strcmp(obj.onlineAnalysis, 'none')
@@ -127,11 +108,7 @@ methods
       responseTrace = response.getData();
       sampleRate = response.sampleRate.quantityInBaseUnits;
     end
-
-    response = epoch.getResponse(obj.rig.getDevice(obj.amp));
-    responseTrace = response.getData();
-    sampleRate = response.sampleRate.quantityInBaseUnits;
-
+    
     % analyze response by type
     responseTrace = obj.getResponseByType(responseTrace, obj.onlineAnalysis);
     responseTrace = responseTrace(obj.preTime/1000*sampleRate+1:end);
@@ -190,62 +167,20 @@ methods
     title(['Epoch ', num2str(obj.numEpochsCompleted), ' of ', num2str(obj.numberOfAverages)], 'Parent', axesHandle);
   end
 
-  function CRFanalysis(obj, ~, epoch)
-    response = epoch.getResponse.(obj.rig.getDevice(obj.amp));
-    responseTrace = response.getData();
-    sampleRate = response.sampleRate.quantityInBaseUnits;
-
-    % get the f1 amplitude and phase
-    responseTrace = responseTrace(obj.preTime/1000*sampleRate+1:end);
-    binRate = 60;
-    binWidth = sampleRate / binRate;
-    numBins = floor(obj.stimTime/1000 * binRate);
-    binData = zeros(1, numBins);
-    for k = 1:numBins
-      index = round((k-1)*binWidth+1 : k*binWidth);
-      binData(k) = mean(responseTrace(index));
-    end
-    binsPerCycle = binRate / obj.temporalFrequency;
-    numCycles = floor(length(binData)/binsPerCycle);
-    cycleData = zeros(1, floor(binsPerCycle));
-    for k = 1:numCycles
-      index = round((k-1)*binsPerCycle) + (1:floor(binsPerCycle));
-      cycleData = cycleData + binData(index);
-    end
-    cycleData = cycleData / k;
-
-    ft = fft(cycleData);
-    m = abs(ft(2:3))/length(ft)*2;
-
-    obj.F1(1,obj.numEpochsCompleted) = m(1);
-    obj.F2(1,obj.numEpochsCompleted) = m(2);
-
-    % plot to figure
-    axesHandle = obj.analysisFigure.userData.axesHandle;
-    cla(axesHandle);
-    h1 = axesHandle;
-    plot(obj.xaxis, obj.F1, 'o-', 'color', obj.plotColor, 'Parent', h1);
-    plot(obj.xaxis, obj.F2, 'o-', 'color', [0.5 0.5 0.5], 'Parent', h1);
-    set(h1, 'TickDir', 'out');
-    ylabel(h1, 'F1 amp');
-    title(['Epoch ', num2str(obj.numEpochsCompleted) , ' of ', num2str(obj.numberOfAverages)], 'Parent', h1);
-  end
-
   function p = createPresentation(obj)
 
     p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
-    p.setBackgroundColor(obj.backgroundIntensity);
+    p.setBackgroundColor(obj.lightMean);
 
     spot = stage.builtin.stimuli.Ellipse();
     spot.radiusX = obj.radius;
     spot.radiusY = obj.radius;
     spot.position = obj.canvasSize/2 + obj.centerOffset;
 
-
     % control when the spot is visible
     spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
-      spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
+    spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
 
     % Add the stimulus to the presentation.
     p.addStimulus(spot);
@@ -256,10 +191,10 @@ methods
       if time >= 0
         if strcmpi(obj.paradigmClass, 'ID')
           if strcmpi(obj.temporalClass, 'squarewave')
-            c = obj.contrast * obj.colorWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.backgroundIntensity + obj.backgroundIntensity;
+            c = obj.contrast * obj.ledWeights * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
             c = c(:)';
           else
-            c = obj.contrast * obj.colorWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.backgroundIntensity + obj.backgroundIntensity;
+            c = obj.contrast * obj.ledWeights * sin(obj.temporalFrequency * time * 2 * pi) * obj.lightMean + obj.lightMean;
             c = c(:)';
           end
         elseif strcmpi(obj.paradigmClass, 'STA')
@@ -268,18 +203,18 @@ methods
           elseif strcmp(obj.chromaticClass, 'RGB-gaussian')
             c = uint8((obj.stdev * obj.contrast * obj.noiseStream.rand(1,3) * 0.5 + 0.5) * 255);
           else
-            c = obj.stdev * (obj.noiseStream.randn * obj.colorWeights) * obj.backgroundIntensity + obj.backgroundIntensity;
+            c = obj.stdev * (obj.noiseStream.randn * obj.ledWeights) * obj.lightMean + obj.lightMean;
             c = c(:)';
           end
         end
       else
-        c = obj.backgroundIntensity;
+        c = obj.lightMean;
       end
     end
   end
 
   function prepareEpoch(obj, epoch)
-    prepareEpoch@edu.washington.riekelab.manookin.protocols.ManookinLabStageProtocol(obj, epoch);
+    prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
     if strcmpi(obj.paradigmClass, 'STA')
       if obj.randomSeed
