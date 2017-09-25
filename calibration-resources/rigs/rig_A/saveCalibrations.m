@@ -1,5 +1,5 @@
-
-d = load('C:\Users\manoo\Google Drive\Calibrations\20170621\Spectra.mat');
+% note this will only work for mike
+% d = load('C:\Users\manoo\Google Drive\Calibrations\20170621\Spectra.mat');
 ledNames = {
     'red';
     'Green_505nm';
@@ -15,7 +15,7 @@ for k = 1 : length(ledNames)
     fclose(fid);
 end
 
-q = load('C:\Users\manoo\Google Drive\Calibrations\20170621\QCatch.mat');
+% q = load('C:\Users\manoo\Google Drive\Calibrations\20170621\QCatch.mat');
 
 
 

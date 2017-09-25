@@ -38,9 +38,14 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             end
 
             % Get the quantal catch.
-            calibrationDir = 'C:\Users\brian\Google Drive\MATLAB\Symphony\sara-package\calibration\';
-            %calibrationDir = 'C:\Users\Public\Documents\GitRepos\Symphony2\sara-package\calibration\';
-            q = load([calibrationDir 'QCatch.mat']);
+            try
+                calibrationDir = 'C:\Users\Public\Documents\GitRepos\Symphony2\sara-package\calibration\';
+                q = load([calibrationDir 'QCatch.mat']);
+            catch
+                calibrationDir = 'C:\Users\sarap\Google Drive\MATLAB\Symphony\sara-package\calibration\';
+                q = load([calibrationDir 'QCatch.mat']);
+            end
+
 
             % Look for a filter wheel device.
             fw = obj.rig.getDevices('FilterWheel');
