@@ -4,7 +4,7 @@ classdef MeanResponseFigure < symphonyui.core.FigureHandler
         device
         groupBy
         sweepColor
-        recordingType
+        onlineAnalysis
         storedSweepColor
     end
 
@@ -25,14 +25,14 @@ classdef MeanResponseFigure < symphonyui.core.FigureHandler
             ip.addParameter('groupBy', [], @(x)iscellstr(x));
             ip.addParameter('sweepColor', co(1,:), @(x)ischar(x) || ismatrix(x));
             ip.addParameter('storedSweepColor', 'r', @(x)ischar(x) || isvector(x));
-            ip.addParameter('recordingType', [], @(x)ischar(x));
+            ip.addParameter('onlineAnalysis', [], @(x)ischar(x));
             ip.parse(varargin{:});
 
             obj.device = device;
             obj.groupBy = ip.Results.groupBy;
             obj.sweepColor = ip.Results.sweepColor;
             obj.storedSweepColor = ip.Results.storedSweepColor;
-            obj.recordingType = ip.Results.recordingType;
+            obj.onlineAnalysis = ip.Results.onlineAnalysis;
 
             obj.createUi();
         end
@@ -90,10 +90,11 @@ classdef MeanResponseFigure < symphonyui.core.FigureHandler
             if numel(quantities) > 0
                 y = quantities;
 
-                y = responseByType(y, obj.recordingType, 0, sampleRate);
+                y = edu.washington.riekelab.sara.util.processData(y, obj.onlineAnalysis,... 
+                    'preTime', 0, 'sampleRate', sampleRate);
                 x = (1:length(y)) / sampleRate; 
 
-                if strcmp(obj.recordingType, 'extracellular') || strcmp(obj.recordingType, 'spikes_CClamp')
+                if strcmp(obj.onlineAnalysis, 'extracellular') || strcmp(obj.onlineAnalysis, 'spikes_CClamp')
                     y = instFt(y);
                 end
             else
@@ -207,7 +208,7 @@ classdef MeanResponseFigure < symphonyui.core.FigureHandler
 
         function onSelectedClearStored(obj, ~, ~)
             obj.storedAverages('Clear');
-            obj.storedSweep.line.delete
+            delete(obj.storedSweep.line);
         end
 
     end

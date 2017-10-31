@@ -1,13 +1,15 @@
 classdef sMTFFigure < symphonyui.core.FigureHandler
     properties (SetAccess = private)
+        % Required
         device
+        preTime
+        stimTime
+        % Optional
         xaxis
-        recordingType
+        onlineAnalysis
         temporalType
         spatialType
         xName
-        preTime
-        stimTime
         temporalFrequency
     end
     
@@ -26,13 +28,11 @@ classdef sMTFFigure < symphonyui.core.FigureHandler
     end
     
     methods
-        function obj = sMTFFigure(device, varargin)
+        function obj = sMTFFigure(device, preTime, stimTime, varargin)
             
             ip = inputParser();
-            ip.addParameter('preTime',0.0, @(x)isfloat(x));
-            ip.addParameter('stimTime',0.0, @(x)isfloat(x));
-            ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
-            ip.addParameter('temporalType', 'pulse', @(x)ischar(x));
+            ip.addParameter('onlineAnalysis', 'spikes', @(x)ischar(x));
+            ip.addParameter('temporalType', 'squarewave', @(x)ischar(x));
             ip.addParameter('spatialType', 'spot', @(x)ischar(x));
             ip.addParameter('xName', 'currentRadius', @(x)ischar(x));
             ip.addParameter('xaxis',[], @(x)isfloat(x));
@@ -40,9 +40,9 @@ classdef sMTFFigure < symphonyui.core.FigureHandler
             ip.parse(varargin{:});
 
             obj.device = device;
-            obj.preTime = ip.Results.preTime;
-            obj.stimTime = ip.Results.stimTime;
-            obj.recordingType = ip.Results.recordingType;
+            obj.preTime = preTime;
+            obj.stimTime = stimTime;
+            obj.onlineAnalysis = ip.Results.onlineAnalysis;
             obj.temporalType = ip.Results.temporalType;
             obj.spatialType = ip.Results.spatialType;
             obj.xName = ip.Results.xName;
@@ -124,7 +124,7 @@ classdef sMTFFigure < symphonyui.core.FigureHandler
             if numel(quantities) > 0
                 y = quantities;
                 
-                if strcmp(obj.recordingType,'extracellular')
+                if strcmp(obj.onlineAnalysis,'spikes')
                     res = spikeDetectorOnline(y,[],sampleRate);
                     y = zeros(size(y));
                     y(res.sp) = 1; %spike binary

@@ -50,7 +50,11 @@ function strfViewer(r)
 		'Spacing', 5);
 	if ~S.rgbFlag
 		S.ax = axes('parent', mainLayout);
-		imagesc(squeeze(mean(S.strf(:,:,3:10), 3)), 'Parent', S.ax);
+        if size(S.strf, 3) >= 10
+    		imagesc(squeeze(mean(S.strf(:,:,3:10), 3)), 'Parent', S.ax);
+        else
+            imagesc(squeeze(mean(S.strf,3)), 'Parent', S.ax);
+        end
 		if ~isempty(S.str)
 			title(S.ax, S.str);
 		end

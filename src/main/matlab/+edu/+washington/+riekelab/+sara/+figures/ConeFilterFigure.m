@@ -9,7 +9,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         stimTime
         stDev
         % optional:
-        recordingType
+        recordingMode
         frameDwell
         frameRate
     end
@@ -18,10 +18,10 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         handles % contains all UI handles        
         cellData % stores analyzed linear filters and nonlinearities
         nextStimulus % holds future parameters
-        nextCone % a list of next chromaticClass
+        nextCone % a list of next chromaticity
     end
     
-    properties (Hidden)
+    properties (Hidden = true)
         epochNum % tracks epochs       
         coneInd % current cone as #
   
@@ -32,7 +32,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
         protocolShouldStop = false
     end
     
-    properties (Constant, Hidden)
+    properties (Constant = true, Hidden = true)
         CONES = 'lmsa' % cone stim options, may add lm-iso
         
         % not really worth making editable parameters right now
@@ -55,11 +55,11 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             
             ip = inputParser();
             ip.addParameter('stDev', 0.3, @(x)isnumeric(x));
-            ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
+            ip.addParameter('recordingMode', 'extracellular', @(x)ischar(x));
             ip.addParameter('frameDwell', 1, @(x)isnumeric(x));
             ip.addParameter('frameRate', 60, @(x)isnumeric(x));
             ip.parse(varargin{:});
-            obj.recordingType = ip.Results.recordingType;
+            obj.recordingMode = ip.Results.recordingMode;
             obj.frameDwell = ip.Results.frameDwell;
             obj.frameRate = ip.Results.frameRate;
             obj.stDev = ip.Results.stDev;
@@ -85,7 +85,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
                 obj.cellData.ynlMap(obj.CONES(ii)) = 0;
             end
             
-            % this figure controls one protocol parameters:
+            % this figure controls one protocol parameter:
             obj.nextStimulus.cone = [];
             
             % this waits until more stimuli are added to the queue
@@ -113,13 +113,13 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             
             % TOOLBAR
             toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
-            
+            iconDir = [fileparts(fileparts(mfilename('fullpath'))), '\+icons'];
+
             debugButton = uipushtool('Parent', toolbar,...
                 'TooltipString', 'send obj to wkspace',...
                 'Separator', 'on',...
                 'ClickedCallback', @obj.sendData);
-            setIconImage(debugButton, symphonyui.app.App.getResource( ...
-                'icons', 'modules.png'));
+            setIconImage(debugButton, [iconDir, 'send.png']);
             
             % LAYOUTS
             mainLayout = uix.HBox('Parent', obj.figureHandle);
@@ -235,7 +235,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             end
             
             obj.epochNum = obj.epochNum + 1;
-            cone = epoch.parameters('coneClass');
+            cone = epoch.parameters('chromaticity');
             fprintf('figure - handleEpoch - protocol saved %s\n', cone);
             
             %% ANALYSIS ---------------------------------------------
@@ -258,7 +258,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             
             binRate = obj.BINSPERFRAME * obj.frameRate;
             
-            resp = responseByType(epochResponseTrace, obj.recordingType,...
+            resp = responseByType(epochResponseTrace, obj.recordingMode,...
                 obj.preTime, sampleRate);
             resp = BinSpikeRate(resp(prePts+1:end), binRate, sampleRate);
             resp = resp(:)';
@@ -547,8 +547,7 @@ classdef ConeFilterFigure < symphonyui.core.FigureHandler
             % reflect changes in the stimulus queue
             set(obj.handles.tx.queue, 'String', obj.nextStimulus.cone);
         end % addStimuli
-        
-        
+               
         function assignNextStimulus(obj)
             % ASSIGNNEXTSTIMULUS  Sets up the next epoch after handleEpoch
             if obj.addNullEpoch

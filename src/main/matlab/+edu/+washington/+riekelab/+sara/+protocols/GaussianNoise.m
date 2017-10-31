@@ -3,26 +3,34 @@ classdef GaussianNoise < edu.washington.riekelab.sara.protocols.SaraStageProtoco
     properties
         amp                             % Output amplifier
         preTime = 500                   % Spot leading duration (ms)
-        stimTime = 21000                 % Spot duration (ms)
+        stimTime = 21000                % Spot duration (ms)
         tailTime = 500                  % Spot trailing duration (ms)
         stdev = 0.3                     % Noise standard dev
-        radius = 150                    % Inner radius in pixels.
-        lightMean = 0.5       % Background light intensity (0-1)
+        outerRadius = 1500              % Outer radius of spot
+        innerRadius = 0                 % Inner radius for annulus (pixels)
+        lightMean = 0.5                 % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
-        chromaticClass = 'achromatic'   % Spot color
-        stimulusClass = 'spot'          % Stimulus class
-        onlineAnalysis = 'none'         % Online analysis type.
+        chromaticity = 'achromatic'     % Spot color
         randomSeed = true               % Use random noise seed?
         frameDwell = 1                  % Stimuli per frame
-        numberOfAverages = uint16(6)   % Number of epochs
+        numberOfAverages = uint16(25)    % Number of epochs
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-        stimulusClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
+        chromaticityType = symphonyui.core.PropertyType('char', 'row',...
+            {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
         seed
+        noiseStream
+    end
+
+    properties (Transient = true, Hidden = true)
+        outerRadiusPix
+    end
+
+    properties (Constant = true, Hidden = true)
+        DISPLAYNAME = 'Gaussian Noise';
+        VERSION = 2;
     end
 
     methods
@@ -41,23 +49,37 @@ classdef GaussianNoise < edu.washington.riekelab.sara.protocols.SaraStageProtoco
                 return;
             end
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+            obj.assignSpatialType();
 
-            if ~strcmp(obj.onlineAnalysis, 'none')
-                obj.showFigure('edu.washington.riekelab.sara.figures.TemporalNoiseFigure', ...
-                    obj.rig.getDevice(obj.amp),'recordingType', obj.onlineAnalysis, 'noiseClass', 'gaussian',...
-                    'preTime', obj.preTime, 'stimTime', obj.stimTime, ...
-                    'frameRate', obj.frameRate, 'numFrames', floor(obj.stimTime/1000 * obj.frameRate), 'frameDwell', 1, ...
-                    'stdev', obj.stdev, 'frequencyCutoff', 0, 'numberOfFilters', 0, ...
-                    'correlation', 0, 'stimulusClass', 'Stage');
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',... 
+                obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'pulse'));
+            
+            numFrames = floor(obj.stimTime/1000 * obj.frameRate/obj.frameDwell);
+
+            if ~strcmp(obj.analysisMode, 'none')
+                obj.showFigure(...
+                    'edu.washington.riekelab.sara.figures.TemporalNoiseFigure', ...
+                    obj.rig.getDevice(obj.amp),...
+                    obj.preTime, obj.stimTime, numFrames,...
+                    'onlineAnalysis', obj.getOnlineAnalysis(),...
+                    'noiseClass', 'gaussian',...
+                    'frameRate', obj.frameRate,...
+                    'stdev', obj.stdev,...
+                    'stimulusClass', 'Stage');
             end
 
 
             if strcmp(obj.stageClass, 'LightCrafter')
-                obj.chromaticClass = 'achromatic';
+                obj.chromaticity = 'achromatic';
             end
 
-            obj.setLEDs;
+            obj.setLEDs();
+
+            if obj.outerRadius == 0
+                obj.outerRadiusPix = 1500;
+            else
+                obj.outerRadiusPix = obj.um2pix(obj.outerRadius);
+            end
         end
 
         function p = createPresentation(obj)
@@ -66,30 +88,26 @@ classdef GaussianNoise < edu.washington.riekelab.sara.protocols.SaraStageProtoco
             p.setBackgroundColor(obj.lightMean);
 
             spot = stage.builtin.stimuli.Ellipse();
-            if strcmp(obj.stimulusClass, 'annulus')
+            if strcmp(obj.spatialType, 'annulus')
                 spot.radiusX = min(obj.canvasSize/2);
                 spot.radiusY = min(obj.canvasSize/2);
             else
-                spot.radiusX = obj.radius;
-                spot.radiusY = obj.radius;
+                spot.radiusX = obj.um2pix(obj.outerRadius);
+                spot.radiusY = obj.um2pix(obj.outerRadius);
             end
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
+            spot.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
             if strcmp(obj.stageClass, 'Video')
-                spot.color = 1*obj.ledWeights*obj.lightMean + obj.lightMean;
+                spot.color = 1 * obj.ledWeights * obj.lightMean + obj.lightMean;
             else
-                spot.color = obj.ledWeights(1)*obj.lightMean + obj.lightMean;
+                spot.color = obj.ledWeights(1) * obj.lightMean + obj.lightMean;
             end
 
             % Add the stimulus to the presentation.
             p.addStimulus(spot);
 
             % Add an center mask if it's an annulus.
-            if strcmp(obj.stimulusClass, 'annulus')
-                mask = stage.builtin.stimuli.Ellipse();
-                mask.radiusX = obj.radius;
-                mask.radiusY = obj.radius;
-                mask.position = obj.canvasSize/2 + obj.centerOffset;
-                mask.color = obj.lightMean;
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
                 p.addStimulus(mask);
             end
 
@@ -97,12 +115,13 @@ classdef GaussianNoise < edu.washington.riekelab.sara.protocols.SaraStageProtoco
             spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
                 @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(spotVisible);
+            
             % Control the spot color.
             if strcmp(obj.stageClass, 'LcrRGB')
                 colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
                     @(state)getSpotColorLcrRGB(obj, state));
                 p.addController(colorController);
-            elseif strcmp(obj.stageClass, 'Video') && ~strcmp(obj.chromaticClass, 'achromatic')
+            elseif strcmp(obj.stageClass, 'Video') && ~strcmp(obj.chromaticity, 'achromatic')
                 colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
                     @(state)getSpotColorVideo(obj, state.time - obj.preTime * 1e-3));
                 p.addController(colorController);
@@ -142,29 +161,20 @@ classdef GaussianNoise < edu.washington.riekelab.sara.protocols.SaraStageProtoco
                     c = obj.lightMean;
                 end
             end
-
         end
 
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
-            % Deal with the seed.
+            % Setup random number generator and save seed
             if obj.randomSeed
                 obj.seed = RandStream.shuffleSeed;
             else
                 obj.seed = 1;
             end
 
-            % Seed the random number generator.
             obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
-
-            % Save the seed.
             epoch.addParameter('seed', obj.seed);
-
-            % Add the radius to the epoch.
-            if strcmp(obj.stimulusClass, 'annulus')
-                epoch.addParameter('outerRadius', min(obj.canvasSize/2));
-            end
         end
 
         function tf = shouldContinuePreparingEpochs(obj)

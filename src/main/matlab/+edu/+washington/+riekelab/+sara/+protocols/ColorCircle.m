@@ -5,26 +5,23 @@ classdef ColorCircle < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
 properties
 	amp
-	greenLED = '570nm'
 	preTime = 250
 	stimTime = 2000
 	tailTime = 250
-  contrast = 1
+    contrast = 1
 	radius = 1500
 	maskRadius = 0
 	temporalClass = 'sinewave'
 	temporalFrequency = 4
 	centerOffset = [0, 0]
-	onlineAnalysis = 'extracellular'
 	lightMean = 0.5
 	numberOfAverages = uint16(9)
 end
 
 properties (Hidden)
 	ampType
-  greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-	temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-	onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+	temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+        {'sinewave', 'squarewave'})
 	stimulusClass
 	coneWeights
 	stimTrace
@@ -83,7 +80,7 @@ function p = createPresentation(obj)
     spot = stage.builtin.stimuli.Ellipse();
     spot.radiusX = obj.radius;
     spot.radiusY = obj.radius;
-    spot.position = obj.canvasSize/2 + obj.centerOffset;
+    spot.position = obj.canvasSize/2 + obj.um2pix(centerOffset);
 
     spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
@@ -94,18 +91,11 @@ function p = createPresentation(obj)
     p.addController(spotColorController);
 
     % center mask for annulus
-    if obj.maskRadius > 0
-      mask = stage.builtin.stimuli.Ellipse();
-      mask.radiusX = obj.maskRadius;
-      mask.radiusY = obj.maskRadius;
-      mask.position = obj.canvasSize/2 + obj.centerOffset;
-      mask.color = obj.lightMean;
-
-      maskVisibleController = stage.builtin.controllers.PropertyController(mask, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
-
-      p.addStimulus(mask);
-      p.addController(maskVisibleController);
+    if obj.innerRadius > 0
+        mask = obj.makeAnnulus();
+        p.addStimulus(mask);
     end
+
 
 
   function c = getSpotColor(obj, time)

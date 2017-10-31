@@ -19,7 +19,8 @@ classdef LcrVideoDevice < symphonyui.core.Device
                 @(r)isa(r, 'containers.Map'));
             ip.parse(varargin{:});
             
-            cobj = Symphony.Core.UnitConvertingExternalDevice(['LcrVideo Stage@' ip.Results.host], 'Texas Instruments', Symphony.Core.Measurement(0, symphonyui.core.Measurement.UNITLESS));
+            cobj = Symphony.Core.UnitConvertingExternalDevice(['LcrVideo Stage@' ip.Results.host],...
+                'Texas Instruments', Symphony.Core.Measurement(0, symphonyui.core.Measurement.UNITLESS));
             obj@symphonyui.core.Device(cobj);
             obj.cobj.MeasurementConversionTarget = symphonyui.core.Measurement.UNITLESS;
             

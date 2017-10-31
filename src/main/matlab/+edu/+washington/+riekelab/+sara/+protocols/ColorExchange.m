@@ -2,34 +2,32 @@ classdef ColorExchange < edu.washington.riekelab.sara.protocols.SaraStageProtoco
     
     properties
         amp
-        greenLED = '570nm'
         preTime = 250
         stimTime = 2000
         tailTime = 250
         coneOne = 'L'
         coneTwo = 'M'
         contrast = 0.7
-        radius = 1500
-        maskRadius = 0
+        outerRadius = 0
+        innerRadius = 0
         temporalClass = 'sinewave'
         temporalFrequency = 2
         centerOffset = [0, 0]
-        onlineAnalysis = 'extracellular'
         lightMean = 0.5
         numberOfAverages = uint16(26)
     end
     
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-        temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-        coneOneType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B', 'LMS'})
-        coneTwoType = symphonyui.core.PropertyType('char', 'row', {'L', 'M', 'S', 'LM', 'LS', 'MS', 'R', 'G', 'B', 'LMS'})
-        stimulusClass
+        temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'sinewave', 'squarewave'})
+        coneOneType = symphonyui.core.PropertyType('char', 'row',...
+            {'L', 'M', 'S', 'R', 'G', 'B'})
+        coneTwoType = symphonyui.core.PropertyType('char', 'row',...
+            {'L', 'M', 'S', 'R', 'G', 'B'})
         currentLEDValues
         coneWeights
-        stimTrace
+        outerRadiusPix
     end
     
     methods
@@ -42,16 +40,15 @@ classdef ColorExchange < edu.washington.riekelab.sara.protocols.SaraStageProtoco
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
             
-            % set stimulus class
-            if obj.maskRadius == 0
-                obj.stimulusClass = 'spot';
+            obj.assignSpatialType();
+            if obj.outerRadius == 0
+                obj.outerRadiusPix = 1500;
             else
-                obj.stimulusClass = 'annulus';
+                obj.outerRadiusPix = obj.um2pix(obj.outerRadius);
             end
             
-            obj.stimTrace = getLightStim(obj, 'modulation');
-            
             obj.coneWeights = zeros(double(obj.numberOfAverages), 3);
+            
             switch obj.coneOne
                 case {'R', 'G', 'B'}
                     ind1 = strfind('RGB', obj.coneOne); ind2 = strfind('RGB', obj.coneTwo);
@@ -68,17 +65,18 @@ classdef ColorExchange < edu.washington.riekelab.sara.protocols.SaraStageProtoco
             % set up figures
             if numel(obj.rig.getDeviceNames('Amp')) < 2
                 obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
-                    obj.rig.getDevice(obj.amp), obj.stimTrace,...
+                    obj.rig.getDevice(obj.amp),...
+                    'stimTrace', getLightStim(obj, 'modulation'),...
                     'stimColor', getPlotColor(lower(obj.coneOne)));
             else
                 obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure',...
                     obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
             end
             
-            if ~strcmp(obj.onlineAnalysis, 'none')
+            if ~strcmp(lower(obj.recordingMode), 'none')
                 obj.showFigure('edu.washington.riekelab.sara.figures.F1F2Figure',...
                     obj.rig.getDevice(obj.amp), 1:double(obj.numberOfAverages),...
-                    obj.onlineAnalysis, obj.preTime, obj.stimTime,...
+                    obj.getOnlineAnalysis(), obj.preTime, obj.stimTime,...
                     'temporalFrequency', obj.temporalFrequency, 'showF2', true,...
                     'titlestr', [obj.coneOne ' vs ' obj.coneTwo ' color exchange']);
             end
@@ -90,40 +88,37 @@ classdef ColorExchange < edu.washington.riekelab.sara.protocols.SaraStageProtoco
             p.setBackgroundColor(obj.lightMean);
             
             spot = stage.builtin.stimuli.Ellipse();
-            spot.radiusX = obj.radius;
-            spot.radiusY = obj.radius;
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
+            spot.radiusX = obj.outerRadiusPix;
+            spot.radiusY = obj.outerRadiusPix;
+            spot.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
             
-            spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+            spotVisibleController = stage.builtin.controllers.PropertyController(...
+                spot, 'visible', @(state)state.time >= obj.preTime * 1e-3...
+                && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             
-            spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
+            spotColorController = stage.builtin.controllers.PropertyController(...
+                spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
             
             p.addStimulus(spot);
             p.addController(spotVisibleController);
             p.addController(spotColorController);
             
-            
             % center mask for annulus
-            if obj.maskRadius > 0
-                mask = stage.builtin.stimuli.Ellipse();
-                mask.radiusX = obj.maskRadius;
-                mask.radiusY = obj.maskRadius;
-                mask.position = obj.canvasSize/2 + obj.centerOffset;
-                mask.color = obj.lightMean;
-                
-                maskVisibleController = stage.builtin.controllers.PropertyController(mask, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
-                
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
                 p.addStimulus(mask);
-                p.addController(maskVisibleController);
             end
-            
-            
+                  
             function c = getSpotColor(obj, time)
                 if time >= 0
                     if strcmp(obj.temporalClass, 'sinewave')
-                        c = obj.contrast * obj.currentLEDValues * sin(obj.temporalFrequency * time * 2 * pi) * obj.lightMean + obj.lightMean;
+                        c = obj.contrast * obj.currentLEDValues...
+                            * sin(obj.temporalFrequency * time * 2 * pi)...
+                            * obj.lightMean + obj.lightMean;
                     elseif strcmp(obj.temporalClass, 'squarewave')
-                        c = obj.contrast * obj.currentLEDValues * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
+                        c = obj.contrast * obj.currentLEDValues...
+                            * sign(sin(obj.temporalFrequency * time * 2 * pi))...
+                            * obj.lightMean + obj.lightMean;
                     end
                 else
                     c = obj.lightMean;
@@ -143,11 +138,9 @@ classdef ColorExchange < edu.washington.riekelab.sara.protocols.SaraStageProtoco
                     obj.currentLEDValues = w(:)';
             end
             
-            % obj.currentEpoch = obj.numEpochsCompleted + 1;
             epoch.addParameter('coneWeights',...
                 obj.coneWeights(obj.numEpochsCompleted+1,:));
-            epoch.addParameter('ledWeights', obj.currentLEDValues);
-            epoch.addParameter('stimulusClass', obj.stimulusClass);
+            epoch.addParameter('ledValues', obj.currentLEDValues);
         end
         
         function tf = shouldContinuePreparingEpochs(obj)
@@ -157,5 +150,5 @@ classdef ColorExchange < edu.washington.riekelab.sara.protocols.SaraStageProtoco
         function tf = shouldContinueRun(obj)
             tf = obj.numEpochsCompleted < obj.numberOfAverages;
         end
-    end % methods
-end % classdef
+    end
+end

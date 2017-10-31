@@ -71,13 +71,21 @@ classdef CellMapper < symphonyui.ui.Module
                 'String', 'harp',...
                 'ForegroundColor', obj.COLORS(4,:),...
                 'Callback', @obj.addHarpString);
-            obj.handles.pb.send = uicontrol('Parent', uiLayout,...
+
+            ioLayout = uix.HBox('Parent', uiLayout);
+            obj.handles.pb.send = uicontrol(ioLayout,...
                 'Style', 'push', 'String', 'Send',...
                 'Callback', @obj.sendToWorkspace);
+            obj.handles.pb.add = uicontrol(ioLayout,...
+                'Style', 'push', 'String', 'Add',...
+                'Callback', @obj.documentLocation);
+
             set(uiLayout, 'Heights', [-2 -1 -1 -1 -1 -1 -1]);
             set(mainLayout, 'Widths', [-1.5, -1]);
             
             set(findall(obj.handles.fh, 'Style', 'push'),...
+                'FontName', get(obj.handles.fh, 'DefaultUicontrolFontName'),...
+                'FontSize', get(obj.handles.fh, 'DefaultUicontrolFontSize'),...
                 'BackgroundColor', 'w');
         end % createui
         
@@ -88,7 +96,7 @@ classdef CellMapper < symphonyui.ui.Module
                 'MarkerSize', 8,...
                 'Color', obj.COLORS(12,:));
         end
-        
+      
         function addHarpString(obj,~,~)
             [x,y] = obj.addPoint();
             tmp = line(x, y, 'Parent', obj.handles.ax,...
@@ -121,8 +129,8 @@ classdef CellMapper < symphonyui.ui.Module
     
     methods (Access = private)
         function [x, y] = addPoint(obj)
-            x = deal(obj.handles.loc.Data(1,1));
-            y = deal(obj.handles.loc.Data(1,2));
+            x = obj.handles.loc.Data(1,1);
+            y = obj.handles.loc.Data(1,2);
             obj.data = cat(1, obj.data, [x, y]);
             obj.ptNum = obj.ptNum + 1;
         end
@@ -131,6 +139,26 @@ classdef CellMapper < symphonyui.ui.Module
             delete(obj.data);
             obj.ptNum = 0;
         end % clearPlot
+
+        function documentLocation(obj, ~, ~)
+            epochBlock = obj.documentationService.getCurrentEpochBlock();
+            epochGroup = epochBlock.epochGroup;
+            source = epochGroup.source;
+            sourceKeys = getPropertyMap();
+            if ismember('X', sourceKeys)
+                source.setProperty('X', obj.handles.loc.Data(1,1));
+                source.setProperty('Y', obj.handles.loc.Data(1,2));
+            elseif ismember('XLocation', sourceKeys)
+                source.setProperty('X', obj.handles.loc.Data(1,1));
+                source.setProperty('Y', obj.handles.loc.Data(1,2));
+            else
+                source.addProperty('XLocation', obj.handles.loc.Data(1,1),...
+                    'isRemovable', true);
+                source.addProperty('YLocation', obj.handles.loc.Data(1,2),...
+                    'isRemovable', true);
+            end
+            fprintf('added location to %s\n', source.label);
+        end
         
         function sendToWorkspace(obj, ~, ~)
             output = struct();

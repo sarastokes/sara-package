@@ -2,29 +2,29 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
 
     properties
         amp                             % Output amplifier
-        greenLED = '570nm'              % Green LED
         preTime = 250                   % Spot leading duration (ms)
         stimTime = 1500                 % Spot duration (ms)
         tailTime = 250                  % Spot trailing duration (ms)
         temporalFrequency = 4.0         % Modulation frequency (Hz)
         stimulusClass = 'spot'          % Spot or grating
         targetCone = 'sCone'            % Which cone iso
-        radius = 1500                   % Spot radius (pix)
+        innerRadius = 0                 % Annulus radius (microns)
+        outerRadius = 0                 % Spot radius (microns)
         minStepBits = 2                 % Min step size (bits)
         maxStepBits = 3                 % Max step size (bits)
-        lightMean = 0.5       % Background light intensity (0-1)
-        centerOffset = [0,0]            % Center offset in pixels (x,y)
+        lightMean = 0.5                 % Background light intensity (0-1)
+        centerOffset = [0,0]            % Center offset in microns (x,y)
         temporalClass = 'sinewave'      % Sinewave or squarewave?
-        onlineAnalysis = 'extracellular' % Online analysis type.
         numberOfAverages = uint16(78)   % Number of epochs
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-        targetConeType = symphonyui.core.PropertyType('char', 'row', {'sCone', 'mCone', 'lCone'});
-        temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'pulse'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+        targetConeType = symphonyui.core.PropertyType('char', 'row',...
+            {'sCone', 'mCone', 'lCone'});
+        temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+            edu.washington.riekelab.sara.util.enumStr(...
+                'edu.washington.riekelab.sara.types.ModulationType'))
         ledContrasts
         ledIndex
         oneAxis
@@ -41,10 +41,17 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
         maxStep
         searchAxis
         theoreticalMins
+        outerRadiusPix
     end
 
-    properties (Hidden, Transient)
+    properties (Hidden = true, Transient = true)
         analysisFigure
+    end
+
+    properties (Hidden = true, Constant = true)
+        DISPLAYNAME = 'FindConeIsolation';
+        % Based on ConeIsoSearch
+        VERSION = 2;
     end
 
     methods
@@ -57,16 +64,27 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+            if strcmp(obj.greenLED, '570nm')
+                errordlg('Change to 505nm!');
+            elseif ~strcmp(obj.stageClass, 'Video')
+                errordlg('Run in video mode!');
+            end
 
-            if ~strcmp(obj.onlineAnalysis, 'none')
-                obj.analysisFigure = obj.showFigure('symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
+            if obj.outerRadius == 0
+                obj.outerRadiusPix = 1500;
+            else
+                obj.outerRadiusPix = obj.um2pix(obj.outerRadius);
+            end
+
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'modulation'));
+
+            if ~strcmp(obj.recordingMode, 'none')
+                obj.analysisFigure = obj.showFigure(...
+                    'symphonyui.builtin.figures.CustomFigure', @obj.MTFanalysis);
                 f = obj.analysisFigure.getFigureHandle();
                 set(f, 'Name', sprintf('%s-iso search', obj.targetCone(1)));
                 obj.analysisFigure.userData.axesHandle = axes('Parent', f);
-            end
-
-            if strcmp(obj.stageClass, 'LightCrafter')
             end
 
             % Calculate the theoretical iso point.
@@ -94,7 +112,8 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
             sampleRate = response.sampleRate.quantityInBaseUnits;
 
             % Analyze response by type.
-            responseTrace = obj.getResponseByType(responseTrace, obj.onlineAnalysis);
+            responseTrace = edu.washington.riekelab.sara.util.processData(...
+                responseTrace, obj.recordingMode);
 
             %--------------------------------------------------------------
             % Get the F1 amplitude and phase.
@@ -168,8 +187,9 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
               case 'lCone'
                 tmin = obj.theoreticalMins(2:3);
             end
-            title(['Epoch ', num2str(obj.numEpochsCompleted), ' of ', num2str(obj.numberOfAverages), ...
-                ' theor: ', num2str(tmin), '; actual: ', num2str([obj.minTwo obj.minOne])], 'Parent', axesHandle);
+            title(axesHandle, ['Epoch ', num2str(obj.numEpochsCompleted), ' of ',...
+                num2str(obj.numberOfAverages), ' theor: ', num2str(tmin),...
+                '; actual: ', num2str([obj.minTwo obj.minOne])]);
         end
 
         function organizeParameters(obj)
@@ -185,7 +205,9 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
             end
 
             % Initialize the search axis with the max step.
-            obj.searchValues = [(-1 : obj.maxStep : 1), (-0.4375 : obj.minStep : -0.2031), (0 : obj.minStep : 0.125)];
+            obj.searchValues = [(-1 : obj.maxStep : 1),...
+                                (-0.4375 : obj.minStep : -0.2031),...
+                                (0 : obj.minStep : 0.125)];
             obj.searchValues = unique(obj.searchValues);
 
             if ~strcmp(obj.targetCone, 'mCone')
@@ -203,72 +225,36 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
             p.setBackgroundColor(obj.lightMean);
 
             spot = stage.builtin.stimuli.Ellipse();
-            spot.radiusX = obj.radius;
-            spot.radiusY = obj.radius;
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
-            if strcmp(obj.stageClass, 'Video')
-                spot.color = obj.ledContrasts*obj.lightMean + obj.lightMean;
-            else
-                spot.color = obj.ledContrasts(1)*obj.lightMean + obj.lightMean;
-            end
+            spot.radiusX = obj.outerRadiusPix;
+            spot.radiusY = obj.outerRadiusPix;
+            spot.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
 
             % Add the stimulus to the presentation.
             p.addStimulus(spot);
 
             % Control when the spot is visible.
-            spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
+            visibleController = stage.builtin.controllers.PropertyController(spot, 'visible', ...
                 @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
-            p.addController(spotVisible);
+            p.addController(visibleController);
+
             % Control the spot color.
-            if strcmp(obj.stageClass, 'LcrRGB')
-                if strcmp(obj.temporalClass, 'sinewave')
-                    colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
-                    @(state)getSpotColorLcrRGB(obj, state));
-                p.addController(colorController);
-                elseif strcmp(obj.temporalClass, 'squarewave')
-                    colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
-                    @(state)getSpotColorLcrRGBSqwv(obj, state));
-                p.addController(colorController);
-                end
-            elseif strcmp(obj.stageClass, 'Video')
-                if strcmp(obj.temporalClass, 'sinewave')
-                    colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
-                        @(state)getSpotColorVideo(obj, state.time - obj.preTime * 1e-3));
-                    p.addController(colorController);
-                elseif strcmp(obj.temporalClass, 'squarewave')
-                    colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
-                        @(state)getSpotColorVideoSqwv(obj, state.time - obj.preTime * 1e-3));
-                    p.addController(colorController);
-                end
-            else
+            colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
+                @(state)getSpotColorVideo(obj, state.time - obj.preTime * 1e-3));
+            p.addController(colorController);
+
+            % Add an center mask if it's an annulus.
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
+                p.addStimulus(mask);
             end
 
             function c = getSpotColorVideo(obj, time)
-                c = obj.ledContrasts * sin(obj.temporalFrequency*time*2*pi) * obj.lightMean + obj.lightMean;
-            end
-
-            function c = getSpotColorVideoSqwv(obj, time)
-                c = obj.ledContrasts * sign(sin(obj.temporalFrequency*time*2*pi)) * obj.lightMean + obj.lightMean;
-            end
-
-
-            function c = getSpotColorLcrRGB(obj, state)
-                if state.pattern == 0
-                    c = obj.ledContrasts(1) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.lightMean + obj.lightMean;
-                elseif state.pattern == 1
-                    c = obj.ledContrasts(2) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.lightMean + obj.lightMean;
+                if strcmp(obj.temporalClass, 'SINEWAVE')
+                    c = obj.ledContrasts * sin(obj.temporalFrequency*time*2*pi)...
+                        * obj.lightMean + obj.lightMean;
                 else
-                    c = obj.ledContrasts(3) * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi) * obj.lightMean + obj.lightMean;
-                end
-            end
-
-            function c = getSpotColorLcrRGBSqwv(obj, state)
-                if state.pattern == 0
-                    c = obj.ledContrasts(1) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.lightMean + obj.lightMean;
-                elseif state.pattern == 1
-                    c = obj.ledContrasts(2) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.lightMean + obj.lightMean;
-                else
-                    c = obj.ledContrasts(3) * sign(sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)) * obj.lightMean + obj.lightMean;
+                    c = obj.ledContrasts * sign(sin(obj.temporalFrequency*time*2*pi))...
+                        * obj.lightMean + obj.lightMean;
                 end
             end
         end
@@ -284,7 +270,7 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
                     disp('Searching blue');
                     obj.searchAxis = 'blue';
                 end
-                if strcmp(obj.onlineAnalysis, 'none')
+                if strcmp(obj.recordingMode, 'none')
                     obj.minOne = 0;
                 else
                     obj.minOne = obj.searchValues(find(obj.oneF1==min(obj.oneF1), 1));
@@ -292,7 +278,7 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
             elseif (obj.numEpochsCompleted+1) > length(obj.searchValues)
                 if strcmp(obj.targetCone, 'sCone')
                     obj.searchAxis = 'red';
-                else%if strcmp(obj.targetCone, 'lCone') || strcmp(obj.targetCone, 'mCone')
+                else
                     obj.searchAxis = 'blue';
                 end
             else %
@@ -320,9 +306,9 @@ classdef FindConeIsolation < edu.washington.riekelab.sara.protocols.SaraStagePro
                     obj.ledContrasts = [1 obj.minOne obj.searchValues(index)];
                     obj.ledIndex = 3;
             end
+
             epoch.addParameter('ledContrasts', obj.ledContrasts);
             epoch.addParameter('searchAxis', obj.searchAxis);
-            obj.ledContrasts
         end
 
         function tf = shouldContinuePreparingEpochs(obj)

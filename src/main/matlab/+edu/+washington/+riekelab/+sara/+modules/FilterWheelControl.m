@@ -43,7 +43,7 @@ classdef FilterWheelControl < symphonyui.ui.Module
                 'String', 'Objective:');
             Label( ...
                 'Parent', filterWheelLayout, ...
-                'String', 'LED switch position:');
+                'String', 'LED:');
             Label( ...
                 'Parent', filterWheelLayout, ...
                 'String', 'L-cone max: ');
@@ -124,23 +124,19 @@ classdef FilterWheelControl < symphonyui.ui.Module
 
         function bind(obj)
             bind@symphonyui.ui.Module(obj);
-            try
-                obj.addListener(obj.acquisitionService,...
-                    'SelectedProtocol', @obj.onService_SelectedProtocol);
-            catch
-                fprintf('SelectedProtocol did not bind. sad!\n');
-            end
-        end % bind
+            obj.addListener(obj.acquisitionService,...
+                'SelectedProtocol', @obj.onService_SelectedProtocol);
+        end
     end % methods protected
 
     methods (Access = private)
-				function onService_SelectedProtocol(obj, ~, ~)
-						% probably a better way to keep compatible with older protocols
-						try
-								v = get(obj.ledPopupMenu, 'Value');
-								obj.acquisitionService.setProtocolProperty('greenLED', v(7:end));
-						end
-				end % onService_SelectedProtocol
+		function onService_SelectedProtocol(obj, ~, ~)
+			% probably a better way to keep compatible with older protocols
+			try
+				v = get(obj.ledPopupMenu, 'Value');
+				obj.acquisitionService.setProtocolProperty('greenLED', v(7:end));
+			end
+		end % onService_SelectedProtocol
 
         function populateNdfSettingList(obj)
             ndfNums = {0.0, 0.5, 1.0, 2.0, 3.0, 4.0};
@@ -184,9 +180,9 @@ classdef FilterWheelControl < symphonyui.ui.Module
             obj.greenLEDName = v;
             obj.filterWheel.setGreenLEDName(v);
             obj.setQuantalCatch();
-						try
-							obj.acquisitionService.setProtocolProperty('greenLED', v(7:end));
-						end
+			try
+				obj.acquisitionService.setProtocolProperty('greenLED', v(7:end));
+			end
         end % onSelectedLedSetting
 
         function loadQuantalCatch(obj)

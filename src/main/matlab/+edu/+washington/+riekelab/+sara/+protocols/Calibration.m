@@ -3,23 +3,28 @@ classdef Calibration < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
     properties
         amp                                 % Output amplifier
-        preTime = 250                       % leading duration (ms)
-        stimTime = 500                      % duration (ms)
-        tailTime = 0                        % keep 0 for endless stim
-        greenLED = '570nm'                  % green LED used
-        chromaticClass = 'white'            % Chromatic type
+        preTime = 250                       % Leading duration (ms)
+        stimTime = 500                      % Duration (ms)
+        tailTime = 0                        % Keep 0 for endless stim
+        chromaticity = 'WHITE'              % Chromatic type
         stimulusClass = 'increment'         % Which stimulus type?
-        intensity = 1                       % ranges from 0-1
-        altCal = false                      % switch between qCatch matrices
+        intensity = 1                       % Ranges from 0-1
         numberOfAverages = uint16(256)      % Number of epochs
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm', '505nm'})
-        stimulusClassType = symphonyui.core.PropertyType('char', 'row', {'increment', 'decrement', 'intensity'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'white','black','red','green','blue','L-iso', 'M-iso', 'S-iso', 'LM-iso'})
+        stimulusClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'increment', 'decrement', 'intensity'})
+        chromaticityType = symphonyui.core.PropertyType('char', 'row',...
+            edu.washington.riekelab.sara.util.enumStr(...
+                'edu.washington.riekelab.sara.types.ChromaticityType'))
         rectColor
+    end
+
+    properties (Hidden = true, Constant = true)
+        displayName = 'Calibration';
+        version = 2;
     end
 
     methods
@@ -35,7 +40,7 @@ classdef Calibration < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
         function p = createPresentation(obj)
 
-            p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3); %create presentation of specified duration
+            p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
             p.setBackgroundColor(obj.rectColor); % Set background intensity
 
             % Create the stimulus.
@@ -43,22 +48,18 @@ classdef Calibration < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             rect.color = obj.rectColor;
             rect.position = obj.canvasSize / 2;
             rect.size = obj.canvasSize;
+            p.addStimulus(rect);
 
             visibleController = stage.builtin.controllers.PropertyController(rect, 'visible', ...
-                @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
-
-            colorController = stage.builtin.controllers.PropertyController(rect, 'color', ...
-                @(state)getSpotColor(obj, state));
-
-            p.addStimulus(rect);
+                @(state)state.time >= obj.preTime * 1e-3...
+                && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(visibleController);
-            p.addController(colorController);
         end
 
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
-            switch obj.chromaticClass
+            switch lower(obj.chromaticity)
                 case 'white'
                     obj.rectColor = obj.intensity * [1 1 1];
                 case 'black'
@@ -70,12 +71,8 @@ classdef Calibration < edu.washington.riekelab.sara.protocols.SaraStageProtocol
                 case 'blue'
                     obj.rectColor = obj.intensity * [0 0 1];
                 otherwise
-                    if obj.altCal
-                      cw = getColorWeightsLocal(obj, obj.chromaticClass);
-                    else
-                      obj.setLEDs;
-                      cw = obj.colorWeights;
-                    end
+                    obj.setLEDs;
+                    cw = obj.colorWeights;
                     switch obj.stimulusClass
                         case 'increment'
                             obj.rectColor = 0.5 * (1 * obj.intensity * obj.colorWeights) + 0.5;
@@ -85,6 +82,21 @@ classdef Calibration < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             end
             epoch.addParameter('rectColor', obj.rectColor);
         end % prepareEpoch
+
+        function completeEpoch(obj, epoch)
+            answer = inputdlg({'Measurement:'}, 'Calibration Dialog', 1, {''});
+            if ~isempty(answer{1})
+                try
+                    answer = str2double(answer{:});
+                catch
+                    warndlg('Could not convert answer to a number');
+                    answer = 0;
+                end
+                epoch.addParameter('measurement', answer);
+            end
+
+            completeEpoch@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj, epoch);
+        end
 
         function tf = shouldContinuePreparingEpochs(obj)
             tf = obj.numEpochsPrepared < obj.numberOfAverages;

@@ -1,26 +1,30 @@
 classdef ChromaticSpot < edu.washington.riekelab.sara.protocols.SaraStageProtocol
+
     properties
         amp                             % Output amplifier
-        greenLED = '570nm'
         preTime = 500                   % Spot leading duration (ms)
         stimTime = 500                  % Spot duration (ms)
         tailTime = 500                  % Spot trailing duration (ms)
         contrast = 1.0                  % Contrast (-1 to 1)
         innerRadius = 0                 % Inner radius in pixels.
-        outerRadius = 1500               % Outer radius in pixels.
-        chromaticClass = 'achromatic'   % Spot color
-        lightMean = 0.0       % Background light intensity (0-1)
+        outerRadius = 0              % Outer radius in pixels.
+        chromaticity = 'achromatic'     % Spot color
+        lightMean = 0.0                 % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
-        onlineAnalysis = 'none'         % Online analysis type.
         numberOfAverages = uint16(1)    % Number of epochs
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','red','green','blue','yellow','S-iso','M-iso','L-iso','LM-iso'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+        chromaticityType = symphonyui.core.PropertyType('char', 'row',... 
+            {'achromatic', 'S-iso', 'M-iso', 'L-iso', 'LM-iso',...
+            'red', 'green', 'blue', 'yellow', 'cyan', 'magenta'})
         intensity
+    end
+
+    properties (Hidden = true, Constant = true)
+        DISPLAYNAME = 'Spot';
+        VERSION = 2; 
     end
 
     methods
@@ -34,13 +38,12 @@ classdef ChromaticSpot < edu.washington.riekelab.sara.protocols.SaraStageProtoco
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
+
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
                 obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'pulse'));
-            obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure', obj.rig.getDevice(obj.amp));
-
-            % Get the canvas size.
-            obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
+            
+            obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure',...
+                obj.rig.getDevice(obj.amp));
 
             % Check the chromatic type to set the intensity.
             if strcmp(obj.stageClass, 'Video')
@@ -49,7 +52,7 @@ classdef ChromaticSpot < edu.washington.riekelab.sara.protocols.SaraStageProtoco
                 if obj.lightMean > 0
                     obj.intensity = obj.lightMean * (obj.contrast * obj.ledWeights) + obj.lightMean;
                 else
-                    if isempty(strfind(obj.chromaticClass, 'iso'))
+                    if isempty(strfind(obj.chromaticity, 'iso'))
                         obj.intensity = obj.ledWeights * obj.contrast;
                     else
                         obj.intensity = obj.contrast * (0.5 * obj.ledWeights + 0.5);
@@ -69,10 +72,16 @@ classdef ChromaticSpot < edu.washington.riekelab.sara.protocols.SaraStageProtoco
             p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
             p.setBackgroundColor(obj.lightMean);
 
+            if obj.outerRadius == 0
+                outerRadiusPix = 1500;
+            else
+                outerRadiusPix = obj.um2pix(obj.outerRadius);
+            end
+
             spot = stage.builtin.stimuli.Ellipse();
-            spot.radiusX = obj.outerRadius;
-            spot.radiusY = obj.outerRadius;
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
+            spot.radiusX = outerRadiusPix;
+            spot.radiusY = outerRadiusPix;
+            spot.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
             if strcmp(obj.stageClass, 'Video')
                 spot.color = obj.intensity;
             else
@@ -83,9 +92,16 @@ classdef ChromaticSpot < edu.washington.riekelab.sara.protocols.SaraStageProtoco
             p.addStimulus(spot);
 
             % Control when the spot is visible.
-            spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
-                 @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+            spotVisible = stage.builtin.controllers.PropertyController(...
+                spot, 'visible', @(state)state.time >= obj.preTime * 1e-3...
+                && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(spotVisible);
+            
+            % Create an annulus if innerRadius is specified
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
+                p.addStimulus(mask);
+            end
 
             if strcmp(obj.stageClass, 'LcrRGB')
                 % Control the spot color.

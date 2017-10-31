@@ -22,14 +22,15 @@ classdef FilterWheelDevice < symphonyui.core.Device
             ip.addParameter('greenLEDName', '505nm', @ischar);
             ip.parse(varargin{:});
             
-            cobj = Symphony.Core.UnitConvertingExternalDevice('FilterWheel', 'ThorLabs', Symphony.Core.Measurement(0, symphonyui.core.Measurement.UNITLESS));
+            cobj = Symphony.Core.UnitConvertingExternalDevice('FilterWheel', 'ThorLabs',... 
+                Symphony.Core.Measurement(0, symphonyui.core.Measurement.UNITLESS));
             obj@symphonyui.core.Device(cobj);
             obj.cobj.MeasurementConversionTarget = symphonyui.core.Measurement.UNITLESS;
             
             obj.addConfigurationSetting('NDF', 4.0);
             obj.addConfigurationSetting('objectiveMag', ip.Results.objectiveMag);
             obj.addConfigurationSetting('micronsPerPixel', 0.1121);
-            obj.addConfigurationSetting('greenLEDName',ip.Results.greenLEDName);
+            obj.addConfigurationSetting('greenLEDName', ip.Results.greenLEDName);
             
             % Add configuration settings for the quantal catch.
             obj.addConfigurationSetting('Red_L', 0.0);

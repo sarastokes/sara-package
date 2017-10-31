@@ -4,30 +4,32 @@ classdef ConeSweep < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
     properties
         amp
-        greenLED = '570nm'
         preTime = 200
         stimTime = 1000
         tailTime = 200
         contrast = 1
         lightMean = 0.5
-        radius = 1500
+        outerRadius = 0
         innerRadius = 0
-        temporalClass = 'sinewave'
+        temporalClass = 'SINEWAVE'
         temporalFrequency = 2
         centerOffset = [0,0]
-        checkSpikes = false
-        onlineAnalysis = 'extracellular'
         numberOfAverages = uint16(6)
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-        temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-        chromaticClass
-        stimulusClass
+        temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+            edu.washington.riekelab.sara.util.enumStr(...
+            'edu.washington.riekelab.sara.types.ModulationType'))
+        chromaticity
         stimList
+        outerRadiusPix
+    end
+
+    properties (Constant = true, Hidden = true)
+        DISPLAYNAME = 'Cone Sweep';
+        VERSION = 3;
     end
 
     methods
@@ -40,40 +42,36 @@ classdef ConeSweep < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
             % define stimuli by filter wheel setting
-            switch obj.greenLEDName
-                case 'Green_505nm'
-                    obj.stimList = 'alm';
-                case 'Green_570nm'
-                    obj.stimList = 'as';
+            switch obj.greenLED
+                case '505nm'
+                    obj.stimList = 'alms';
+                case '570nm'
+                    obj.stimList = 'ams';
             end
 
-            % get the stimulus class
-            if obj.innerRadius == 0
-                obj.stimulusClass = 'spot';
+            if obj.outerRadius == 0
+                obj.outerRadiusPix = 1500;
             else
-                obj.stimulusClass = 'annulus';
+                obj.outerRadiusPix = obj.um2pix(obj.outerRadius);
             end
 
-            % get stimulus trace for response figure
-            x = 1:(obj.sampleRate*obj.stimTime * 1e-3);
-            switch obj.temporalClass
-                case 'sinewave'
-                    stimValues = sin(obj.temporalFrequency * x * 2 * pi) * obj.lightMean + obj.lightMean;
-                case 'squarewave'
-                    stimValues = sign(sin(obj.temporalFrequency * x * 2 * pi)) * obj.lightMean + obj.lightMean;
-            end
-            stimTrace = [(obj.lightMean * ones(1, obj.sampleRate * obj.preTime * 1e-3)) stimValues (obj.lightMean * ones(1, obj.sampleRate * obj.tailTime * 1e-3))];
-
+            % get the stimulus class and trace
+            obj.assignSpatialType();
+            stimTrace = getLightStim(obj, 'modulation');
+            
             if numel(obj.rig.getDeviceNames('Amp')) < 2
                 obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
-                    obj.rig.getDevice(obj.amp), 'stimTrace', stimTrace);
+                    obj.rig.getDevice(obj.amp),...
+                    'stimTrace', stimTrace);
             else
                 obj.showFigure('edu.washington.riekelab.sara.figures.DualResponseFigure',...
                     obj.rig.getDevice(obj.amp), obj.rig.getDevice(obj.amp));
             end
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure',...
-                obj.rig.getDevice(obj.amp), obj.stimClass, 'stimTrace', stimTrace);
+            if ~strcmp(obj.analysisMode, 'none')
+                obj.showFigure('edu.washington.riekelab.sara.figures.ConeSweepFigure',...
+                    obj.rig.getDevice(obj.amp), obj.stimList, 'stimTrace', stimTrace);
+            end
         end
 
         function p = createPresentation(obj)
@@ -81,38 +79,37 @@ classdef ConeSweep < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             p.setBackgroundColor(obj.lightMean);
 
             spot = stage.builtin.stimuli.Ellipse();
-            spot.radiusX = obj.radius;
-            spot.radiusY = obj.radius;
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
+            spot.radiusX = obj.outerRadiusPix;
+            spot.radiusY = obj.outerRadiusPix;
+            spot.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
 
-            spotVisibleController = stage.builtin.controllers.PropertyController(spot, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+            visibleController = stage.builtin.controllers.PropertyController(...
+                spot, 'visible', @(state)state.time >= obj.preTime * 1e-3...
+                && state.time < (obj.preTime + obj.stimTime) * 1e-3);
 
-            spotColorController = stage.builtin.controllers.PropertyController(spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
+            colorController = stage.builtin.controllers.PropertyController(...
+                spot, 'color', @(state)getSpotColor(obj, state.time - obj.preTime * 1e-3));
 
             p.addStimulus(spot);
-            p.addController(spotVisibleController);
-            p.addController(spotColorController);
+            p.addController(visibleController);
+            p.addController(colorController);
 
             % center mask for annulus
-            if obj.maskRadius > 0
-                mask = stage.builtin.stimuli.Ellipse();
-                mask.radiusX = obj.maskRadius;
-                mask.radiusY = obj.maskRadius;
-                mask.position = obj.canvasSize/2 + obj.centerOffset;
-                mask.color = obj.lightMean;
-
-                maskVisibleController = stage.builtin.controllers.PropertyController(mask, 'visible', @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
-
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
                 p.addStimulus(mask);
-                p.addController(maskVisibleController);
             end
 
             function c = getSpotColor(obj, time)
                 if time >= 0
-                    if strcmp(obj.temporalClass, 'sinewave')
-                        c = obj.contrast * obj.ledValues * sin(obj.temporalFrequency * time * 2 * pi) * obj.lightMean + obj.lightMean;
-                    elseif strcmp(obj.temporalClass, 'squarewave')
-                        c = obj.contrast * obj.ledValues * sign(sin(obj.temporalFrequency * time * 2 * pi)) * obj.lightMean + obj.lightMean;
+                    if strcmp(obj.temporalClass, 'SINEWAVE')
+                        c = obj.contrast * obj.ledWeights...
+                            * sin(obj.temporalFrequency * time * 2 * pi)...
+                            * obj.lightMean + obj.lightMean;
+                    elseif strcmp(obj.temporalClass, 'SQUAREWAVE')
+                        c = obj.contrast * obj.ledWeights...
+                            * sign(sin(obj.temporalFrequency * time * 2*pi))...
+                            * obj.lightMean + obj.lightMean;
                     end
                 else
                     c = obj.lightMean;
@@ -123,15 +120,13 @@ classdef ConeSweep < edu.washington.riekelab.sara.protocols.SaraStageProtocol
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
 
-            % get the current stimulus
+            % Get the current stimulus
             lst = circshift(obj.stimList, [0, -1 * obj.numEpochsCompleted]);
-            obj.chromaticClass = obj.extendName(lst(1));
+            obj.chromaticity = obj.extendName(lst(1));
             obj.setLEDs();
 
-            % add properties to epoch
-            epoch.addParameter('chromaticClass', obj.chromaticClass);
-            epoch.addParameter('greenLED', obj.greenLED(7:end));
-            epoch.addParameter('ledWeights', obj.ledWeights);
+            % Add extra properties to epoch
+            epoch.addParameter('chromaticity', obj.chromaticity);
         end % prepareEpoch
 
         function tf = shouldContinuePreparingEpochs(obj)
@@ -142,19 +137,4 @@ classdef ConeSweep < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             tf = obj.numEpochsCompleted < obj.numberOfAverages;
         end
     end % methods
-
-%     methods (Static)
-%         function fullName = extendName(abbrev)
-%             switch abbrev
-%                 case 'a'
-%                     fullName = 'achromatic';
-%                 case 'l'
-%                     fullName = 'l-iso';
-%                 case 'm'
-%                     fullName = 'm-iso';
-%                 case 's'
-%                     fullName = 's-iso';
-%             end
-%         end % extendName
-%     end % static methods
 end % classdef

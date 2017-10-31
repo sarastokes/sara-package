@@ -2,38 +2,44 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
     properties
         amp
-        greenLED = '505nm'
         preTime = 250
         stimTime = 3500
         tailTime = 250
         waitTime = 500
         contrast = 1.0
         orientation = 0
-        centerOffset = [0, 0]
-        innerRadius = 0												% Set to create a mask
-        outerRadius = 0												% Set to use an aperture
+        chromaticity = 'achromatic'
         temporalClass = 'drifting'
         spatialClass = 'sinewave'
+        centerOffset = [0, 0]
+        innerRadius = 0    % Set to create a mask
+        outerRadius = 0    % Set to use an aperture
         spatialPhase = 0
         temporalFrequency = 2
-        chromaticClass = 'achromatic'
-        onlineAnalysis = 'extracellular'
-        defaultFrequencies = true							% Use the default spatial frequencies
-        frequencies = 0												% SFs used if defaultFrequencies = false (cpd)
+        lightMean = 0.5
+        defaultFrequencies = true   % Use the default spatial frequencies
+        frequencies = 0	    % SFs used if defaultFrequencies = false (cpd)
         numberOfAverages = uint16(8)
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'505nm', '570nm'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
-        temporalClassType = symphonyui.core.PropertyType('char', 'row', {'drifting', 'reversing'})
-        spatialClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+        chromaticityType = symphonyui.core.PropertyType('char', 'row',...
+            {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
+        temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'drifting', 'reversing'})
+        spatialClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'sinewave', 'squarewave'})
         spatialFrequencies
         spatialFreq
         spatialPhaseRad
         coneContrasts
+        rawImage
+    end
+    
+    properties (Hidden = true, Constant = true)
+        DISPLAYNAME = 'Cone Grating'
+        VERSION = 3
     end
 
     methods
@@ -44,7 +50,7 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
         end % didSetRig
 
         function prepareRun(obj)
-            prepareRun@edu.washington.riekelab.sara.protcols.SaraStageProtocol(obj);
+            prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
             if obj.defaultFrequencies
                 obj.spatialFrequencies = obj.deg2pix([0.1 0.2 0.5 0.75 1 2 3.5 5]);
@@ -56,11 +62,9 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
                 warndlg('Number of averages should be %u', length(obj.spatialFrequencies));
             end
 
-            obj.coneContrasts = coneContrast(obj.lightMean*obj.quantalCatch, ...
-                obj.ledWeights, 'michaelson');
             obj.spatialPhaseRad = obj.spatialPhase / 180 * pi;
 
-            stimColor = getPlotColor(obj.chromaticClass(1));
+            stimColor = getPlotColor(obj.chromaticity(1));
             stimTrace = 0.5 + zeros(1, obj.preTime);
             if obj.waitTime > 0
                 stimTrace = [stimTrace, 1, 0, 0.5 + zeros(1, obj.waitTime-2)];
@@ -73,10 +77,9 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
                 obj.rig.getDevice(obj.amp), 'stimTrace', stimTrace, 'stimColor', stimColor);
             obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure',...
-                obj.rig.getDevice(obj.amp), obj.spatialFrequencies, obj.onlineAnalysis,...
+                obj.rig.getDevice(obj.amp), obj.spatialFrequencies, obj.getOnlineAnalysis(),...
                 obj.preTime, obj.stimTime, 'waitTime', obj.waitTime,...
                 'plotColor', stimColor, 'temporalFrequency', obj.temporalFrequency);
-
         end
 
         function p = createPresentation(obj)
@@ -110,14 +113,14 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
                 else
                     phase = 0;
                 end
-                g = cos(sfRad + phase + obj.rawImage);
+                g = cos(obj.spatialPhaseRad + phase + obj.rawImage);
                 if strcmp(obj.spatialClass, 'squarewave')
                     g = sign(g);
                 end
 
                 g = obj.contrast * g;
 
-                if ~strcmp(obj.chromaticClass, 'achromatic')
+                if ~strcmp(obj.chromaticity, 'achromatic')
                     for m = 1:3
                         g(:,:,m) = obj.colorWeights(m) * g(:,:,m);
                     end
@@ -142,30 +145,24 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
                 g = obj.contrast * g;
 
                 % Deal with chromatic gratings.
-                if ~strcmp(obj.chromaticClass, 'achromatic')
+                if ~strcmp(obj.chromaticity, 'achromatic')
                     for m = 1 : 3
                         g(:,:,m) = obj.colorWeights(m) * g(:,:,m);
                     end
                 end
                 g = uint8(255*(obj.lightMean * g + obj.lightMean));
             end
-            if obj.outerRadius ~= 0
-                aperture = stage.builtin.stimuli.Rectangle();
-                aperture.position = obj.canvasSize/2 + obj.centerOffset;
-                aperture.color = obj.lightMean;
-                aperture.size = [max(obj.canvasSize) max(obj.canvasSize)];
-                mask = stage.core.Mask.createCircularAperture(obj.apertureRadius*2/max(obj.canvasSize), 1024);
-                aperture.setMask(mask);
-                p.addStimulus(aperture);
-            elseif obj.innerRadius ~= 0
-                mask = stage.builtin.stimuli.Ellipse();
-                mask.color = obj.lightMean;
-                mask.radiusX = obj.apertureRadius;
-                mask.radiusY = obj.apertureRadius;
-                mask.position = obj.canvasSize / 2 + obj.centerOffset;
+
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
                 p.addStimulus(mask);
             end
-        end % createPresentation
+
+            if obj.outerRadius > 0
+                aperture = obj.makeAperture();
+                p.addStimulus(aperture);
+            end
+        end
 
         function setRawImage(obj)
             downsamp = 3;
@@ -178,8 +175,8 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             rotRads = obj.orientation / 180 * pi;
 
             % Center the stimulus.
-            x = x + obj.centerOffset(1)*cos(rotRads);
-            y = y + obj.centerOffset(2)*sin(rotRads);
+            x = x + obj.um2pix(obj.centerOffset(1))*cos(rotRads);
+            y = y + obj.um2pix(obj.centerOffset(2))*sin(rotRads);
 
             x = x / min(obj.canvasSize) * 2 * pi;
             y = y / min(obj.canvasSize) * 2 * pi;
@@ -188,7 +185,7 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             img = (cos(0)*x + sin(0) * y) * obj.spatialFreq;
             obj.rawImage = img(1,:);
 
-            if ~strcmp(obj.chromaticClass, 'achromatic')
+            if ~strcmp(obj.chromaticity, 'achromatic')
                 obj.rawImage = repmat(obj.rawImage, [1 1 3]);
             end
         end
@@ -200,13 +197,6 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             obj.setRawImage();
 
             epoch.addParameter('spatialFreq', obj.spatialFreq);
-
-            if obj.numEpochsCompleted == 0
-                epoch.addParameter('lContrast', obj.coneContrasts(1));
-                epoch.addParameter('mContrast', obj.coneContrasts(2));
-                epoch.addParameter('sContrast', obj.coneContrasts(3));
-                epoch.addParameter('rodContrast', obj.coneContrasts(4));
-            end
         end
 
         function tf = shouldContinuePreparingEpochs(obj)
@@ -217,10 +207,10 @@ classdef ConeGrating < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             tf = obj.numEpochsCompleted < obj.numberOfAverages;
         end
 
-        function cpd = pix2deg(obj, pix)
+        function cpd = deg2pix(obj, pix)
             micronsPerDegree = 200;
             screenWidth = min(obj.canvasSize); % pixels
-            cpd = pix / screenWidth / micronsPerPixel * micronsPerDegree;
+            cpd = pix / screenWidth / obj.muPerPixel * micronsPerDegree;
         end
     end
 end % classdef

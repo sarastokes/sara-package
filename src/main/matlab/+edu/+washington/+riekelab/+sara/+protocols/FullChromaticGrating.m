@@ -7,7 +7,6 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
 
     properties
         amp                             % Output amplifier
-        greenLED = '570nm'              % Green LED
         preTime = 250                   % Grating leading duration (ms)
         stimTime = 4000                 % Grating duration (ms)
         tailTime = 250                  % Grating trailing duration (ms)
@@ -19,25 +18,23 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
         spatialPhase = 0.0              % Spatial phase of grating (deg)
         lightMean = 0.5       % Background light intensity (0-1)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
-        apertureRadius = 0              % Aperture radius in pixels.
-        apertureClass = 'spot'          % Spot or annulus?
-        maskRadius = 0                  % Mask radius in pixels
+        innerRadius = 0              % Aperture radius in pixels.
+        outerRadius = 0                  % Mask radius in pixels
         spatialClass = 'sinewave'       % Spatial type (sinewave or squarewave)
         temporalClass = 'drifting'      % Temporal type (drifting or reversing)
         chromaticClass = 'achromatic'   % Chromatic type
-        onlineAnalysis = 'extracellular' % Type of online analysis
         randomOrder = false             % Run the sequence in random order?
         numberOfAverages = uint16(144)   % spatialFreqs * orientations
     end
 
     properties (Hidden)
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-        apertureClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
-        spatialClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave'})
-        temporalClassType = symphonyui.core.PropertyType('char', 'row', {'drifting', 'reversing'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'white', 'S-iso','M-iso','L-iso', 'LM-iso', 'LMS-iso' 'x', 'sml', })
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+        spatialClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'sinewave', 'squarewave'})
+        temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'drifting', 'reversing'})
+        chromaticClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'achromatic', 'S-iso','M-iso','L-iso', 'LM-iso', 'yellow'})
         rawImage
         params
         spatialPhaseRad % The spatial phase in radians.
@@ -57,6 +54,8 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
+            obj.assignSpatialType();
+
             if length(obj.orientations)>1
                 if double(obj.numberOfAverages) ~= (length(obj.spatialFreqs)*length(obj.orientations))
                     warndlg(sprintf('number of averages might be an issue - should be %u',...
@@ -69,17 +68,15 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
             %     end
             end
 
-            obj.setLEDWeights();
+            obj.setLEDs();
 
-            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure', obj.rig.getDevice(obj.amp),...
-                'stimTrace', getLightStim(obj, 'modulation'), 'stimColor', stimColor);
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp),...
+                'stimTrace', getLightStim(obj, 'modulation'),...
+                'stimColor', stimColor);
 
             % Calculate the spatial phase in radians.
             obj.spatialPhaseRad = obj.spatialPhase / 180 * pi;
-
-            % Calculate the cone contrasts.
-            obj.coneContrasts = coneContrast(obj.lightMean*obj.quantalCatch, ...
-                obj.ledWeights, 'michaelson');
 
             % Organize stimulus and analysis parameters.
             obj.organizeParameters();
@@ -87,12 +84,13 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
             if ~strcmp(obj.onlineAnalysis,'none')
                 if length(obj.orientations) > 1
                     obj.showFigure('edu.washington.riekelab.sara.figures.GratingOrientationFigure',...
-                        obj.rig.getDevice(obj.amp), obj.onlineAnalysis,...
+                        obj.rig.getDevice(obj.amp), obj.getOnlineAnalysis(),...
                         obj.preTime, obj.stimTime, obj.temporalFrequency,...
                         obj.spatialFreqs,  obj.chromaticClass,...
                         'waitTime', obj.waitTime, 'orientations', obj.orientations);
                 else
-                    obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure', obj.rig.getDevice(obj.amp),...
+                    obj.showFigure('edu.washington.riekelab.sara.figures.F1Figure',...
+                        obj.rig.getDevice(obj.amp),...
                         obj.spatialFreqs, obj.onlineAnalysis, obj.preTime, obj.stimTime,...
                         'temporalFrequency', obj.temporalFrequency,...
                         'plotColor', stimColor, 'waitTime', obj.waitTime);
@@ -102,26 +100,34 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
 
         function p = createPresentation(obj)
 
-            p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3); %create presentation of specified duration
-            p.setBackgroundColor(obj.lightMean); % Set background intensity
+            p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
+            p.setBackgroundColor(obj.lightMean);
 
             % Create the grating.
             grate = stage.builtin.stimuli.Image(uint8(0 * obj.rawImage));
             grate.position = obj.canvasSize / 2;
             grate.size = ceil(sqrt(obj.canvasSize(1)^2 + obj.canvasSize(2)^2))*ones(1,2);
             grate.orientation = obj.orientation;
-
-            % Set the minifying and magnifying functions.
             grate.setMinFunction(GL.NEAREST);
             grate.setMagFunction(GL.NEAREST);
-
-            % Add the grating.
             p.addStimulus(grate);
 
             % Make the grating visible only during the stimulus time.
             grateVisible = stage.builtin.controllers.PropertyController(grate, 'visible', ...
                 @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(grateVisible);
+
+            % Create center mask
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
+                p.addStimulus(mask);
+            end
+
+            % Create aperture
+            if obj.outerRadius > 0
+                aperture = obj.makeAperture();
+                p.addStimulus(aperture);
+            end
 
             %--------------------------------------------------------------
             % Generate the grating.
@@ -193,8 +199,8 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
                 linspace(-sz/2, sz/2, sz/downsamp));
 
             % Center the stimulus.
-            x = x + obj.centerOffset(1);
-            y = y + obj.centerOffset(2);
+            x = x + obj.um2pix(obj.centerOffset(1));
+            y = y + obj.um2pix(obj.centerOffset(2));
 
             x = x / min(obj.canvasSize) * 2 * pi;
             y = y / min(obj.canvasSize) * 2 * pi;
@@ -257,12 +263,6 @@ classdef FullChromaticGrating < edu.washington.riekelab.sara.protocols.SaraStage
             epoch.addParameter('spatialFreq', obj.spatialFreq);
             epoch.addParameter('orientation', obj.orientation);
             epoch.addParameter('contrast', obj.contrast);
-
-            % Save out the cone/rod contrasts.
-            epoch.addParameter('lContrast', obj.coneContrasts(1));
-            epoch.addParameter('mContrast', obj.coneContrasts(2));
-            epoch.addParameter('sContrast', obj.coneContrasts(3));
-            epoch.addParameter('rodContrast', obj.coneContrasts(4));
         end
 
         function tf = shouldContinuePreparingEpochs(obj)

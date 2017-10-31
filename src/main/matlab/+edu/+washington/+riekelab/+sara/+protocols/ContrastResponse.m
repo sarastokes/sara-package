@@ -1,44 +1,48 @@
 classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProtocol
-% 29Aug2017 - SSP - added naka rushton fit to online analysis 
+    % 29Aug2017 - SSP - added naka rushton fit to online analysis
     
     properties
         amp                             % Output amplifier
         preTime = 500                   % Spot leading duration (ms)
         stimTime = 2500                 % Spot duration (ms)
         tailTime = 500                  % Spot trailing duration (ms)
-        contrasts = [3*ones(1,3) 7*ones(1,3) 13*ones(1,3) 26 26 38 38 51 51 64 102 128]/128 % Contrast (0-1)
+        contrasts = [3 3 3 7 7 7 13 13 13 26 26 38 38 51 51 64 102 128]/128 % Contrast (0-1)
         temporalFrequency = 4.0         % Modulation frequency (Hz)
-        radius = 200                    % Inner radius in pixels.
-        lightMean = 0.5       % Background light intensity (0-1)
-        centerOffset = [0,0]            % Center offset in pixels (x,y) 
+        outerRadius = 1500              % Spot radius in pixels.
+        innerRadius = 0                 % Set for annulus (pix)
+        lightMean = 0.5                 % Background light intensity (0-1)
+        centerOffset = [0,0]            % Center offset in pixels (x,y)
         temporalClass = 'sinewave'      % Sinewave or squarewave?
-        chromaticClass = 'achromatic'   % Spot color
-        stimulusClass = 'spot'          % Stimulus class
-        onlineAnalysis = 'extracellular' % Online analysis type.
+        chromaticity = 'achromatic'     % Spot color
         numberOfAverages = uint16(18)   % Number of epochs
     end
     
-    properties (Hidden)
+    properties (Hidden = true)
         ampType
-        temporalClassType = symphonyui.core.PropertyType('char', 'row', {'sinewave', 'squarewave', 'pulse-positive', 'pulse-negative'})
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic', 'red', 'green', 'blue', 'yellow', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-        stimulusClassType = symphonyui.core.PropertyType('char', 'row', {'spot', 'annulus'})
-
+        temporalClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'sinewave', 'squarewave', 'pulse-positive', 'pulse-negative'})
+        chromaticityType = symphonyui.core.PropertyType('char', 'row',...
+            {'achromatic', 'L-iso', 'M-iso', 'S-iso', 'LM-iso',...
+            'red', 'green', 'blue', 'yellow'})
+        
         sequence
         contrast
-
+        
         xaxis
         F1Amp
         repsPerX
     end
     
-    properties (Hidden, Transient)
+    properties (Hidden = true, Transient = true)
         analysisFigure
     end
+
+    properties (Hidden = true, Constant = true)
+        VERSION = 3;
+        DISPLAYNAME = 'Contrast Response';
+    end
     
-    methods
-        
+    methods        
         function didSetRig(obj)
             didSetRig@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
             
@@ -48,12 +52,16 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
             
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure',... 
-                obj.rig.getDevice(obj.amp));
+            obj.assignSpatialType();
+
+            obj.showFigure(...
+                'edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp),...
+                'stimTrace', getLightStim(obj, 'modulation'));
             
-            if ~strcmp(obj.onlineAnalysis, 'none')
+            if ~strcmp(obj.recordingMode, 'none')
                 obj.analysisFigure = obj.showFigure( ...
-                    'symphonyui.builtin.figures.CustomFigure',... 
+                    'symphonyui.builtin.figures.CustomFigure',...
                     @obj.CRFanalysis);
                 f = obj.analysisFigure.getFigureHandle();
                 set(f, 'Name', 'Contrast Response Function');
@@ -61,10 +69,10 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             end
             
             if strcmp(obj.stageClass, 'LightCrafter')
-                obj.chromaticClass = 'achromatic';
+                obj.chromaticity = 'achromatic';
             end
             
-            numReps = ceil(double(obj.numberOfAverages) / length(obj.contrasts));           
+            numReps = ceil(double(obj.numberOfAverages) / length(obj.contrasts));
             ct = obj.contrasts(:) * ones(1, numReps);
             obj.sequence = sort( ct(:) );
             
@@ -72,7 +80,7 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             obj.F1Amp = zeros( size( obj.xaxis ) );
             obj.repsPerX = zeros( size( obj.xaxis ) );
             
-            obj.getLEDs();
+            obj.setLEDs();
         end
         
         function CRFanalysis(obj, ~, epoch)
@@ -81,7 +89,7 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             sampleRate = response.sampleRate.quantityInBaseUnits;
             
             binRate = 60;
-            if strcmp(obj.onlineAnalysis,'extracellular')
+            if strcmp(obj.getOnlineAnalysis(),'spikes')
                 res = spikeDetectorOnline(y, [], sampleRate);
                 y = zeros(size(y));
                 y(res.sp) = sampleRate;
@@ -129,18 +137,20 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             cla(axesHandle);
             
             h1 = axesHandle;
-            plot(obj.xaxis, obj.F1Amp, 'Parent', h1,... 
+            plot(obj.xaxis, obj.F1Amp, 'Parent', h1,...
                 'LineWidth', 1, 'Marker', 'o',...
-                'Color', getPlotColor(obj.chromaticClass));
+                'Color', getPlotColor(obj.chromaticity));
+            
             if obj.numEpochsCompleted == double(obj.numberOfAverages)
-                [~, fitData, str] = fitNakaRushton(obj.xaxis, obj.F1amp);
+                % Fit Naka-Rushton.
+                [~, fitData, str] = fitNakaRushton(obj.xaxis, obj.F1Amp);
                 hold(h1, 'on');
                 plot(h1, obj.xaxis, fitData,...
-                    'Color', getPlotColor(obj.chromaticClass, 0.5),...
+                    'Color', getPlotColor(obj.chromaticity, 0.5),...
                     'LineWidth', 1);
                 title(h1, str);
             else
-                title(h1, ['Epoch ', num2str(obj.numEpochsCompleted),... 
+                title(h1, ['Epoch ', num2str(obj.numEpochsCompleted),...
                     ' of ', num2str(obj.numberOfAverages)]);
             end
             set(h1, 'TickDir', 'out', 'Box', 'off');
@@ -157,14 +167,14 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             p.setBackgroundColor(obj.lightMean);
             
             spot = stage.builtin.stimuli.Ellipse();
-            if strcmp(obj.stimulusClass, 'annulus')
+            if obj.innerRadius > 0
                 spot.radiusX = min(obj.canvasSize/2);
                 spot.radiusY = min(obj.canvasSize/2);
             else
-                spot.radiusX = obj.radius;
-                spot.radiusY = obj.radius;
+                spot.radiusX = obj.um2pix(obj.outerRadius);
+                spot.radiusY = obj.um2pix(obj.outerRadius);
             end
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
+            spot.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
             
             if strcmpi(obj.temporalClass, 'pulse-negative')
                 ct = -obj.contrast;
@@ -182,12 +192,12 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             p.addStimulus(spot);
             
             % Add an center mask if it's an annulus.
-            if strcmp(obj.stimulusClass, 'annulus')
+            if obj.innerRadius > 0
                 mask = stage.builtin.stimuli.Ellipse();
-                mask.radiusX = obj.radius;
-                mask.radiusY = obj.radius;
+                mask.radiusX = obj.outerRadius;
+                mask.radiusY = obj.outerRadius;
                 mask.position = obj.canvasSize/2 + obj.centerOffset;
-                mask.color = obj.lightMean; 
+                mask.color = obj.lightMean;
                 p.addStimulus(mask);
             end
             
@@ -195,32 +205,30 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
             spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
                 @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(spotVisible);
-
-            if ~strmatch('pulse', obj.temporalClass)
-                if strcmp(obj.stageClass, 'LcrRGB')
-                    colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
-                        @(state)getSpotColorLcrRGB(obj, state));
-                elseif strcmp(obj.stageClass, 'Video')
-                    colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
-                        @(state)getSpotColorVideo(obj, state.time - obj.preTime * 1e-3));
-                end
+            
+            if strcmp(obj.stageClass, 'LcrRGB')
+                colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
+                    @(state)getSpotColorLcrRGB(obj, state));
+            else
+                colorController = stage.builtin.controllers.PropertyController(spot, 'color', ...
+                    @(state)getSpotColorVideo(obj, state.time - obj.preTime * 1e-3));
             end
             p.addController(colorController);
-
+            
             function c = getSpotColorVideo(obj, time)
                 if time >= 0
                     if strcmp(obj.temporalClass, 'sinewave')
-                        c = obj.contrast * (sin(obj.temporalFrequency * time * 2 * pi) * ... 
+                        c = obj.contrast * (sin(obj.temporalFrequency * time * 2 * pi) * ...
                             obj.ledWeights) * obj.lightMean + obj.lightMean;
                     else
-                        c = obj.contrast * (sign(sin(obj.temporalFrequency * time * 2 * pi)) * ... 
+                        c = obj.contrast * (sign(sin(obj.temporalFrequency * time * 2 * pi)) * ...
                             obj.ledWeights) * obj.lightMean + obj.lightMean;
                     end
                 else
                     c = obj.lightMean;
                 end
             end
-               
+            
             function c = getSpotColorLcrRGB(obj, state)
                 if state.time - obj.preTime * 1e-3 >= 0
                     v = sin(obj.temporalFrequency * time * 2 * pi);
@@ -236,17 +244,12 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
                 end
             end
         end
-  
+        
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
             
-            % Get the current contrast.
-            obj.contrast = obj.sequence( obj.numEpochsCompleted+1 );
+            obj.contrast = obj.sequence(obj.numEpochsCompleted+1);
             epoch.addParameter('contrast', obj.contrast);
-
-            if strcmp(obj.stimulusClass, 'annulus')
-                epoch.addParameter('outerRadius', min(obj.canvasSize/2));
-            end
         end
         
         function tf = shouldContinuePreparingEpochs(obj)
@@ -256,6 +259,5 @@ classdef ContrastResponse < edu.washington.riekelab.sara.protocols.SaraStageProt
         function tf = shouldContinueRun(obj)
             tf = obj.numEpochsCompleted < obj.numberOfAverages;
         end
-        
     end
 end

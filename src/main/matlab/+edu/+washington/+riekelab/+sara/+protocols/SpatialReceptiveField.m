@@ -5,33 +5,34 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
 
     properties
         amp                              % Output amplifier
-        greenLED                         % Green LED
         preTime = 500                    % Noise leading duration (ms)
-        stimTime = 21000                 % Noise duration (ms)
+        stimTime = 10000                 % Noise duration (ms)
         tailTime = 500                   % Noise trailing duration (ms)
         stixelSize = 25                  % Edge length of stixel (pix)
+        chromaticity = 'achromatic'      % Chromatic type
+        noiseClass = 'BINARY'            % Noise class (binary, gaussian, ternary)
         frameDwell = 1                   % Number of frames to display any image
-        intensity = 1.0                  % Max light intensity (0-1)
-        lightMean = 0.5        % Background light intensity (0-1)
         centerOffset = [0,0]             % Center offset in pixels (x,y)
-        maskRadius = 0                   % Mask radius in pixels.
-        apertureRadius = 0               % Aperture radius in pixels
-        noiseClass = 'binary'            % Noise class (binary, gaussian, ternary)
-        chromaticClass = 'achromatic'    % Chromatic type
+        outerRadius = 0                  % Mask radius (um).
+        innerRadius = 0                  % Aperture radius (um)
         stdev = 0.3                      % SD for Gaussian noise only
+        intensity = 1.0                  % Max light intensity (0-1)
+        lightMean = 0.5                  % Background light intensity (0-1)
         boardClass = 'checker'           % checkerboard or x/y bar noise
-        onlineAnalysis = 'extracellular' % none for Gaussian RGB
         useRandomSeed = true             % Random seed (bool)
         numberOfAverages = uint16(50)    % Number of epochs
     end
 
-    properties (Hidden)
+    properties (Hidden = true)      
         ampType
-        greenLEDType = symphonyui.core.PropertyType('char', 'row', {'570nm','505nm'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-        noiseClassType = symphonyui.core.PropertyType('char', 'row', {'binary', 'ternary', 'gaussian'})
-        boardClassType = symphonyui.core.PropertyType('char', 'row', {'checker', 'xBar', 'yBar'})
-        chromaticClassType = symphonyui.core.PropertyType('char','row',{'achromatic','RGB','L-iso','M-iso','S-iso', 'LM-iso', 'LMS-iso' 'custom'})
+        noiseClassType = symphonyui.core.PropertyType('char', 'row',...
+            edu.washington.riekelab.sara.util.enumStr(...
+                'edu.washington.riekelab.sara.types.NoiseType'))
+        boardClassType = symphonyui.core.PropertyType('char', 'row',...
+            {'checker', 'xBar', 'yBar'})
+        chromaticityType = symphonyui.core.PropertyType('char','row',...
+            {'achromatic', 'RGB', 'L-iso', 'M-iso', 'S-iso', 'LM-iso'})
+        
         noiseStream
         numXChecks
         numYChecks
@@ -44,6 +45,11 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
         spatialRF
     end
 
+    properties (Constant = true, Hidden = true)
+        DISPLAYNAME = 'SpatialReceptiveField';
+        VERSION = 3;
+    end
+
     methods
         function didSetRig(obj)
             didSetRig@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
@@ -54,13 +60,11 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure',...
-                obj.rig.getDevice(obj.amp));
-
-            % Get the frame rate. Need to check if it's a LCR rig.
             if ~isempty(strfind(obj.rig.getDevice('Stage').name, 'LightCrafter'))
-                obj.chromaticClass = 'achromatic';
+                obj.chromaticity = 'achromatic';
             end
+
+            obj.assignSpatialType();
 
             % Calculate the corrected intensity.
             obj.correctedIntensity = obj.intensity * 255;
@@ -69,7 +73,8 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
             % Calculate the number of X/Y checks.
             obj.numXChecks = ceil(obj.canvasSize(1)/obj.stixelSize);
             obj.numYChecks = ceil(obj.canvasSize(2)/obj.stixelSize);
-            % override check number for bar noise
+            
+            % Override check number for bar noise
             switch obj.boardClass
                 case 'xBar'
                     obj.numYChecks = 1;
@@ -77,24 +82,19 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
                     obj.numXChecks = 1;
             end
 
-            if ~strcmp(obj.onlineAnalysis, 'none')
-                if ~strcmp(obj.boardClass, 'checker')
-                    obj.showFigure('edu.washington.riekelab.sara.figures.BarNoiseFigure',...
-                        obj.rig.getDevice(obj.amp), 'recordingType', obj.onlineAnalysis,...
-                        'stixelSize', obj.stixelSize, 'numXChecks', obj.numXChecks,...
-                        'numYChecks', obj.numYChecks, 'noiseClass', obj.noiseClass,...
-                        'chromaticClass', obj.chromaticClass, 'preTime', obj.preTime,...
-                        'stimTime', obj.stimTime, 'frameRate', obj.frameRate,...
-                        'numFrames', numFrames);
-                else
-                    obj.showFigure('edu.washington.riekelab.sara.figures.ReceptiveFieldFigure',...
-                        obj.rig.getDevice(obj.amp), obj.preTime, obj.stimTime,...
-                        'recordingType', obj.onlineAnalysis,...
-                        'stixelSize', obj.stixelSize, 'canvasSize', obj.canvasSize,...
-                        'noiseClass', obj.noiseClass,...
-                        'chromaticClass', obj.chromaticClass, 'frameRate', obj.frameRate,...
-                        'frameDwell', obj.frameDwell, 'masks', [obj.apertureRadius, obj.maskRadius]);
-                end
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'pulse'));
+
+            if ~strcmp(obj.recordingMode, 'none')
+                obj.showFigure('edu.washington.riekelab.sara.figures.ReceptiveFieldFigure',...
+                    obj.rig.getDevice(obj.amp), obj.preTime, obj.stimTime, obj.stixelSize,...
+                    [obj.numXChecks, obj.numYChecks],...
+                    'onlineAnalysis', obj.getOnlineAnalysis(),...
+                    'noiseClass', lower(obj.noiseClass),...
+                    'chromaticity', obj.chromaticity,...
+                    'frameRate', obj.frameRate,...
+                    'frameDwell', obj.frameDwell,...
+                    'masks', [obj.innerRadius, obj.outerRadius]);
             end
 
             % Get the frame values for repeating epochs.
@@ -104,77 +104,6 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
             end
 
             obj.setLEDs;
-        end
-
-        function getFrameValues(obj)
-            % Get the number of frames.
-            numFrames = floor(obj.stimTime/1000 * obj.frameRate / obj.frameDwell);
-
-            % Seed the random number generator.
-            obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
-
-            % Deal with the noise type.
-            % {binary, ternary, gaussian}, {RGB, achromatic, cone-iso}
-            if strcmpi(obj.noiseClass, 'binary')
-                if strcmpi(obj.chromaticClass, 'RGB')
-                    M = obj.noiseStream.rand(numFrames,obj.numYChecks,obj.numXChecks,3) > 0.5;
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
-                elseif strcmpi(obj.chromaticClass, 'achromatic')
-                    M = obj.noiseStream.rand(numFrames, obj.numYChecks,obj.numXChecks) > 0.5;
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks));
-                else
-                    tmp = repmat(obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) > 0.5,[1 1 1 3]);
-                    M = zeros(size(tmp));
-                    tmp = 2*tmp-1; % Convert to contrast.
-                    for k = 1 : 3
-                        M(:,:,:,k) = obj.ledWeights(k)*tmp(:,:,:,1);
-                    end
-                    M = 0.5*M+0.5;
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
-                end
-                obj.frameValues = uint8(obj.intensity*255*M);
-            elseif strcmpi(obj.noiseClass, 'ternary')
-
-                if strcmpi(obj.chromaticClass, 'RGB')
-                    eta = double(obj.noiseStream.randn(numFrames,obj.numYChecks, obj.numXChecks,3) > 0)*2 - 1;
-                    M = (eta + circshift(eta, [0, 1, 1])) / 2;
-                    M = 0.5*M+0.5;
-                    obj.backgroundFrame = uint8(obj.lightMean*ones(obj.numYChecks,obj.numXChecks,3));
-                elseif strcmpi(obj.chromaticClass, 'achromatic')
-                    eta = double(obj.noiseStream.randn(numFrames,obj.numYChecks, obj.numXChecks) > 0)*2 - 1;
-                    M = (eta + circshift(eta, [0, 1, 1])) / 2;
-                    M = 0.5*M+0.5;
-                    obj.backgroundFrame = uint8(obj.lightMean*ones(obj.numYChecks,obj.numXChecks));
-                else
-                    eta = double(obj.noiseStream.randn(numFrames,obj.numYChecks, obj.numXChecks) > 0)*2 - 1;
-                    tmp = repmat((eta + circshift(eta, [0, 1, 1])) / 2,[1 1 1 3]);
-                    M = zeros(size(tmp));
-                    for k = 1 : 3
-                        M(:,:,:,k) = obj.ledWeights(k)*tmp(:,:,:,1);
-                    end
-                    M = obj.lightMean*M+obj.lightMean;
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
-                end
-
-                obj.frameValues = uint8(obj.intensity*255*M);
-            else % GAUSSIAN
-                if strcmpi(obj.chromaticClass, 'RGB')
-                    M = uint8((obj.stdev * obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks, 3) * 0.5 + 0.5)*255);
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
-                elseif strcmpi(obj.chromaticClass, 'achromatic')
-                    M = uint8((obj.stdev * obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) * 0.5 + 0.5)*255);
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks));
-                else
-                    tmp = repmat(obj.stdev * obj.noiseStream.randn(numFrames, obj.numYChecks, obj.numXChecks),[1 1 1 3]);
-                    M = zeros(size(tmp));
-                    for k = 1 : 3
-                        M(:,:,:,k) = obj.ledWeights(k)*tmp;
-                    end
-                    M = uint8(255*(0.5*M+0.5));
-                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
-                end
-                obj.frameValues = M;
-            end
         end
 
         function p = createPresentation(obj)
@@ -192,11 +121,11 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
             checkerboard.position = obj.canvasSize / 2;
             switch obj.boardClass
                 case 'checker'
-                    checkerboard.size = [obj.numXChecks obj.numYChecks] * obj.stixelSize;
+                    checkerboard.size = [obj.numXChecks, obj.numYChecks] * obj.stixelSize;
                 case 'xBar'
-                    checkerboard.size = [obj.numXChecks obj.numXChecks] * obj.stixelSize;
+                    checkerboard.size = [obj.numXChecks, obj.numXChecks] * obj.stixelSize;
                 case 'yBar'
-                    checkerboard.size = [obj.numYChecks obj.numYChecks] * obj.stixelSize;
+                    checkerboard.size = [obj.numYChecks, obj.numYChecks] * obj.stixelSize;
             end
 
             % Set the minifying and magnifying functions to form discrete
@@ -207,32 +136,38 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
             % Add the stimulus to the presentation.
             p.addStimulus(checkerboard);
 
-            gridVisible = stage.builtin.controllers.PropertyController(checkerboard, 'visible', ...
-                @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
+            gridVisible = stage.builtin.controllers.PropertyController(...
+                checkerboard, 'visible', ...
+                @(state)state.time >= obj.preTime * 1e-3...
+                && state.time < (obj.preTime + obj.stimTime) * 1e-3);
             p.addController(gridVisible);
 
             % Calculate preFrames and stimFrames
             preF = floor(obj.preTime/1000 * obj.frameRate);
             stimF = floor(obj.stimTime/1000 * obj.frameRate);
 
-            if strcmpi(obj.chromaticClass, 'achromatic')
-                imgController = stage.builtin.controllers.PropertyController(checkerboard, 'imageMatrix',...
+            if strcmpi(obj.chromaticity, 'achromatic')
+                imgController = stage.builtin.controllers.PropertyController(...
+                    checkerboard, 'imageMatrix',...
                     @(state)setAchromaticStixels(obj, state.frame - preF, stimF));
             else
-                imgController = stage.builtin.controllers.PropertyController(checkerboard, 'imageMatrix',...
+                imgController = stage.builtin.controllers.PropertyController(...
+                    checkerboard, 'imageMatrix',...
                     @(state)setChromaticStixels(obj, state.frame - preF, stimF));
             end
             p.addController(imgController);
 
-            function s = setAchromaticStixels(obj, frame, stimFrames)
-                if frame > 0 && frame <= stimFrames
-                    index = ceil(frame/obj.frameDwell);
-                    s = squeeze(obj.frameValues(index,:,:));
-                else
-                    s = obj.backgroundFrame;
-                end
+            % Add an center mask if it's an annulus.
+            if obj.innerRadius > 0
+                mask = obj.makeAnnulus();
+                p.addStimulus(mask);
             end
 
+            if obj.outerRadius > 0
+                aperture = obj.makeAperture();
+                p.addStimulus(aperture);
+            end
+            
             function s = setChromaticStixels(obj, frame, stimFrames)
                 if frame > 0 && frame <= stimFrames
                     index = ceil(frame/obj.frameDwell);
@@ -241,25 +176,14 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
                     s = obj.backgroundFrame;
                 end
             end
-
-            % Deal with the mask, if necessary.
-            if obj.maskRadius > 0
-                mask = stage.builtin.stimuli.Ellipse();
-                mask.color = obj.lightMean;
-                mask.radiusX = obj.maskRadius;
-                mask.radiusY = obj.maskRadius;
-                mask.position = obj.canvasSize / 2 + obj.centerOffset;
-                p.addStimulus(mask);
-            end
-
-            if obj.apertureRadius > 0
-                aperture = stage.builtin.stimuli.Rectangle();
-                aperture.position = obj.canvasSize/2 + obj.centerOffset;
-                aperture.color = obj.lightMean;
-                aperture.size = [max(obj.canvasSize) max(obj.canvasSize)];
-                mask = stage.core.Mask.createCircularAperture(obj.apertureRadius*2/max(obj.canvasSize), 1024);
-                aperture.setMask(mask);
-                p.addStimulus(aperture);
+            
+            function s = setAchromaticStixels(obj, frame, stimFrames)
+                if frame > 0 && frame <= stimFrames
+                    index = ceil(frame/obj.frameDwell);
+                    s = squeeze(obj.frameValues(index,:,:));
+                else
+                    s = obj.backgroundFrame;
+                end
             end
         end
 
@@ -283,6 +207,79 @@ classdef SpatialReceptiveField < edu.washington.riekelab.sara.protocols.SaraStag
 
         function tf = shouldContinueRun(obj)
             tf = obj.numEpochsCompleted < obj.numberOfAverages;
+        end
+    end
+    
+    methods (Access = private)
+        function getFrameValues(obj)
+            % Get the number of frames.
+            numFrames = floor(obj.stimTime/1000 * obj.frameRate / obj.frameDwell);
+
+            % Seed the random number generator.
+            obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
+
+            % Deal with the noise type.
+            % {binary, ternary, gaussian}, {RGB, achromatic, cone-iso}
+            if strcmpi(obj.noiseClass, 'binary')
+                if strcmpi(obj.chromaticity, 'RGB')
+                    M = obj.noiseStream.rand(numFrames,obj.numYChecks,obj.numXChecks,3) > 0.5;
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
+                elseif strcmpi(obj.chromaticity, 'achromatic')
+                    M = obj.noiseStream.rand(numFrames, obj.numYChecks,obj.numXChecks) > 0.5;
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks));
+                else
+                    tmp = repmat(obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) > 0.5,[1 1 1 3]);
+                    M = zeros(size(tmp));
+                    tmp = 2*tmp-1; % Convert to contrast.
+                    for k = 1 : 3
+                        M(:,:,:,k) = obj.ledWeights(k)*tmp(:,:,:,1);
+                    end
+                    M = 0.5*M+0.5;
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
+                end
+                obj.frameValues = uint8(obj.intensity*255*M);
+            
+            elseif strcmpi(obj.noiseClass, 'ternary')
+                if strcmpi(obj.chromaticity, 'RGB')
+                    eta = double(obj.noiseStream.randn(numFrames,obj.numYChecks, obj.numXChecks,3) > 0)*2 - 1;
+                    M = (eta + circshift(eta, [0, 1, 1])) / 2;
+                    M = 0.5*M+0.5;
+                    obj.backgroundFrame = uint8(obj.lightMean*ones(obj.numYChecks,obj.numXChecks,3));
+                elseif strcmpi(obj.chromaticity, 'achromatic')
+                    eta = double(obj.noiseStream.randn(numFrames,obj.numYChecks, obj.numXChecks) > 0)*2 - 1;
+                    M = (eta + circshift(eta, [0, 1, 1])) / 2;
+                    M = 0.5*M+0.5;
+                    obj.backgroundFrame = uint8(obj.lightMean*ones(obj.numYChecks,obj.numXChecks));
+                else
+                    eta = double(obj.noiseStream.randn(numFrames,obj.numYChecks, obj.numXChecks) > 0)*2 - 1;
+                    tmp = repmat((eta + circshift(eta, [0, 1, 1])) / 2,[1 1 1 3]);
+                    M = zeros(size(tmp));
+                    for k = 1 : 3
+                        M(:,:,:,k) = obj.ledWeights(k)*tmp(:,:,:,1);
+                    end
+                    M = obj.lightMean*M+obj.lightMean;
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
+                end
+                obj.frameValues = uint8(obj.intensity*255*M);
+                
+            else % GAUSSIAN
+                if strcmpi(obj.chromaticity, 'RGB')
+                    M = uint8((obj.stdev * obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks, 3) * 0.5 + 0.5)*255);
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
+                elseif strcmpi(obj.chromaticity, 'achromatic')
+                    M = uint8((obj.stdev * obj.intensity*obj.noiseStream.rand(numFrames, obj.numYChecks, obj.numXChecks) * 0.5 + 0.5)*255);
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks));
+                else
+                    tmp = repmat(obj.stdev * obj.noiseStream.randn(numFrames, obj.numYChecks, obj.numXChecks),[1 1 1 3]);
+                    M = zeros(size(tmp));
+                    for k = 1 : 3
+                        M(:,:,:,k) = obj.ledWeights(k)*tmp;
+                    end
+                    M = uint8(255*(0.5*M+0.5));
+                    obj.backgroundFrame = uint8(obj.lightMean * ones(obj.numYChecks,obj.numXChecks,3));
+                end
+                obj.frameValues = M;
+            end
         end
     end
 end

@@ -1,70 +1,78 @@
 classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
     % 20Dec2016 - added RGB analysis
     % 24Aug2017 - code cleanup, added strfViewer.m code
+    
     properties (SetAccess = private)
+        % Required:
         device
         preTime
         stimTime
-        recordingType
         stixelSize
+        stixels
+
+        % Optional
+        onlineAnalysis
         canvasSize
         noiseClass
-        chromaticClass
+        chromaticity
         frameRate
         frameDwell
-        aperture
+        masks
     end
     
     properties (Access = private)
         handles
         data
         things
+        flags
         
         strf
+    end
+
+    properties (Hidden = true, Constant = true)
+        ICONDIR = [fileparts(fileparts(mfilename('fullpath'))), '\+icons\'];
+        CMAPS = {'bone', 'cubicl', 'viridis', 'bluered', 'parula'};
     end
     
     methods
         
-        function obj = ReceptiveFieldFigure(device, preTime, stimTime, varargin)
+        function obj = ReceptiveFieldFigure(device, preTime, stimTime,... 
+            stixelSize, stixels, varargin)
             obj.device = device;
             obj.preTime = preTime;
             obj.stimTime = stimTime;
+            obj.stixelSize = stixelSize;
+            obj.stixels = stixels;
             
             ip = inputParser();
-            ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
-            ip.addParameter('stixelSize', [], @(x)isnumeric(x));
-            ip.addParameter('canvasSize', [], @(x)isvector(x));
+            ip.addParameter('onlineAnalysis', 'spikes', @(x)ischar(x));
             ip.addParameter('noiseClass', 'binary', @(x)ischar(x));
-            ip.addParameter('chromaticClass', 'achromatic', @(x)ischar(x));
+            ip.addParameter('chromaticity', 'achromatic', @(x)ischar(x));
             ip.addParameter('frameRate', 60, @(x)isnumeric(x));
-            ip.addParameter('frameDwell',[], @(x)isnumeric(x));
-            ip.addParameter('aperture', 0, @(x)isnumeric(x));
+            ip.addParameter('frameDwell', 1 , @(x)isnumeric(x));
+            ip.addParameter('masks', [0, 0], @(x)isnumeric(x));
             
             ip.parse(varargin{:});
             
-            obj.device = device;
-            obj.recordingType = ip.Results.recordingType;
-            obj.stixelSize = ip.Results.stixelSize;            
+            obj.onlineAnalysis = ip.Results.onlineAnalysis;           
             obj.noiseClass = ip.Results.noiseClass;
-            obj.chromaticClass = ip.Results.chromaticClass;
+            obj.chromaticity = ip.Results.chromaticity;
             obj.frameRate = ip.Results.frameRate;
             obj.frameDwell = ip.Results.frameDwell;
-            obj.aperture = ip.Results.aperture;
+            obj.masks = ip.Results.masks;
             
-            % Initialize variables
-            obj.things.stixels = ceil(obj.canvasSize / obj.stixelSize);
-            obj.things.xaxis = linspace(-obj.things.stixels(1)/2,... 
-                obj.things.stixels(1)/2,...
-                obj.things.stixels(1)) * obj.stixelSize;
-            obj.things.yaxis = linspace(-obj.things.stixels(2)/2,... 
-                obj.things.stixels(2)/2,...
-                obj.things.stixels(2)) * obj.stixelSize;
+            % Axes in pixels
+            obj.things.xaxis = linspace(-obj.stixels(1)/2, obj.stixels(1)/2,...
+                obj.stixels(1))*obj.stixelSize;
+            obj.things.yaxis = linspace(-obj.stixels(2)/2, obj.stixels(2)/2,...
+                obj.stixels(2))*obj.stixelSize;
+
             obj.things.numFrames = floor(obj.stimTime/1000 ... 
                 * obj.frameRate/obj.frameDwell);
-
-            
+         
             obj.strf = zeros(obj.stixels(2), obj.stixels(1),... 
                 floor(obj.frameRate*0.5));
+            obj.handles.im = [];
             
             obj.things.cmap = 'bone';
             obj.flags.avg = true;
@@ -76,15 +84,29 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
         function createUi(obj)
             import appbox.*;
             
-            toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');
+            colormap(gcf, 'bone');
             
+            toolbar = findall(obj.figureHandle, 'Type', 'uitoolbar');        
             workspaceButton = uipushtool(...
                 'Parent', toolbar,...
                 'TooltipString', 'Send to workspace',...
                 'Separator', 'on',...
                 'ClickedCallback', @obj.sendData);
-            setIconImage(workspaceButton,...
-                symphonyui.app.App.getResource('icons/sweep_store.png'));
+            setIconImage(workspaceButton, [obj.ICONDIR, 'send.png']);
+
+            cmapButton = uipushtool(...
+                'Parent', toolbar,...
+                'TooltipString', 'Cycle through colormaps',...
+                'Separator', 'on',...
+                'ClickedCallback', @obj.changeCmap);
+            setIconImage(cmapButton, [obj.ICONDIR, 'colors.gif']);
+
+            obj.handles.filterButton = uipushtool(...
+                'Parent', toolbar,...
+                'TooltipString', 'Gaussian filter to RF',...
+                'Separator', 'on',...
+                'ClickedCallback', @obj.toggleFilter);
+            setIconImage(obj.handles.filterButton, [obj.ICONDIR, 'add_filter.gif']);
             
             mainLayout = uix.VBox('Parent', obj.figureHandle,...
                 'Padding', 10, 'Spacing', 5);
@@ -102,7 +124,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'Style', 'slider',...
                 'Min', 0, 'Max', floor(obj.frameRate*0.5), 'Value', 0,...
                 'SliderStep', [(1/floor(obj.frameRate*0.5)) 0.2]);
-            obj.handles.sl.timeBinJ = findjobj(obj.handles.sl.azimuth);
+            obj.handles.sl.timeBinJ = findjobj(obj.handles.sl.timeBin);
             set(obj.handles.sl.timeBinJ,...
                 'AdjustmentValueChangedCallback', @obj.changeTimeBin);
             obj.handles.tx.timeBin = uicontrol(uiLayout,...
@@ -117,19 +139,18 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'ColumnName', []);
             obj.handles.pb.avg = uicontrol(avgLayout,...
                 'Style', 'push',...
-                'Callback', @obj.strfType);
+                'Callback', @obj.avgStrf);
             obj.handles.pb.pks = uicontrol(uiLayout,...
                 'Style', 'push',...
                 'String', 'Find peaks',...
                 'Callback', @obj.findPeaks);
             filtLayout = uix.VBox('Parent', uiLayout);
-            obj.handles.pb.filt = uicontrol(filtLayout,...
-                'Style', 'push',...
-                'String', 'gauss filter',...
-                'Callback', @obj.gaussFilt);
+            uicontrol('Parent', filtLayout,...
+                'Style', 'text',...
+                'String', 'Filter SD:');
             obj.handles.ed.filt = uicontrol(filtLayout,...
                 'Style', 'edit',...
-                'String', 'sigma',...
+                'String', '0.75',...
                 'TooltipString', 'Sigma for gaussian filter');
             obj.handles.pb.units = uicontrol(uiLayout,...
                 'Style', 'push',...
@@ -138,7 +159,8 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 'Callback', @obj.changeUnits);
             
             set(mainLayout, 'Heights', [-10 -1]);
-            set(uiLayout, 'Widths', [-4 -1 -1 -1]);
+            set(uiLayout, 'Widths', [-2.5 -1 -1 -1 -1 -1]);
+            
             set(findall(obj.figureHandle, 'Type', 'uicontrol'),...
                 'BackgroundColor', 'w',...
                 'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'),...
@@ -155,12 +177,12 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             obj.strf = zeros(obj.stixels(2), obj.stixels(1),... 
                 floor(obj.frameRate*0.5));
             % Set the x/y axes
-            obj.xaxis = linspace(-obj.things.stixels(1)/2,... 
-                obj.things.stixels(1)/2,...
-                obj.things.stixels(1)) * obj.stixelSize;
-            obj.yaxis = linspace(-obj.things.stixels(2)/2,... 
-                obj.things.stixels(2)/2,...
-                obj.things.stixels(2)) * obj.things.stixelSize;
+            obj.things.xaxis = linspace(-obj.stixels(1)/2,... 
+                obj.stixels(1)/2,...
+                obj.stixels(1)) * obj.stixelSize;
+            obj.things.yaxis = linspace(-obj.stixels(2)/2,... 
+                obj.stixels(2)/2,...
+                obj.stixels(2)) * obj.things.stixelSize;
         end
         
         function handleEpoch(obj, epoch)
@@ -171,13 +193,15 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             response = epoch.getResponse(obj.device);
             [quantities, ~] = response.getData();
             sampleRate = response.sampleRate.quantityInBaseUnits;
+            
             prePts = obj.preTime * 1e-3 * sampleRate;
             seed = epoch.parameters('seed');
             
-            y = responseByType(quantities, obj.recordingType,...
-                obj.preTime, sampleRate);
-            switch obj.recordingType
-                case {'extracellular', 'spikes_CClamp'}
+            y = edu.washington.riekelab.sara.util.processData(...
+                quantities, obj.onlineAnalysis,...
+                'preTime', obj.preTime, 'sampleRate', sampleRate);
+            switch obj.onlineAnalysis
+                case {'spikes', 'ic_spikes'}
                     y = BinSpikeRate(y(prePts+1:end), obj.frameRate, sampleRate);
                 otherwise
                     y = bandPassFilter(y, 0.2, 500, 1/sampleRate);
@@ -193,20 +217,20 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             y = y(:);
             y(1:floor(obj.frameRate)) = 0;
             
-            frameValues = getSpatialNoiseFrames(obj.stixels(1), obj.stixels(2),...
-                obj.things.numFrames, obj.noiseClass, obj.chromaticClass, seed);
+            stimulus = getSpatialNoiseFrames(obj.stixels(1), obj.stixels(2),...
+                obj.things.numFrames, obj.noiseClass, obj.chromaticity, seed);
             
-            if strcmpi(obj.chromaticClass, 'RGB')
-                frameValues(1 : floor(obj.frameRate),:,:,:) = 0;
+            if strcmpi(obj.chromaticity, 'RGB')
+                stimulus(1 : floor(obj.frameRate),:,:,:) = 0;
             else
-                frameValues(1 : floor(obj.frameRate),:,:) = 0;
+                stimulus(1 : floor(obj.frameRate),:,:) = 0;
             end
             
             filterFrames = floor(obj.frameRate*0.5);
-            %lobePts = round(0.05*obj.frameRate):round(0.15*obj.frameRate);
-            lobePts = [3 5] * obj.frameRate/obj.frameDwell;
+            lobePts = round(0.05*obj.frameRate):round(0.15*obj.frameRate);
+            %lobePts = [3 5] * obj.frameRate/obj.frameDwell;
             
-            if strcmpi(obj.chromaticClass, 'RGB')
+            if strcmpi(obj.chromaticity, 'RGB')
                 filterTmpC = zeros(3, obj.stixels(2), obj.stixels(1), filterFrames);
                 for l = 1 : 3
                     filterTmp = zeros(obj.stixels(2), obj.stixels(1),filterFrames);
@@ -226,7 +250,7 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 for m = 1 : obj.stixels(2)
                     for n = 1 : obj.stixels(1)
                         tmp = ifft(fft([y; zeros(60,1)]) .* ... 
-                            conj(fft([squeeze(frameValues(:,m,n)); zeros(60,1);])));
+                            conj(fft([squeeze(stimulus(:,m,n)); zeros(60,1);])));
                         filterTmp(m,n,:) = tmp(1 : filterFrames);
                     end
                 end
@@ -239,13 +263,11 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                     'XData', obj.things.xaxis, 'YData', obj.things.yaxis,...
                     'CData', spatialRF);
             else
-                % t = get(obj.handles.sl.timeBin, 'Value');
                 obj.handles.im = imagesc('Parent', obj.handles.ax,...
                     'XData', obj.things.xaxis, 'YData', obj.things.yaxis,...
                     'CData', squeeze(obj.strf(:,:,obj.handles.sl.timeBin.Value)));
             end
             axis(obj.handles.ax, 'image');
-            colormap(obj.handles.ax, obj.things.cmap);
         end % handleEpoch
     end % methods
     
@@ -259,28 +281,25 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
                 obj.flags.filt = true;
             end
             
-            if isletter(get(obj.handles.ed.filt, 'String'))
-                warndlg('Set sigma to a number');
-                return;
-            else
-                obj.things.filtFac = str2double(obj.handles.ed.filt.String);
-            end
-            
             set(obj.handles.im, 'CData',...
                 imgaussfilt(obj.handles.im.CData, obj.things.filtFac));
         end % gaussfilt
         
         function changeCmap(obj, ~, ~)
             % CHANGECMAP  Switch colormap
-            cmapList = {'Bone', 'CubicL', 'Viridis', 'RedBlue', 'Parula'};
-            ind = find(ismember(obj.things.cmap, cmapList));
-            switch obj.things.cmap
-                case 'CubicL'
-                    colormap(obj.handles.ax, pmkmp(256, 'CubicL'));
-                case 'Viridis'
+            ind = find(ismember(obj.things.cmap, obj.CMAPS));
+            if ind == length(obj.CMAPS)
+                obj.things.cmap = 'bone';
+            else
+                obj.things.cmap = obj.CMAPS{ind + 1};
+            end
+            switch lower(obj.things.cmap)
+                case 'cubicl'
+                    colormap(obj.handles.ax, pmkmp(256, 'cubicl'));
+                case 'viridis'
                     colormap(obj.handles.ax, viridis(256));
-                case 'RedBlue'
-                    colormap(obj.handles.ax, lbmap(256, 'RedBlue'));
+                case 'bluered'
+                    colormap(obj.handles.ax, fliplr(lbmap(256, 'redblue')));
                 otherwise
                     colormap(obj.handles.ax, obj.things.cmap);
             end
@@ -315,22 +334,40 @@ classdef ReceptiveFieldFigure < symphonyui.core.FigureHandler
             % CHANGEUNITS  Switch between pixels and microns
             switch src.String(5:end)
                 case 'microns'
-                    obj.xaxis = obj.xaxis / obj.pix2micron;
-                    obj.yaxis = obj.yaxis / obj.pix2micron;
+                    obj.things.xaxis = obj.things.xaxis / obj.pix2micron;
+                    obj.things.yaxis = obj.things.yaxis / obj.pix2micron;
                 case 'pixels'
-                    obj.xaxis = obj.xaxis * obj.pix2micron;
-                    obj.yaxis = obj.yaxis * obj.pix2micron;
+                    obj.things.xaxis = obj.things.xaxis * obj.pix2micron;
+                    obj.things.yaxis = obj.things.yaxis * obj.pix2micron;
             end
-            set(obj.handles.im, 'XData', obj.xaxis, 'YData', obj.yaxis);
+            set(obj.handles.im, 'XData', obj.things.xaxis, 'YData', obj.things.yaxis);
         end % changeUnits
+
+        function parseSigma(obj)
+            % PARSESIGMA  Get numeric sigma from editbox            
+            if isletter(get(obj.handles.ed.filt, 'String'))
+                warndlg('Set sigma to a number');
+                return;
+            else
+                obj.things.filtFac = str2double(obj.handles.ed.filt.String);
+            end
+        end
+
+        function toggleFilter(obj, ~, ~)
+            % TOGGLEFILTER  Turn imgaussfilt on and off
+            if obj.flags.filt
+                obj.flags.filt = false;
+            else
+                obj.flags.filt = true;
+            end
+        end
         
-        function sendData(obj,~,~)
-            strf = obj.strf;
+        function sendData(obj, ~, ~)
+            % SENDDATA  Send STRF to the workspace
             answer = inputdlg('Save to workspace as:',...
                 'save dialog', 1, {'r'});
-            fprintf('%s new grating named %s\n',...
-                datestr(now), answer{1});
-            assignin('base', sprintf('%s', answer{1}), strf);
+            fprintf('%s new RF named %s\n', datestr(now), answer{1});
+            assignin('base', sprintf('%s', answer{1}), obj.strf);
         end
         
     end % methods private

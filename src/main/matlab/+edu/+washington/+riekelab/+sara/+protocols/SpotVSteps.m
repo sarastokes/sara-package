@@ -1,4 +1,5 @@
 classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
+
     properties
         amp                             % Output amplifier
         preTime = 500                   % Spot leading duration (ms)
@@ -6,20 +7,23 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
         tailTime = 1500                 % Spot trailing duration (ms)
         contrasts = [-1 1 -1 1]         % Contrasts (-1 to 1)
         innerRadius = 0                 % Inner radius in pixels.
-        outerRadius = 200               % Outer radius in pixels.
-        chromaticClass = 'achromatic'   % Spot color
-        lightMean = 0.5       % Background light intensity (0-1)
+        outerRadius = 1500              % Outer radius in pixels.
+        chromaticity = 'achromatic'     % Spot color
+        lightMean = 0.5                 % Background light intensity (0-1)
         ECl = -55                       % Apparent chloride reversal (mV)
         voltageHolds = [-20 0 20 35 50 65 90 115 0] % Change in Vhold re to ECl (mV)
         centerOffset = [0,0]            % Center offset in pixels (x,y)
-        onlineAnalysis = 'analog'       % Online analysis type.
-        numberOfAverages = uint16(45)    % Number of epochs (holds*(contrasts+1))
+        numberOfAverages = uint16(45)   % Number of epochs (holds*(contrasts+1))
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
+        displayName = 'IVCurve';
+        version = 2;
+
         ampType
-        chromaticClassType = symphonyui.core.PropertyType('char', 'row', {'achromatic','red','green','blue','yellow','S-iso','M-iso','L-iso','LM-iso'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
+        chromaticityType = symphonyui.core.PropertyType('char', 'row',...
+            {'achromatic','S-iso','M-iso','L-iso','LM-iso',...
+            'red', 'green', 'blue', 'yellow'})
         contrast
         intensity
         holdingPotential
@@ -41,8 +45,12 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
 
-            obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
-            obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure', obj.rig.getDevice(obj.amp));
+            obj.assignSpatialType();
+            
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp), 'stimTrace', getLightStim(obj, 'pulse'));
+            obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure',...
+                obj.rig.getDevice(obj.amp));
 
             obj.repsPerHold = length(obj.contrasts) + 1;
             obj.Vh = ones(obj.repsPerHold,1)*obj.voltageHolds + obj.ECl;
@@ -63,8 +71,8 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             % Don't show the spot for dummy epochs.
             if ~obj.isDummyEpoch
                 spot = stage.builtin.stimuli.Ellipse();
-                spot.radiusX = obj.outerRadius;
-                spot.radiusY = obj.outerRadius;
+                spot.radiusX = obj.um2pix(obj.outerRadius);
+                spot.radiusY = obj.um2pix(obj.outerRadius);
                 spot.position = obj.canvasSize/2 + obj.centerOffset;
                 if strcmp(obj.stageClass, 'Video')
                     spot.color = obj.intensity;
@@ -79,6 +87,16 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
                 spotVisible = stage.builtin.controllers.PropertyController(spot, 'visible', ...
                     @(state)state.time >= obj.preTime * 1e-3 && state.time < (obj.preTime + obj.stimTime) * 1e-3);
                 p.addController(spotVisible);
+
+                % center mask for annulus
+                if obj.innerRadius > 0
+                    mask = stage.builtin.stimuli.Ellipse();
+                    mask.radiusX = obj.um2pix(obj.innerRadius);
+                    mask.radiusY = obj.um2pix(obj.innerRadius);
+                    mask.position = obj.canvasSize/2 + obj.centerOffset;
+                    mask.color = obj.lightMean;
+                    p.addStimulus(mask);
+                end
             end
         end
 
@@ -99,7 +117,7 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             end
 
             % Determine whether this is a dummy epoch (i.e. no stimulus).
-            obj.isDummyEpoch = (mod(obj.numEpochsCompleted,obj.repsPerHold) == 0);
+            obj.isDummyEpoch = (mod(obj.numEpochsCompleted, obj.repsPerHold) == 0);
 
             % Don't persist dummy epochs.
             if obj.isDummyEpoch
@@ -115,7 +133,7 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
                 if obj.lightMean > 0
                     obj.intensity = obj.lightMean * (obj.contrast * obj.ledWeights) + obj.lightMean;
                 else
-                    if isempty(strfind(obj.chromaticClass, 'iso'))
+                    if isempty(strfind(obj.chromaticity, 'iso'))
                         obj.intensity = obj.ledWeights * obj.contrast;
                     else
                         obj.intensity = obj.contrast * (0.5 * obj.ledWeights + 0.5);
@@ -135,7 +153,8 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
 
             % Set the holding potential.
             device = obj.rig.getDevice(obj.amp);
-            device.background = symphonyui.core.Measurement(obj.holdingPotential, device.background.displayUnits);
+            device.background = symphonyui.core.Measurement(...
+                obj.holdingPotential, device.background.displayUnits);
         end
 
         function completeEpoch(obj, epoch)
@@ -144,14 +163,9 @@ classdef SpotVSteps < edu.washington.riekelab.sara.protocols.SaraStageProtocol
             % Set the Amp background to the next hold.
             if (obj.numEpochsCompleted+1) < obj.numberOfAverages
                 device = obj.rig.getDevice(obj.amp);
-                device.background = symphonyui.core.Measurement(obj.nextHold, device.background.displayUnits);
+                device.background = symphonyui.core.Measurement(...
+                    obj.nextHold, device.background.displayUnits);
             end
-
-
-            % Get the frame times and frame rate and append to epoch.
-%             [frameTimes, actualFrameRate] = obj.getFrameTimes(epoch);
-%             epoch.addParameter('frameTimes', frameTimes);
-%             epoch.addParameter('actualFrameRate', actualFrameRate);
         end
 
         function tf = shouldContinuePreparingEpochs(obj)

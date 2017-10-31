@@ -1,10 +1,20 @@
-classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProtocol
+classdef (Abstract) SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProtocol
 
     properties
         interpulseInterval = 0          % Duration between pulses (s)
+        greenLED = '505nm'              % Set automatically by filter wheel module
+        recordingMode = 'EXTRACELLULAR' % Recording type
+        analysisMode = 'auto'           % Analysis type
     end
 
-    properties (Hidden)
+    properties (Hidden = true)
+        greenLEDType = symphonyui.core.PropertyType('char', 'row',...
+            {'570nm', '505nm'})
+        recordingModeType = symphonyui.core.PropertyType('char', 'row',...
+            edu.washington.riekelab.sara.util.enumStr(...
+                'edu.washington.riekelab.sara.types.RecordingModeType'))
+        analysisModeType = symphonyui.core.PropertyType('char', 'row',...
+            {'auto', 'none', 'excitation', 'inhibition', 'subthreshold', 'spikes', 'analog', 'ic_spikes'})
         stageClass
         frameRate
         canvasSize
@@ -14,6 +24,7 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
         objectiveMag
         muPerPixel
         greenLEDName
+        spatialType = [];
     end
 
     methods
@@ -23,7 +34,6 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
 
             obj.showFigure('edu.washington.riekelab.figures.FrameTimingFigure',...
                 obj.rig.getDevice('Stage'), obj.rig.getDevice('Frame Monitor'));
-
 
             % Get the frame rate. Need to check if it's a LCR rig.
             if ~isempty(strfind(obj.rig.getDevice('Stage').name, 'LightCrafter'))
@@ -91,27 +101,31 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             obj.canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
         end
 
-
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj, epoch);
 
+            % Add LED parameters
+            epoch.addParameter('greenLED', obj.greenLEDName);
+            epoch.addParameter('ledWeights', obj.ledWeights);
+            
+            % Add stimulus parameters
             epoch.addParameter('frameRate', obj.frameRate);
-            epoch.addParameter('stageClass', obj.stageClass);
+            epoch.addParameter('stageClass', obj.stageClass);            
             epoch.addParameter('ndf', obj.ndf);
             if obj.muPerPixel > 0
                 epoch.addParameter('micronsPerPixel', obj.muPerPixel);
                 epoch.addParameter('objectiveMag', obj.objectiveMag);
             end
-            epoch.addParameter('maxLCone', sum(obj.quantalCatch(:,1)));
-            epoch.addParameter('maxMCone', sum(obj.quantalCatch(:,2)));
-            epoch.addParameter('maxSCone', sum(obj.quantalCatch(:,3)));
-            epoch.addParameter('maxRod', sum(obj.quantalCatch(:,4)));
+
+            % assign spatial type is called by protocols
+            if ~isempty(obj.spatialType)
+                epoch.addParameter('spatialType', obj.spatialType);
+            end
 
             % Check for 2P scanning devices.
             obj.checkImaging(epoch);
 
             %--------------------------------------------------------------
-            % NOTE: This must be set in protocol if using SaraStageProtocol
             % Set up the amplifiers for recording.
             duration = (obj.preTime + obj.stimTime + obj.tailTime) * 1e-3;
 
@@ -133,8 +147,19 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             interval.addDirectCurrentStimulus(device, device.background, obj.interpulseInterval, obj.sampleRate);
         end
 
+        function [tf, msg] = isValid(obj)
+            [tf, msg] = isValid@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
+            if tf
+                tf = ~isempty(obj.rig.getDevices('Stage'));
+                msg = 'No stage';
+            end
+        end
+    end
 
-
+    %
+    % Figure methods
+    %
+    methods
         function [frameTimes, actualFrameRate] = getFrameTimes(obj, epoch)
             resp = epoch.getResponse(obj.rig.getDevice('Frame Monitor'));
             frameMonitor = resp.getData();
@@ -150,29 +175,40 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
             end
         end
 
-        function [tf, msg] = isValid(obj)
-            [tf, msg] = isValid@edu.washington.riekelab.protocols.RiekeLabStageProtocol(obj);
-            if tf
-                tf = ~isempty(obj.rig.getDevices('Stage'));
-                msg = 'No stage';
+        function onlineAnalysis = getOnlineAnalysis(obj)
+            % GETANALYSISTYPE  To parse auto analysisMode 
+            import edu.washington.riekelab.sara.types.ResponseModeType.*;
+            if strcmp(obj.analysisMode, 'auto')
+                switch obj.recordingMode
+                    case 'extracellular'
+                        onlineAnalysis = 'spikes';
+                    case 'voltage_clamp'
+                        onlineAnalysis = 'analog';
+                    case 'current_clamp'
+                        onlineAnalysis = 'ic_spikes';
+                    otherwise
+                        onlineAnalysis = 'none';
+                end
+            else
+                onlineAnalysis = obj.analysisMode;
             end
         end
 
-        function response = getResponseByType(obj, response, onlineAnalysis)
+        function response = getResponseByType(obj, response)
             % GETRESPONSEBYTYPE  Process data by recordingType
-            switch onlineAnalysis
-                case 'extracellular'
+            switch obj.getOnlineAnalysis()
+                case 'spikes'
                     response = wavefilter(response(:)', 6);
                     S = spikeDetectorOnline(response);
                     spikesBinary = zeros(size(response));
                     spikesBinary(S.sp) = 1;
                     response = spikesBinary * obj.sampleRate;
-                case 'spikes_CClamp'
+                case 'ic_spikes'
                     spikeTimes = getThresCross([0 diff(response(:)')], 1.5, 1);
                     spikesBinary = zeros(size(response));
                     spikesBinary(spikeTimes) = 1;
                     response = spikesBinary * obj.sampleRate;
-                case 'subthresh_CClamp'
+                case 'subthreshold'
                     spikeTimes = getThresCross([0 diff(response(:)')], 1.5, 1);
                     % Get the subthreshold potential.
                     if ~isempty(spikeTimes)
@@ -198,10 +234,214 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                     end
             end
         end
-
     end
 
-    methods % imaging
+    %
+    % LED management
+    %
+    methods
+        function greenLED = findGreenLEDName(obj)
+            fw = obj.rig.getDevices('FilterWheel');
+            if ~isempty(fw)
+                greenLED = fw.getGreenLEDName();
+            else
+                greenLED = [];
+            end
+        end
+
+        function [stimList, greenLED] = getStimuliByLED(obj)
+            % GETSTIMULIBYLED  Match the LED to the correct chromaticities
+            fw = obj.rig.getDevices('FilterWheel');
+            if ~isempty(fw)
+                greenLED = fw.getGreenLEDName();
+                switch greenLED
+                    case 'Green_505nm'
+                        stimList = 'alms';
+                    case 'Green_570nm'
+                        stimList = 'as';
+                end
+            else
+                warndlg('getStimuliByLED - No filter wheel found!');
+                greenLED = 'unknown';
+                stimList = [];
+            end
+        end
+
+        function ledFlag = checkGreenLED(obj, colorCall)
+            % CHECKGREENLED  Matches green LED to cone-iso stim
+            colorCall = lower(colorCall);
+            fw = obj.rig.getDevices('FilterWheel');
+            ledFlag = false;
+            if ~isempty(fw)
+                fw = fw{1};
+                greenLED = fw.getGreenLEDName();
+                if strcmp(greenLED, 'Green_570nm')
+                    if strcmp(colorCall(1), 's')
+                        ledFlag = false;
+                    else
+                        ledFlag = true;
+                    end
+                elseif strcmp(greenLED, 'Green_505nm')
+                    if strcmp(colorCall(1), 's')
+                        ledFlag = true;
+                    else
+                        ledFlag = false;
+                    end
+                end
+            end
+            if ledFlag
+                warndlg('Green LED may be incorrect!');
+            end
+        end % checkGreenLED
+
+        % Set LED weights based on grating type.
+        function setLEDs(obj, colorCall)
+            % SETLEDS  LED weights for cone-isolating stimuli
+            if nargin < 2
+                try
+                    colorCall = obj.chromaticity;
+                catch % Until the changes are fully implemented
+                    colorCall = obj.chromaticClass;
+                end
+            end
+            switch lower(colorCall)
+                case {'red', 'r'}
+                    obj.ledWeights = [1 0 0];
+                case {'green', 'g'}
+                    obj.ledWeights = [0 1 0];
+                case {'blue', 'b'}
+                    obj.ledWeights = [0 0 1];
+                case {'yellow', 'x'}
+                    % See LuminosityScratch.m in calibration folder
+                    obj.ledWeights = [1 0.817 0];
+                case {'l-iso', 'l'}
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [1 0 0]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                case {'m-iso', 'm'}
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [0 1 0]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                case {'s-iso', 's'}
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [0 0 1]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                case {'lm-iso', 'y'}
+                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [1 1 0]';
+                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
+                otherwise
+                    obj.ledWeights = [1 1 1];
+            end
+
+            obj.ledWeights = obj.ledWeights(:)';
+        end
+    end
+
+    %
+    % Controllers
+    %
+    methods
+        function c = getSpotColorLcrRGB(obj, state)
+            switch lower(obj.temporalClass)
+            case 'sinewave'
+                if state.pattern == 0
+                    c = obj.contrast * obj.ledWeights(1)...
+                        * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)...
+                        * obj.lightMean + obj.lightMean;
+                elseif state.pattern == 1
+                    c = obj.contrast * obj.ledWeights(2)...
+                        * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)...
+                        * obj.lightMean + obj.lightMean;
+                else
+                    c = obj.contrast * obj.ledWeights(3)...
+                        * sin(obj.temporalFrequency*(state.time - obj.preTime * 1e-3)*2*pi)...
+                        * obj.lightMean + obj.lightMean;
+                end
+            case 'squarewave'
+                if state.pattern == 0
+                    c = obj.contrast * obj.ledWeights(1)...
+                        * sign(sin(obj.temporalFrequency * (state.time - obj.preTime * 1e-3)*2*pi))...
+                        * obj.lightMean + obj.lightMean;
+                elseif state.pattern == 1
+                    c = obj.contrast * obj.ledWeights(2)...
+                        * sign(sin(obj.temporalFrequency * (state.time - obj.preTime * 1e-3)*2*pi))...
+                        * obj.lightMean + obj.lightMean;
+                else
+                    c = obj.contrast * obj.ledWeights(3)...
+                        * sign(sin(obj.temporalFrequency * (state.time - obj.preTime * 1e-3)*2*pi))...
+                        * obj.lightMean + obj.lightMean;
+                end
+            end
+        end
+    end
+    %
+    % Stimulus
+    %
+    methods
+        function spatialType = assignSpatialType(obj, typestr)
+            % ASSIGNSTIMULUSCLASS  Auto assign unless included as arg
+
+            % Spatial type is provided
+            if nargin == 2
+                obj.spatialType = typestr;
+                return;
+            end
+
+            % Auto-assign spatial type
+            if isprop(obj, 'innerRadius') && obj.innerRadius > 0
+                spatialType = 'annulus';
+            elseif isprop(obj, 'outerRadius')
+                if obj.outerRadius > 0 
+                    if obj.outerRadius > min(obj.canvasSize)
+                        spatialType = 'partial';
+                    else
+                        spatialType = 'spot';
+                    end
+                else
+                    spatialType = 'fullfield';
+                end
+            else
+                spatialType = 'undefined';
+            end
+        end
+
+        function pix = um2pix(obj, um)
+            pix = um/obj.muPerPixel;
+        end
+
+        function mask = makeAnnulus(obj)
+            % MAKEANNULUS  Set mask using innerRadius property
+            if ~isprop(obj, 'innerRadius')
+                warning('make sure to name property innerRadius');
+                return;
+            end
+            
+            if obj.innerRadius > 0
+                mask = stage.builtin.stimuli.Ellipse();
+                mask.radiusX = obj.um2pix(obj.innerRadius);
+                mask.radiusY = obj.um2pix(obj.innerRadius);
+                mask.position = obj.canvasSize/2 + obj.um2pix(centerOffset);
+                mask.color = obj.lightMean;
+            end
+        end
+
+        function aperture = makeAperture(obj)
+            % MAKEAPERTURE  For fullfield stimuli with outerRadius property
+            if ~isprop(obj, 'outerRadius')
+                warning('make sure to name property outerRadius');
+                return;
+            end
+            
+            aperture = stage.builtin.stimuli.Rectangle();
+            aperture.position = obj.canvasSize/2 + obj.um2pix(obj.centerOffset);
+            aperture.color = obj.lightMean;
+            aperture.size = [max(obj.canvasSize) max(obj.canvasSize)];
+            mask = stage.core.Mask.createCircularAperture(...
+                obj.um2pix(obj.outerRadius) * 2 / max(obj.canvasSize), 1024);
+            aperture.setMask(mask);
+        end
+    end
+    % 
+    % Imaging
+    %
+    methods
         function checkImaging(obj, epoch)
             triggers = obj.rig.getDevices('SciScan Trigger');
             if ~isempty(triggers)
@@ -239,97 +479,7 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
         end
     end
 
-    methods % LED management
-        function greenLED = findGreenLEDName(obj)
-            fw = obj.rig.getDevices('FilterWheel');
-            if ~isempty(fw)
-                greenLED = fw.getGreenLEDName();
-            else
-                greenLED = [];
-            end
-        end
-
-        function [stimList, greenLED] = getStimuliByLED(obj)
-            fw = obj.rig.getDevices('FilterWheel');
-            if ~isempty(fw)
-                greenLED = fw.getGreenLEDName();
-                switch greenLED
-                    case 'Green_505nm'
-                        stimList = 'alm';
-                    case 'Green_570nm'
-                        stimList = 'as';
-                end
-            else
-                warndlg('getStimuliByLED - No filter wheel found!');
-                greenLED = 'unknown';
-                stimList = [];
-            end
-        end
-
-        function ledFlag = checkGreenLED(obj, colorCall)
-        % CHECKGREENLED  Matches green LED to cone-iso stim
-            colorCall = lower(colorCall);
-            fw = obj.rig.getDevices('FilterWheel');
-            ledFlag = false;
-            if ~isempty(fw)
-                fw = fw{1};
-                greenLED = fw.getGreenLEDName();
-                if strcmp(greenLED, 'Green_570nm')
-                    if strcmp(colorCall(1), 's')
-                        ledFlag = false;
-                    else
-                        ledFlag = true;
-                    end
-                elseif strcmp(greenLED, 'Green_505nm')
-                    if strcmp(colorCall(1), 's')
-                        ledFlag = true;
-                    else
-                        ledFlag = false;
-                    end
-                end
-            end
-            if ledFlag
-                warndlg('Green LED may be incorrect!');
-            end
-        end % checkGreenLED
-
-        % Set LED weights based on grating type.
-        function setLEDs(obj, colorCall)
-        % SETLEDS  LED weights for cone-isolating stimuli
-            if nargin < 2
-                colorCall = obj.chromaticClass;
-            end
-            switch colorCall
-                case 'red'
-                    obj.ledWeights = [1 0 0];
-                case 'green'
-                    obj.ledWeights = [0 1 0];
-                case 'blue'
-                    obj.ledWeights = [0 0 1];
-                case 'yellow'
-                    obj.ledWeights = [1 1 0];
-                case 'L-iso'
-                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [1 0 0]';
-                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
-                case 'M-iso'
-                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [0 1 0]';
-                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
-                case 'S-iso'
-                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [0 0 1]';
-                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
-                case 'LM-iso'
-                    obj.ledWeights = obj.quantalCatch(:,1:3)' \ [1 1 0]';
-                    obj.ledWeights = obj.ledWeights/max(abs(obj.ledWeights));
-                otherwise
-                    obj.ledWeights = [1 1 1];
-            end
-
-            obj.ledWeights = obj.ledWeights(:)';
-        end
-    end
-
     methods (Static)
-
         function fullName = extendName(abbrev)
             switch abbrev
                 case 'a'
@@ -340,6 +490,16 @@ classdef SaraStageProtocol < edu.washington.riekelab.protocols.RiekeLabStageProt
                     fullName = 'm-iso';
                 case 's'
                     fullName = 's-iso';
+                case 'y'
+                    fullName = 'lm-iso';
+                case 'r'
+                    fullName = 'red';
+                case 'g'
+                    fullName = 'green';
+                case 'b'
+                    fullName = 'blue';
+                case 'x'
+                    fullName = 'yellow';
             end
         end % extendName
     end

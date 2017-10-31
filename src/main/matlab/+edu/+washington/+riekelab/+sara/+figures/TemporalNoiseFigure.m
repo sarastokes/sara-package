@@ -1,19 +1,21 @@
-classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
+classdef TemporalNoiseFigure < edu.washington.riekelab.sara.figures.FigureHandler
+
     properties (SetAccess = private)
-        device
-        recordingType
+        % Required
         preTime
         stimTime
-        frameRate
         numFrames
+
+        % Optional
+        onlineAnalysis
+        frameRate
         frameDwell
         stdev
         frequencyCutoff
         numberOfFilters
-        correlation
         noiseClass
         stimulusClass
-        chromaticClass
+        chromaticity
     end
 
     properties (Access = private)
@@ -24,48 +26,52 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
         linearFilter
         xaxis
         yaxis
-        epochCount
-        nonlinearityBins = 200
         stimColor
+    end
+
+    properties (Constant = true, Access = private)
+        NONLINEARITYBINS = 200;
     end
 
     methods
 
-        function obj = TemporalNoiseFigure(device, varargin)
+        function obj = TemporalNoiseFigure(device, preTime, stimTime, numFrames, varargin)
+            obj@edu.washington.riekelab.sara.figures.FigureHandler(device);
+
+            obj.preTime = preTime;
+            obj.stimTime = stimTime;
+            obj.numFrames = numFrames;
+
             ip = inputParser();
-            ip.addParameter('recordingType', 'extracellular', @(x)ischar(x));
+            ip.KeepUnmatched = true;
             ip.addParameter('noiseClass', 'gaussian', @(x)ischar(x));
-            ip.addParameter('preTime',0.0, @(x)isfloat(x));
-            ip.addParameter('stimTime',0.0, @(x)isfloat(x));
-            ip.addParameter('frameRate',60.0, @(x)isfloat(x));
-            ip.addParameter('numFrames',[], @(x)isfloat(x));
-            ip.addParameter('frameDwell',1, @(x)isfloat(x));
+            ip.addParameter('frameRate', 60, @(x)isfloat(x));
+            ip.addParameter('numFrames', [], @(x)isfloat(x));
+            ip.addParameter('frameDwell', 1, @(x)isfloat(x));
             ip.addParameter('stdev', 0.3, @(x)isfloat(x));
-            ip.addParameter('frequencyCutoff',0.0, @(x)isfloat(x));
+            ip.addParameter('frequencyCutoff', 1, @(x)isfloat(x));
             ip.addParameter('numberOfFilters', 0, @(x)isfloat(x));
-            ip.addParameter('correlation', 0.0, @(x)isfloat(x));
             ip.addParameter('stimulusClass','Stage',@(x)ischar(x));
-            ip.addParameter('chromaticClass', 'achromatic', @(x)ischar(x));
+            ip.addParameter('chromaticity', 'achromatic', @(x)ischar(x));
+            addParameter(ip, 'onlineAnalysis', 'spikes', @(x)ischar(x));
 
             ip.parse(varargin{:});
 
-            obj.device = device;
-            obj.recordingType = ip.Results.recordingType;
+
+            obj.onlineAnalysis = ip.Results.onlineAnalysis;
             obj.noiseClass = ip.Results.noiseClass;
             obj.preTime = ip.Results.preTime;
             obj.stimTime = ip.Results.stimTime;
             obj.frameRate = ip.Results.frameRate;
-            obj.numFrames = ip.Results.numFrames;
             obj.frameDwell = ip.Results.frameDwell;
             obj.stdev = ip.Results.stdev;
             obj.frequencyCutoff = ip.Results.frequencyCutoff;
             obj.numberOfFilters = ip.Results.numberOfFilters;
-            obj.correlation = ip.Results.correlation;
             obj.stimulusClass = ip.Results.stimulusClass;
-            obj.chromaticClass = ip.Results.chromaticClass;
+            obj.chromaticity = ip.Results.chromaticity;
 
             try
-              obj.plotColor = getPlotColor(obj.chromaticClass);
+              obj.plotColor = getPlotColor(obj.chromaticity);
             catch
               obj.plotColor = [0 0 0];
             end
@@ -76,19 +82,16 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
             else
                 obj.stimulusClass = 'Injection';
             end
-            obj.epochCount = 0;
-
+            
             obj.createUi();
         end
 
         function createUi(obj)
+            createUi@edu.washington.riekelab.sara.figures.FigureHandler(obj);
             import appbox.*;
 
             obj.axesHandle = subplot(1, 3, 1:2, ...
                 'Parent', obj.figureHandle, ...
-                'FontUnits', get(obj.figureHandle, 'DefaultUicontrolFontUnits'), ...
-                'FontName', get(obj.figureHandle, 'DefaultUicontrolFontName'), ...
-                'FontSize', get(obj.figureHandle, 'DefaultUicontrolFontSize'), ...
                 'XTickMode', 'auto');
 
             obj.nlAxesHandle = subplot(1, 3, 3, ...
@@ -101,9 +104,9 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
             obj.linearFilter = [];
             obj.xaxis = [];
             obj.yaxis = [];
-            obj.epochCount = 0;
 
             obj.setTitle([obj.device.name ': temporal filter']);
+
         end
 
         function setTitle(obj, t)
@@ -111,8 +114,7 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
         end
 
         function clear(obj)
-            cla(obj.axesHandle);
-            cla(obj.nlAxesHandle);
+            clear@edu.washington.riekelab.sara.figures.FigureHandler(obj);
             obj.linearFilter = [];
             % Set the x/y axes
             obj.xaxis = [];
@@ -120,17 +122,10 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
         end
 
         function handleEpoch(obj, epoch)
-            if ~epoch.hasResponse(obj.device)
-                error(['Epoch does not contain a response for ' obj.device.name]);
-            end
+            handleEpoch@edu.washington.riekelab.sara.figures.FigureHandler(obj, epoch);
 
-            obj.epochCount = obj.epochCount + 1;
-
-            response = epoch.getResponse(obj.device);
-            [quantities, ~] = response.getData();
-            sampleRate = response.sampleRate.quantityInBaseUnits;
-            prePts = obj.preTime*1e-3*sampleRate;
-            stimPts = obj.stimTime*1e-3*sampleRate;
+            prePts = obj.preTime * 1e-3 * obj.sampleRate;
+            stimPts = obj.stimTime * 1e-3 * obj.sampleRate;
 
             if strcmpi(obj.stimulusClass, 'Stage')
                 binRate = 10000;
@@ -138,25 +133,26 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
                 binRate = 480;
             end
 
-            if numel(quantities) > 0
+            if numel(obj.lastResponse) > 0
                 % Parse the response by type.
-                y = responseByType(quantities, obj.recordingType, obj.preTime, sampleRate);
+                y = responseByType(obj.lastResponse, obj.onlineAnalysis,...
+                    'preTime', obj.preTime, 'sampleRate', obj.sampleRate);
 
-                if strcmp(obj.recordingType,'extracellular') || strcmp(obj.recordingType, 'spikes_CClamp')
-                    if sampleRate > binRate
-                        y = BinSpikeRate(y(prePts+1:end), binRate, sampleRate);
+                if strcmp(obj.onlineAnalysis,'extracellular') || strcmp(obj.onlineAnalysis, 'spikes_CClamp')
+                    if obj.sampleRate > binRate
+                        y = BinSpikeRate(y(prePts+1:end), binRate, obj.sampleRate);
                     else
-                        y = y(prePts+1:end)*sampleRate;
+                        y = y(prePts+1:end)*obj.sampleRate;
                     end
                 else
                     % High-pass filter to get rid of drift.
-                    y = highPassFilter(y, 0.5, 1/sampleRate);
+                    y = highPassFilter(y, 0.5, 1/obj.sampleRate);
                     if prePts > 0
                         y = y - median(y(1:prePts));
                     else
                         y = y - median(y);
                     end
-                    y = binData(y(prePts+1:end), binRate, sampleRate);
+                    y = binData(y(prePts+1:end), binRate, obj.sampleRate);
                 end
 
                 % Make sure it's a row.
@@ -176,10 +172,10 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
                     end
                     plotLngth = round(binRate*0.5);
                 else
-                    frameValues = obj.generateCurrentStim(sampleRate, seed);
+                    frameValues = obj.generateCurrentStim(obj.sampleRate, seed);
                     frameValues = frameValues(prePts+1:stimPts);
-                    if sampleRate > binRate
-                        frameValues = decimate(frameValues, round(sampleRate/binRate));
+                    if obj.sampleRate > binRate
+                        frameValues = decimate(frameValues, round(obj.sampleRate/binRate));
                     end
                     plotLngth = round(binRate*0.025);
                 end
@@ -261,9 +257,9 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
             ySort = R(b);
 
             % Bin the data.
-            valsPerBin = floor(length(xSort) / obj.nonlinearityBins);
-            xBin = mean(reshape(xSort(1 : obj.nonlinearityBins*valsPerBin),valsPerBin,obj.nonlinearityBins));
-            yBin = mean(reshape(ySort(1 : obj.nonlinearityBins*valsPerBin),valsPerBin,obj.nonlinearityBins));
+            valsPerBin = floor(length(xSort) / obj.NONLINEARITYBINS);
+            xBin = mean(reshape(xSort(1 : obj.NONLINEARITYBINS*valsPerBin),valsPerBin,obj.NONLINEARITYBINS));
+            yBin = mean(reshape(ySort(1 : obj.NONLINEARITYBINS*valsPerBin),valsPerBin,obj.NONLINEARITYBINS));
         end
 
         function [xmin, xmax] = getFilterPeaks(xpts, linfilter)
@@ -272,18 +268,5 @@ classdef TemporalNoiseFigure < symphonyui.core.FigureHandler
           [~, ind] = peakfinder(linfilter);
           xmax = xpts(max(ind));
         end
-
-        function sendToWorkspace(obj)
-        end
-
-        function makeFigure(obj)
-          fh = figure;
-          set(fh, 'Color', 'w');
-          fh.lf = subplot(1,3,[1 2], 'Parent', fh);
-          fh.nl = subplot(1, 3, 3, 'Parent', fh);
-          fh.linfilter = line(get(obj.lineHandle, 'XData'), get(obj.lineHandle, 'YData'), 'Parent', fh.lf, 'Color', obj.stimColor, 'LineWidth', 1);
-          fh.nlin = line(get(obj.nlHandle, 'XData'), get(obj.nlHandle, 'YData'), 'Parent', fh.nl, 'Color', obj.stimColor, 'Marker', '.');
-        end
-
     end
 end

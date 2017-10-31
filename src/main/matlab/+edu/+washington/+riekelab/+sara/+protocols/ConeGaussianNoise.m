@@ -5,39 +5,33 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
         preTime = 250							% Stimulus leading duration (ms)
         stimTime = 10000						% Stimulus duration (ms)
         tailTime = 250							% Stimulus trailing duration (ms)
-        radius = 1500							% Spot radius in pixels
+        outerRadius = 1500					    % Spot radius in pixels
         innerRadius = 0							% For annulus (pix)
         stDev = 0.3								% Noise standard deviation
-        onlineAnalysis = 'extracellular'		% Recording type (for analysis)
         randomSeed = true						% Repeating or random
         frameDwell = 1							% Frames per stim
-        lightMean = 0.5				% Mean light level (0-1)
+        lightMean = 0.5				            % Mean light level (0-1)
         centerOffset = [0 0]					% Center offset in pixels (x,y)
     end
     
-    properties(Hidden)
+    properties(Hidden = true)
         % protocol properties
         ampType
-        ledClassType = symphonyui.core.PropertyType('char', 'row', {'505nm', '570nm'})
-        onlineAnalysisType = symphonyui.core.PropertyType('char', 'row', {'none', 'extracellular', 'spikes_CClamp', 'subthresh_CClamp', 'analog'})
-        recording
-        stimulusClass
         
         % epoch properties set by protocol
         seed
         noiseStream
         
         % epoch properties set by figure
-        currentCone
-        
+        currentCone       
     end
     
-    properties (Hidden, Dependent)
+    properties (Hidden = true, Dependent = true)
         totalNumEpochs
     end
     
-    properties (Hidden, Transient)
-        fh
+    properties (Hidden = true, Transient = true)
+        analysisFigure
     end
     
     methods
@@ -50,20 +44,18 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
         function prepareRun(obj)
             prepareRun@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj);
             
-            if obj.innerRadius == 0
-                obj.stimulusClass = 'spot';
-            else
-                obj.stimulusClass = 'annulus';
-            end
+            obj.assignSpatialType();
             
-            % FMdata = obj.rig.getDevice('Frame Monitor');
-            filtWheel = obj.rig.getDevice('FilterWheel');
-            
-            obj.fh = obj.showFigure('edu.washington.riekelab.sara.figures.ConeFilterFigure',...
-                obj.rig.getDevice(obj.amp), [], filtWheel,...
-                obj.preTime, obj.stimTime,'recordingType', obj.onlineAnalysis,... 
+            obj.showFigure('edu.washington.riekelab.sara.figures.ResponseFigure',...
+                obj.rig.getDevice(obj.amp),...
+                'stimTrace',  getLightStim(obj, 'pulse'));
+
+            obj.analysisFigure = obj.showFigure(...
+                'edu.washington.riekelab.sara.figures.ConeFilterFigure',...
+                obj.rig.getDevice(obj.amp), [], obj.rig.getDevice('FilterWheel'),...
+                obj.preTime, obj.stimTime,'recordingType', obj.getOnlineAnalysis,... 
                 'stDev', obj.stDev, 'frameDwell', obj.frameDwell);
-        end % prepareRun
+        end
         
         function p = createPresentation(obj)
             p = stage.core.Presentation((obj.preTime + obj.stimTime + obj.tailTime) * 1e-3);
@@ -71,24 +63,20 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
             
             spot = stage.builtin.stimuli.Ellipse();
             if obj.innerRadius == 0 % spot
-                spot.radiusX = obj.radius;
-                spot.radiusY = obj.radius;
+                spot.radiusX = obj.um2pix(obj.outerRadius);
+                spot.radiusY = obj.um2pix(obj.outerRadius);
             else % annulus
                 spot.radiusX = min(obj.canvasSize/2);
                 spot.radiusY = min(obj.canvasSize/2);
             end
-            spot.position = obj.canvasSize/2 + obj.centerOffset;
+            spot.position = obj.canvasSize/2 + obj.um2pix(centerOffset);
             
             % Add the stimulus to the presentation.
             p.addStimulus(spot);
             
             % Add an center mask if it's an annulus.
             if obj.innerRadius ~= 0
-                mask = stage.builtin.stimuli.Ellipse();
-                mask.radiusX = obj.radius;
-                mask.radiusY = obj.radius;
-                mask.position = obj.canvasSize/2 + obj.centerOffset;
-                mask.color = obj.lightMean;
+                mask = obj.makeAnnulus();
                 p.addStimulus(mask);
             end
             
@@ -108,13 +96,12 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
         
         function prepareEpoch(obj, epoch)
             % pull stimulus info from figure
-            obj.currentCone = obj.fh.nextCone(1);
+            obj.currentCone = obj.analysisFigure.nextCone(1);
             
             fprintf('protocol - running %s-iso\n', obj.currentCone);
             coneName = obj.extendName(obj.currentCone);
-            epoch.addParameter('coneClass', coneName);
+            epoch.addParameter('chromaticity', coneName);
             
-            % obj.ledWeights = setColorWeightsLocal(obj, obj.currentCone);
             obj.setLEDs(coneName);
             
             if obj.randomSeed
@@ -122,12 +109,8 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
             else
                 obj.seed = 1;
             end
-            
-            obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);
-            
+            obj.noiseStream = RandStream('mt19937ar', 'Seed', obj.seed);           
             epoch.addParameter('seed', obj.seed);
-            epoch.addParameter('stimulusClass', obj.stimulusClass);
-            epoch.addParameter('ledWeights', obj.ledWeights);
             
             prepareEpoch@edu.washington.riekelab.sara.protocols.SaraStageProtocol(obj, epoch);
         end % prepareEpoch
@@ -137,18 +120,18 @@ classdef ConeGaussianNoise < edu.washington.riekelab.sara.protocols.SaraStagePro
         end % totalNumEpochs
         
         function tf = shouldContinuePreparingEpochs(obj)
-            if ~isvalid(obj.fh)
+            if ~isvalid(obj.analysisFigure)
                 tf = false;
             else
-                tf = ~obj.fh.protocolShouldStop;
+                tf = ~obj.analysisFigure.protocolShouldStop;
             end
         end % shouldContinuePreparingEpochs
         
         function tf = shouldContinueRun(obj)
-            if ~isvalid(obj.fh)
+            if ~isvalid(obj.analysisFigure)
                 tf = false;
             else
-                tf = ~obj.fh.protocolShouldStop;
+                tf = ~obj.analysisFigure.protocolShouldStop;
             end
         end % shouldContinueRun
     end % methods
